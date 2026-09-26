@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Velox Architecture</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #020617; font-family: 'JetBrains Mono', monospace; color: #e2e8f0; padding: 40px; }
+.container { max-width: 1200px; margin: 0 auto; }
+.header { text-align: center; margin-bottom: 24px; }
+.header h1 { font-size: 24px; font-weight: 700; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #22d3ee; margin-right: 8px; animation: pulse 2s infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+.subtitle { color: #94a3b8; font-size: 12px; margin-top: 8px; }
+.diagram-card { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 24px; overflow-x: auto; margin-bottom: 24px; }
+svg { display: block; min-width: 980px; }
+.cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
+.card { background: #0f172a; border: 1px solid #1e293b; border-radius: 8px; padding: 16px; }
+.card-header { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.card-dot { width: 8px; height: 8px; border-radius: 50%; }
+.cyan { background: #22d3ee; }
+.emerald { background: #34d399; }
+.violet { background: #a78bfa; }
+.rose { background: #fb7185; }
+.orange { background: #fb923c; }
+.card h3 { font-size: 13px; font-weight: 600; }
+.card ul { list-style: none; font-size: 11px; color: #94a3b8; line-height: 1.8; }
+.footer { text-align: center; font-size: 10px; color: #475569; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1><span class="dot"></span>Velox Framework — Architecture</h1>
+    <p class="subtitle">Python ASGI + Rust core · v0.8 · 113 tests · ASVS 5.0 L1 · ~88k req/s (Granian, 1 worker)</p>
+  </div>
+
+  <div class="diagram-card">
+    <svg viewBox="0 0 1000 860">
+      <defs>
+        <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+          <polygon points="0 0, 10 3.5, 0 7" fill="#64748b" />
+        </marker>
+        <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+          <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.5"/>
+        </pattern>
+      </defs>
+
+      <rect width="100%" height="100%" fill="url(#grid)" />
+
+      <!-- ============ 1. CLIENT ============ -->
+      <rect x="380" y="40" width="240" height="70" rx="8" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+      <text x="500" y="68" fill="white" font-size="13" font-weight="600" text-anchor="middle">Client</text>
+      <text x="500" y="86" fill="#94a3b8" font-size="9" text-anchor="middle">Browser · Mobile · API consumers</text>
+      <text x="500" y="100" fill="#22d3ee" font-size="8" text-anchor="middle">HTTPS / WSS</text>
+
+      <!-- ============ 2. SERVER LAYER ============ -->
+      <rect x="130" y="160" width="300" height="70" rx="8" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1.5"/>
+      <text x="280" y="188" fill="white" font-size="12" font-weight="600" text-anchor="middle">Server (CLI: velox dev / velox run)</text>
+      <text x="280" y="206" fill="#94a3b8" font-size="9" text-anchor="middle">Granian (Rust) — default · uvicorn — fallback</text>
+      <text x="280" y="220" fill="#94a3b8" font-size="8" text-anchor="middle">--workers N · --server granian|uvicorn</text>
+
+      <!-- ============ 3. ASGI CORE (Python) ============ -->
+      <rect x="40" y="290" width="620" height="150" rx="10" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+      <text x="60" y="312" fill="#34d399" font-size="10" font-weight="600">ASGI Core — Python (velox/core)</text>
+
+      <rect x="60" y="325" width="140" height="44" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+      <text x="130" y="343" fill="white" font-size="10" font-weight="600" text-anchor="middle">Velox.__call__</text>
+      <text x="130" y="358" fill="#94a3b8" font-size="8" text-anchor="middle">ASGI lifecycle</text>
+
+      <rect x="215" y="325" width="140" height="44" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+      <text x="285" y="343" fill="white" font-size="10" font-weight="600" text-anchor="middle">Middleware</text>
+      <text x="285" y="358" fill="#94a3b8" font-size="8" text-anchor="middle">stack + cache</text>
+
+      <rect x="370" y="325" width="140" height="44" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+      <text x="440" y="343" fill="white" font-size="10" font-weight="600" text-anchor="middle">Request/Response</text>
+      <text x="440" y="358" fill="#94a3b8" font-size="8" text-anchor="middle">400 · 404 · 413 · 500</text>
+
+      <rect x="525" y="325" width="120" height="44" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+      <text x="585" y="343" fill="white" font-size="10" font-weight="600" text-anchor="middle">WebSocket</text>
+      <text x="585" y="358" fill="#94a3b8" font-size="8" text-anchor="middle">Origin guard</text>
+
+      <rect x="60" y="385" width="270" height="44" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+      <text x="195" y="403" fill="white" font-size="10" font-weight="600" text-anchor="middle">CORS origin check · GZip (q=0 aware)</text>
+      <text x="195" y="418" fill="#94a3b8" font-size="8" text-anchor="middle">X-Trace-Id · BodyTooLarge → 413</text>
+
+      <rect x="350" y="385" width="295" height="44" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+      <text x="497" y="403" fill="white" font-size="10" font-weight="600" text-anchor="middle">OpenAPI auto · injection</text>
+      <text x="497" y="418" fill="#94a3b8" font-size="8" text-anchor="middle">typed path params · zero-overhead DI</text>
+
+      <!-- ============ 4. RUST CORE ============ -->
+      <rect x="700" y="290" width="270" height="150" rx="10" fill="rgba(136, 19, 55, 0.4)" stroke="#fb7185" stroke-width="1.5"/>
+      <text x="720" y="312" fill="#fb7185" font-size="10" font-weight="600">Rust Core — velox_core (PyO3)</text>
+
+      <rect x="720" y="325" width="230" height="40" rx="6" fill="rgba(136, 19, 55, 0.4)" stroke="#fb7185" stroke-width="1.5"/>
+      <text x="835" y="342" fill="white" font-size="10" font-weight="600" text-anchor="middle">matchit router · O(1) · 1k routes</text>
+      <text x="835" y="356" fill="#94a3b8" font-size="8" text-anchor="middle">no degradation with route count</text>
+
+      <rect x="720" y="375" width="230" height="40" rx="6" fill="rgba(136, 19, 55, 0.4)" stroke="#fb7185" stroke-width="1.5"/>
+      <text x="835" y="392" fill="white" font-size="10" font-weight="600" text-anchor="middle">write_json · escape_html (XSS)</text>
+      <text x="835" y="406" fill="#94a3b8" font-size="8" text-anchor="middle">lazy headers · get_header · gzip flate2</text>
+
+      <!-- ============ 5. CONTRIB ============ -->
+      <rect x="40" y="480" width="930" height="120" rx="10" fill="rgba(6, 78, 59, 0.3)" stroke="#34d399" stroke-width="1.5" stroke-dasharray="6,3"/>
+      <text x="60" y="500" fill="#34d399" font-size="10" font-weight="600">Contrib — production modules (velox/contrib)</text>
+
+      <rect x="60" y="515" width="135" height="70" rx="6" fill="rgba(136, 19, 55, 0.4)" stroke="#fb7185" stroke-width="1.5"/>
+      <text x="127" y="535" fill="white" font-size="10" font-weight="600" text-anchor="middle">Security</text>
+      <text x="127" y="551" fill="#94a3b8" font-size="8" text-anchor="middle">security_headers</text>
+      <text x="127" y="564" fill="#94a3b8" font-size="8" text-anchor="middle">rate_limit → 429</text>
+      <text x="127" y="577" fill="#94a3b8" font-size="8" text-anchor="middle">cors · tracing</text>
+
+      <rect x="210" y="515" width="135" height="70" rx="6" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+      <text x="277" y="535" fill="white" font-size="10" font-weight="600" text-anchor="middle">DB (Core)</text>
+      <text x="277" y="551" fill="#94a3b8" font-size="8" text-anchor="middle">CoreRepository</text>
+      <text x="277" y="564" fill="#94a3b8" font-size="8" text-anchor="middle">RelationalRepository</text>
+      <text x="277" y="577" fill="#94a3b8" font-size="8" text-anchor="middle">UnitOfWork</text>
+
+      <rect x="360" y="515" width="135" height="70" rx="6" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+      <text x="427" y="535" fill="white" font-size="10" font-weight="600" text-anchor="middle">Static files</text>
+      <text x="427" y="551" fill="#94a3b8" font-size="8" text-anchor="middle">ETag · range</text>
+      <text x="427" y="564" fill="#94a3b8" font-size="8" text-anchor="middle">symlink-safe</text>
+      <text x="427" y="577" fill="#94a3b8" font-size="8" text-anchor="middle">no dotfiles</text>
+
+      <rect x="510" y="515" width="135" height="70" rx="6" fill="rgba(251, 146, 60, 0.3)" stroke="#fb923c" stroke-width="1.5"/>
+      <text x="577" y="535" fill="white" font-size="10" font-weight="600" text-anchor="middle">Kafka</text>
+      <text x="577" y="551" fill="#94a3b8" font-size="8" text-anchor="middle">KafkaMessageBus</text>
+      <text x="577" y="564" fill="#94a3b8" font-size="8" text-anchor="middle">aiokafka</text>
+
+      <rect x="660" y="515" width="135" height="70" rx="6" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1.5"/>
+      <text x="727" y="535" fill="white" font-size="10" font-weight="600" text-anchor="middle">LLM</text>
+      <text x="727" y="551" fill="#94a3b8" font-size="8" text-anchor="middle">LlmPort</text>
+      <text x="727" y="564" fill="#94a3b8" font-size="8" text-anchor="middle">OpenAI · Claude</text>
+
+      <rect x="810" y="515" width="145" height="70" rx="6" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1.5"/>
+      <text x="882" y="535" fill="white" font-size="10" font-weight="600" text-anchor="middle">Pydantic</text>
+      <text x="882" y="551" fill="#94a3b8" font-size="8" text-anchor="middle">codec v2</text>
+      <text x="882" y="564" fill="#94a3b8" font-size="8" text-anchor="middle">model() decode</text>
+
+      <!-- ============ 6. DDD / HEXAGONAL ============ -->
+      <rect x="40" y="640" width="930" height="120" rx="10" fill="rgba(76, 29, 149, 0.35)" stroke="#a78bfa" stroke-width="1.5"/>
+      <text x="60" y="660" fill="#a78bfa" font-size="10" font-weight="600">Domain Layer — DDD / Hexagonal (velox/ddd.py · hexagonal.py)</text>
+
+      <rect x="60" y="675" width="170" height="70" rx="6" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+      <text x="145" y="695" fill="white" font-size="10" font-weight="600" text-anchor="middle">CQRS Bus</text>
+      <text x="145" y="711" fill="#94a3b8" font-size="8" text-anchor="middle">Command · Query</text>
+      <text x="145" y="724" fill="#94a3b8" font-size="8" text-anchor="middle">CommandBus · QueryBus</text>
+      <text x="145" y="737" fill="#94a3b8" font-size="8" text-anchor="middle">async dispatch</text>
+
+      <rect x="250" y="675" width="170" height="70" rx="6" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+      <text x="335" y="695" fill="white" font-size="10" font-weight="600" text-anchor="middle">AggregateRoot</text>
+      <text x="335" y="711" fill="#94a3b8" font-size="8" text-anchor="middle">domain events</text>
+      <text x="335" y="724" fill="#94a3b8" font-size="8" text-anchor="middle">entities</text>
+
+      <rect x="440" y="675" width="170" height="70" rx="6" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+      <text x="525" y="695" fill="white" font-size="10" font-weight="600" text-anchor="middle">Ports &amp; Adapters</text>
+      <text x="525" y="711" fill="#94a3b8" font-size="8" text-anchor="middle">Logger · Cache</text>
+      <text x="525" y="724" fill="#94a3b8" font-size="8" text-anchor="middle">MessageBus · EventBus</text>
+      <text x="525" y="737" fill="#94a3b8" font-size="8" text-anchor="middle">ApplicationService</text>
+
+      <rect x="630" y="675" width="170" height="70" rx="6" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+      <text x="715" y="695" fill="white" font-size="10" font-weight="600" text-anchor="middle">DI Container</text>
+      <text x="715" y="711" fill="#94a3b8" font-size="8" text-anchor="middle">type / string keys</text>
+      <text x="715" y="724" fill="#94a3b8" font-size="8" text-anchor="middle">singleton · factory</text>
+
+      <rect x="820" y="675" width="135" height="70" rx="6" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+      <text x="887" y="695" fill="white" font-size="10" font-weight="600" text-anchor="middle">Config</text>
+      <text x="887" y="711" fill="#94a3b8" font-size="8" text-anchor="middle">EnvConfig</text>
+      <text x="887" y="724" fill="#94a3b8" font-size="8" text-anchor="middle">typed env</text>
+
+      <!-- ============ 7. DATA ============ -->
+      <rect x="40" y="800" width="930" height="0" rx="10" fill="none" stroke="none"/>
+
+      <rect x="200" y="800" width="180" height="46" rx="6" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+      <text x="290" y="820" fill="white" font-size="10" font-weight="600" text-anchor="middle">SQLite</text>
+      <text x="290" y="835" fill="#94a3b8" font-size="8" text-anchor="middle">aiosqlite · in-memory/file</text>
+
+      <rect x="410" y="800" width="180" height="46" rx="6" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+      <text x="500" y="820" fill="white" font-size="10" font-weight="600" text-anchor="middle">PostgreSQL</text>
+      <text x="500" y="835" fill="#94a3b8" font-size="8" text-anchor="middle">asyncpg · RETURNING native</text>
+
+      <rect x="620" y="800" width="180" height="46" rx="6" fill="rgba(251, 146, 60, 0.3)" stroke="#fb923c" stroke-width="1.5"/>
+      <text x="710" y="820" fill="white" font-size="10" font-weight="600" text-anchor="middle">Kafka</text>
+      <text x="710" y="835" fill="#94a3b8" font-size="8" text-anchor="middle">event streaming</text>
+
+      <!-- ============ ARROWS ============ -->
+      <!-- Client → Server -->
+      <line x1="500" y1="110" x2="330" y2="158" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+      <text x="430" y="130" fill="#94a3b8" font-size="9">HTTPS / WSS</text>
+
+      <!-- Server → ASGI Core -->
+      <line x1="280" y1="230" x2="280" y2="288" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+      <text x="300" y="262" fill="#94a3b8" font-size="9">ASGI scope</text>
+
+      <!-- ASGI Core ⇄ Rust Core -->
+      <line x1="660" y1="340" x2="698" y2="340" stroke="#fb7185" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+      <line x1="698" y1="370" x2="660" y2="370" stroke="#fb7185" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+      <text x="675" y="332" fill="#fb7185" font-size="8">PyO3 FFI</text>
+
+      <!-- ASGI Core → Contrib -->
+      <line x1="350" y1="440" x2="350" y2="478" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+      <text x="360" y="462" fill="#94a3b8" font-size="9">handlers</text>
+
+      <!-- ASGI Core → Domain -->
+      <line x1="130" y1="440" x2="130" y2="638" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+      <text x="140" y="560" fill="#94a3b8" font-size="8" transform="rotate(90 140 560)">business logic</text>
+
+      <!-- Contrib → Domain -->
+      <line x1="277" y1="585" x2="335" y2="673" stroke="#a78bfa" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrowhead)"/>
+      <text x="290" y="620" fill="#94a3b8" font-size="8">repos/adapters</text>
+
+      <!-- Domain → Data -->
+      <line x1="290" y1="800" x2="290" y2="800" stroke="#a78bfa" stroke-width="1.5"/>
+      <line x1="290" y1="710" x2="290" y2="798" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+      <line x1="525" y1="745" x2="500" y2="798" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+      <text x="400" y="780" fill="#94a3b8" font-size="8">SQL (parameterized)</text>
+      <line x1="715" y1="745" x2="710" y2="798" stroke="#fb923c" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+
+      <!-- ============ LEGEND ============ -->
+      <text x="20" y="868" fill="white" font-size="10" font-weight="600">Legend</text>
+      <rect x="20" y="878" width="16" height="10" rx="2" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1"/>
+      <text x="42" y="886" fill="#94a3b8" font-size="8">Client</text>
+      <rect x="110" y="878" width="16" height="10" rx="2" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1"/>
+      <text x="132" y="886" fill="#94a3b8" font-size="8">Backend / Python</text>
+      <rect x="230" y="878" width="16" height="10" rx="2" fill="rgba(136, 19, 55, 0.4)" stroke="#fb7185" stroke-width="1"/>
+      <text x="252" y="886" fill="#94a3b8" font-size="8">Rust / Security</text>
+      <rect x="350" y="878" width="16" height="10" rx="2" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1"/>
+      <text x="372" y="886" fill="#94a3b8" font-size="8">Domain / Data</text>
+      <rect x="460" y="878" width="16" height="10" rx="2" fill="rgba(251, 146, 60, 0.3)" stroke="#fb923c" stroke-width="1"/>
+      <text x="482" y="886" fill="#94a3b8" font-size="8">Message Bus</text>
+    </svg>
+  </div>
+
+  <div class="cards">
+    <div class="card">
+      <div class="card-header"><div class="card-dot emerald"></div><h3>Request Flow</h3></div>
+      <ul>
+        <li>• Client → Server (Granian/uvicorn, ASGI scope)</li>
+        <li>• Rust core: matchit resolve (~0.1 µs) + headers (lazy)</li>
+        <li>• Python: middleware → handler (auto-injection)</li>
+        <li>• write_json (XSS-safe) → gzip (q-aware) → response</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-dot rose"></div><h3>Security (ASVS 5.0 L1)</h3></div>
+      <ul>
+        <li>• 17/70 L1 requirements — all framework-applicable closed</li>
+        <li>• security_headers · rate_limit · CORS origin check</li>
+        <li>• max_body_size → 413 · WS Origin guard → 1008</li>
+        <li>• XSS-escape in JSON · CRLF sanitize · symlink-safe static</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-dot violet"></div><h3>Performance</h3></div>
+      <ul>
+        <li>• Granian + Rust core: ~88.3k req/s (1 worker, ab)</li>
+        <li>• vs FastAPI: ×8 (Granian) · +183% (1000 routes × big payload)</li>
+        <li>• Routing: no degradation to 1k+ routes (matchit O(1))</li>
+        <li>• CoreRepository (SQLAlchemy Core): +46% vs ORM</li>
+      </ul>
+    </div>
+  </div>
+
+  <p class="footer">Velox Framework • August 2026 • docs/security/ASVS.md · 113 tests</p>
+</div>
+</body>
+</html>

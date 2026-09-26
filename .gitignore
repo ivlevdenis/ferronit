@@ -1,0 +1,25 @@
+# ── Python ───────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.benchmarks/
+dist/
+
+# ── Rust ─────────────────────────────────────────────────
+velox-rs/target/
+build/
+Cargo.lock.bak
+
+# ── Секреты и сессии (НЕ коммитить) ───────────────────────
+*.session
+*.session-journal
+.env
+.env.*
+!.env.example
+
+# ── Прочее ───────────────────────────────────────────────
+*.log
+.DS_Store

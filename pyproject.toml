@@ -1,21 +1,39 @@
 [project]
 name = "velox"
-version = "0.1.0"
-description = "High-performance Python ASGI web framework"
+dynamic = ["version"]
+description = "High-performance Python ASGI web framework with a Rust core"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+# Ядро собирается maturin-ом из velox-rs/ и ставится отдельным дистрибутивом.
+# Для локальной разработки путь подменяется через [tool.uv.sources] ниже.
+dependencies = ["velox-core>=0.8.0,<0.9"]
 
 [project.scripts]
 velox = "velox.cli:main"
 
 [project.optional-dependencies]
-full = ["uvloop>=0.21"]
-dev = ["pytest>=8", "pytest-asyncio", "pytest-benchmark", "httpx"]
+server = ["granian[reload]>=2.8", "uvicorn[standard]>=0.30"]
+db = ["sqlalchemy[asyncio]>=2.0"]
+postgres = ["asyncpg>=0.29"]
+pydantic = ["pydantic>=2.0"]
+dev = ["pytest>=8", "pytest-asyncio", "pytest-benchmark", "httpx", "maturin>=1.14,<2"]
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "velox/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["velox"]
+
+[tool.hatch.build.targets.sdist]
+include = ["velox/", "velox-rs/src/", "velox-rs/Cargo.toml", "velox-rs/pyproject.toml", "README.md"]
+
+# Локальная разработка: velox-core берётся из velox-rs/, а не с PyPI.
+[tool.uv.sources]
+velox-core = { path = "velox-rs" }
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

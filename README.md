@@ -2,6 +2,37 @@
 
 High-performance Python ASGI web framework with a Rust core.
 
+## Installation
+
+```bash
+pip install velox        # velox-core (Rust-ядро) подтянется автоматически
+```
+
+Velox состоит из двух дистрибутивов:
+
+- **`velox`** — Python-слой (ASGI-движок, DDD/CQRS, DI, contrib), чистый Python
+- **`velox-core`** — Rust-ядро (роутинг, парсинг запроса, JSON, gzip, CORS), собирается
+  [maturin](https://www.maturin.rs)-ом и импортируется как `velox_core`
+
+Ядро собирается с фичей `abi3-py312`, поэтому один wheel (`cp312-abi3`) работает на всех
+CPython от 3.12 до 3.14+ — матрица версий Python не нужна. Версии `velox` и `velox-core`
+всегда совпадают (проверяется тестом `tests/test_packaging.py`).
+
+### Из исходников
+
+```bash
+uv venv .venv
+uv pip install --python .venv/bin/python -e .   # dev-установка: ядро соберётся из velox-rs/
+./scripts/build_packages.sh                     # оба wheel-а в dist/
+```
+
+`[tool.uv.sources]` подменяет `velox-core` на локальный путь `velox-rs/`, поэтому
+`pip install -e .` не ходит на PyPI. Ядро отдельно (без переустановки velox):
+
+```bash
+cd velox-rs && PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 ../.venv/bin/maturin develop --release
+```
+
 ## Benchmarks
 
 Velox vs FastAPI, single uvicorn worker, HTTP keep-alive, 5000 requests (median of 3 runs):
@@ -27,6 +58,11 @@ httpx (asyncio) client caps at ~3.7k req/s regardless of the server — use a C 
 Granian unlocks Velox ×4.35 over uvicorn (88.8k vs 20.4k) but FastAPI only ×1.82 (11.1k vs 6.1k) — the Rust server removes the uvicorn protocol overhead, and Velox's smaller Python footprint benefits the most. 88.8k req/s ≈ 11.3 µs/request — right at the Python handler hot-path limit.
 
 Velox routing does not degrade with route count (20.4k → 20.0k); FastAPI drops 3.8× (6.1k → 1.6k).
+
+**Цена abi3.** Ядро собирается с `abi3-py312` (один wheel на все Python ≥ 3.12) — проверено, что это
+почти бесплатно: granian, 1000 маршрутов, ab -n 30000 -c 50 -k, медиана из 5 прогонов —
+**abi3 94 762 req/s vs нативное ядро 95 773 req/s (−1.4 %)**, при разбросе между прогонами ±10 %.
+Экономия на матрице сборок стоит ~1 % throughput.
 
 ### With database (SQLite, handler → ORM/Core → response, ab)
 

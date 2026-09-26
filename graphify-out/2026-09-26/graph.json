@@ -4,26 +4,6 @@
   "graph": {},
   "nodes": [
     {
-      "label": "_ab_app_fastapi.py",
-      "file_type": "code",
-      "source_file": "_ab_app_fastapi.py",
-      "source_location": "L1",
-      "_origin": "ast",
-      "id": "ab_app_fastapi",
-      "community": 76,
-      "norm_label": "_ab_app_fastapi.py"
-    },
-    {
-      "label": "_ab_app_velox.py",
-      "file_type": "code",
-      "source_file": "_ab_app_velox.py",
-      "source_location": "L1",
-      "_origin": "ast",
-      "id": "ab_app_velox",
-      "community": 18,
-      "norm_label": "_ab_app_velox.py"
-    },
-    {
       "label": "_bench_app_fastapi.py",
       "file_type": "code",
       "source_file": "_bench_app_fastapi.py",
@@ -40,7 +20,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "bench_app_velox",
-      "community": 18,
+      "community": 4,
       "norm_label": "_bench_app_velox.py"
     },
     {
@@ -120,7 +100,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "bench_db_velox_core_py_bench_db_velox_core_bb431e",
-      "community": 12,
+      "community": 55,
       "norm_label": "_bench_db_velox-core.py"
     },
     {
@@ -130,7 +110,7 @@
       "source_location": "L26",
       "_origin": "ast",
       "id": "bench_db_velox_core_py_bench_db_velox_core_init_db_bb431e",
-      "community": 12,
+      "community": 55,
       "norm_label": "init_db()"
     },
     {
@@ -240,7 +220,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "bench_dbvar_aiosqlite",
-      "community": 74,
+      "community": 4,
       "norm_label": "_bench_dbvar_aiosqlite.py"
     },
     {
@@ -250,7 +230,7 @@
       "source_location": "L9",
       "_origin": "ast",
       "id": "bench_dbvar_aiosqlite_init_db",
-      "community": 74,
+      "community": 4,
       "norm_label": "init_db()"
     },
     {
@@ -260,7 +240,7 @@
       "source_location": "L25",
       "_origin": "ast",
       "id": "bench_dbvar_aiosqlite_list_users",
-      "community": 74,
+      "community": 4,
       "norm_label": "list_users()"
     },
     {
@@ -300,7 +280,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "bench_dbvar_sqlite3",
-      "community": 18,
+      "community": 4,
       "norm_label": "_bench_dbvar_sqlite3.py"
     },
     {
@@ -310,7 +290,7 @@
       "source_location": "L18",
       "_origin": "ast",
       "id": "bench_dbvar_sqlite3_list_users",
-      "community": 18,
+      "community": 4,
       "norm_label": "list_users()"
     },
     {
@@ -400,7 +380,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "bench_mode_app",
-      "community": 18,
+      "community": 4,
       "norm_label": "_bench_mode_app.py"
     },
     {
@@ -410,7 +390,7 @@
       "source_location": "L5",
       "_origin": "ast",
       "id": "bench_mode_app_make",
-      "community": 18,
+      "community": 4,
       "norm_label": "_make()"
     },
     {
@@ -1860,7 +1840,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "examples_app1k_raw",
-      "community": 18,
+      "community": 4,
       "norm_label": "app1k_raw.py"
     },
     {
@@ -1870,7 +1850,7 @@
       "source_location": "L1004",
       "_origin": "ast",
       "id": "examples_app1k_raw_home",
-      "community": 18,
+      "community": 4,
       "norm_label": "home()"
     },
     {
@@ -2260,52 +2240,11 @@
       "ecosystem": "python",
       "source_file": "pyproject.toml",
       "source_location": "L1",
+      "version": "0.1.0",
       "_origin": "ast",
       "id": "pkg_velox",
       "community": 67,
       "norm_label": "velox"
-    },
-    {
-      "label": "build_packages.sh",
-      "file_type": "code",
-      "source_file": "scripts/build_packages.sh",
-      "source_location": "L1",
-      "metadata": {
-        "language": "bash",
-        "kind": "file"
-      },
-      "_origin": "ast",
-      "id": "scripts_build_packages",
-      "community": 75,
-      "norm_label": "build_packages.sh"
-    },
-    {
-      "label": "build_packages.sh script",
-      "file_type": "code",
-      "source_file": "scripts/build_packages.sh",
-      "source_location": "L1",
-      "metadata": {
-        "language": "bash",
-        "kind": "bash_entrypoint"
-      },
-      "_origin": "ast",
-      "id": "scripts_build_packages_sh__entry",
-      "community": 75,
-      "norm_label": "build_packages.sh script"
-    },
-    {
-      "label": "PYO3_USE_ABI3_FORWARD_COMPATIBILITY",
-      "file_type": "code",
-      "source_file": "scripts/build_packages.sh",
-      "source_location": "L21",
-      "metadata": {
-        "language": "bash",
-        "kind": "code"
-      },
-      "_origin": "ast",
-      "id": "scripts_build_packages_pyo3_use_abi3_forward_compatibility",
-      "community": 75,
-      "norm_label": "pyo3_use_abi3_forward_compatibility"
     },
     {
       "label": "test_asvs_l1.py",
@@ -4414,7 +4353,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "tests_test_infra",
-      "community": 37,
+      "community": 1,
       "norm_label": "test_infra.py"
     },
     {
@@ -4424,7 +4363,7 @@
       "source_location": "L16",
       "_origin": "ast",
       "id": "tests_test_infra_test_env_config_typed",
-      "community": 37,
+      "community": 1,
       "norm_label": "test_env_config_typed()"
     },
     {
@@ -4434,7 +4373,7 @@
       "source_location": "L24",
       "_origin": "ast",
       "id": "tests_test_infra_test_env_config_prefix",
-      "community": 37,
+      "community": 1,
       "norm_label": "test_env_config_prefix()"
     },
     {
@@ -4444,7 +4383,7 @@
       "source_location": "L30",
       "_origin": "ast",
       "id": "tests_test_infra_test_env_config_defaults",
-      "community": 37,
+      "community": 1,
       "norm_label": "test_env_config_defaults()"
     },
     {
@@ -4484,7 +4423,7 @@
       "source_location": "L71",
       "_origin": "ast",
       "id": "tests_test_infra_test_mock_llm_chat",
-      "community": 37,
+      "community": 7,
       "norm_label": "test_mock_llm_chat()"
     },
     {
@@ -4494,7 +4433,7 @@
       "source_location": "L80",
       "_origin": "ast",
       "id": "tests_test_infra_test_mock_llm_embed",
-      "community": 37,
+      "community": 7,
       "norm_label": "test_mock_llm_embed()"
     },
     {
@@ -4504,7 +4443,7 @@
       "source_location": "L89",
       "_origin": "ast",
       "id": "tests_test_infra_test_trace_id_generated",
-      "community": 37,
+      "community": 1,
       "norm_label": "test_trace_id_generated()"
     },
     {
@@ -4514,7 +4453,7 @@
       "source_location": "L106",
       "_origin": "ast",
       "id": "tests_test_infra_test_trace_id_propagated",
-      "community": 37,
+      "community": 1,
       "norm_label": "test_trace_id_propagated()"
     },
     {
@@ -4524,7 +4463,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "tests_test_infra_rationale_1",
-      "community": 37,
+      "community": 1,
       "norm_label": "config + di + tracing + llm tests."
     },
     {
@@ -4598,26 +4537,6 @@
       "norm_label": "test_echo_default()"
     },
     {
-      "label": "test_invalid_path_param_returns_404()",
-      "file_type": "code",
-      "source_file": "tests/test_injection.py",
-      "source_location": "L60",
-      "_origin": "ast",
-      "id": "tests_test_injection_test_invalid_path_param_returns_404",
-      "community": 41,
-      "norm_label": "test_invalid_path_param_returns_404()"
-    },
-    {
-      "label": "test_invalid_query_param_returns_400()",
-      "file_type": "code",
-      "source_file": "tests/test_injection.py",
-      "source_location": "L66",
-      "_origin": "ast",
-      "id": "tests_test_injection_test_invalid_query_param_returns_400",
-      "community": 41,
-      "norm_label": "test_invalid_query_param_returns_400()"
-    },
-    {
       "label": "Injection tests \u2014 auto-resolve path/query params from handler signature.",
       "file_type": "rationale",
       "source_file": "tests/test_injection.py",
@@ -4676,136 +4595,6 @@
       "id": "tests_test_middleware_test_middleware_async",
       "community": 53,
       "norm_label": "test_middleware_async()"
-    },
-    {
-      "label": "test_packaging.py",
-      "file_type": "code",
-      "source_file": "tests/test_packaging.py",
-      "source_location": "L1",
-      "_origin": "ast",
-      "id": "tests_test_packaging",
-      "community": 55,
-      "norm_label": "test_packaging.py"
-    },
-    {
-      "label": "_cargo_version()",
-      "file_type": "code",
-      "source_file": "tests/test_packaging.py",
-      "source_location": "L20",
-      "_origin": "ast",
-      "id": "tests_test_packaging_cargo_version",
-      "community": 55,
-      "norm_label": "_cargo_version()"
-    },
-    {
-      "label": "test_rust_core_importable()",
-      "file_type": "code",
-      "source_file": "tests/test_packaging.py",
-      "source_location": "L27",
-      "_origin": "ast",
-      "id": "tests_test_packaging_test_rust_core_importable",
-      "community": 55,
-      "norm_label": "test_rust_core_importable()"
-    },
-    {
-      "label": "test_velox_declares_core_dependency()",
-      "file_type": "code",
-      "source_file": "tests/test_packaging.py",
-      "source_location": "L35",
-      "_origin": "ast",
-      "id": "tests_test_packaging_test_velox_declares_core_dependency",
-      "community": 55,
-      "norm_label": "test_velox_declares_core_dependency()"
-    },
-    {
-      "label": "test_versions_match()",
-      "file_type": "code",
-      "source_file": "tests/test_packaging.py",
-      "source_location": "L43",
-      "_origin": "ast",
-      "id": "tests_test_packaging_test_versions_match",
-      "community": 55,
-      "norm_label": "test_versions_match()"
-    },
-    {
-      "label": "test_core_is_abi3()",
-      "file_type": "code",
-      "source_file": "tests/test_packaging.py",
-      "source_location": "L57",
-      "_origin": "ast",
-      "id": "tests_test_packaging_test_core_is_abi3",
-      "community": 55,
-      "norm_label": "test_core_is_abi3()"
-    },
-    {
-      "label": "test_wheel_metadata_mentions_python_package()",
-      "file_type": "code",
-      "source_file": "tests/test_packaging.py",
-      "source_location": "L63",
-      "_origin": "ast",
-      "id": "tests_test_packaging_test_wheel_metadata_mentions_python_package",
-      "community": 55,
-      "norm_label": "test_wheel_metadata_mentions_python_package()"
-    },
-    {
-      "label": "\u0421\u0431\u043e\u0440\u043a\u0430 \u0438 \u0432\u0435\u0440\u0441\u0438\u0438: Rust-\u044f\u0434\u0440\u043e \u0434\u043e\u043b\u0436\u043d\u043e \u0441\u0442\u0430\u0432\u0438\u0442\u044c\u0441\u044f \u0432\u043c\u0435\u0441\u0442\u0435 \u0441 velox \u0438 \u0441\u043e\u0432\u043f\u0430\u0434\u0430\u0442\u044c \u043f\u043e \u0432\u0435\u0440\u0441\u0438\u0438",
-      "file_type": "rationale",
-      "source_file": "tests/test_packaging.py",
-      "source_location": "L1",
-      "_origin": "ast",
-      "id": "tests_test_packaging_rationale_1",
-      "community": 55,
-      "norm_label": "\u0441\u0431\u043e\u0440\u043a\u0430 \u0438 \u0432\u0435\u0440\u0441\u0438\u0438: rust-\u044f\u0434\u0440\u043e \u0434\u043e\u043b\u0436\u043d\u043e \u0441\u0442\u0430\u0432\u0438\u0442\u044c\u0441\u044f \u0432\u043c\u0435\u0441\u0442\u0435 \u0441 velox \u0438 \u0441\u043e\u0432\u043f\u0430\u0434\u0430\u0442\u044c \u043f\u043e \u0432\u0435\u0440\u0441\u0438\u0438"
-    },
-    {
-      "label": "velox_core \u0438\u043c\u043f\u043e\u0440\u0442\u0438\u0440\u0443\u0435\u0442\u0441\u044f \u0438 \u043e\u0442\u0434\u0430\u0451\u0442 \u0432\u0441\u0435 \u0447\u0435\u0442\u044b\u0440\u0435 \u043a\u043b\u0430\u0441\u0441\u0430.",
-      "file_type": "rationale",
-      "source_file": "tests/test_packaging.py",
-      "source_location": "L28",
-      "_origin": "ast",
-      "id": "tests_test_packaging_rationale_28",
-      "community": 55,
-      "norm_label": "velox_core \u0438\u043c\u043f\u043e\u0440\u0442\u0438\u0440\u0443\u0435\u0442\u0441\u044f \u0438 \u043e\u0442\u0434\u0430\u0435\u0442 \u0432\u0441\u0435 \u0447\u0435\u0442\u044b\u0440\u0435 \u043a\u043b\u0430\u0441\u0441\u0430."
-    },
-    {
-      "label": "velox \u043e\u0431\u044f\u0437\u0430\u043d \u0442\u044f\u043d\u0443\u0442\u044c velox-core \u2014 \u0438\u043d\u0430\u0447\u0435 wheel \u0441\u043d\u043e\u0432\u0430 \u0431\u0443\u0434\u0435\u0442 \u043f\u0443\u0441\u0442\u044b\u043c.",
-      "file_type": "rationale",
-      "source_file": "tests/test_packaging.py",
-      "source_location": "L36",
-      "_origin": "ast",
-      "id": "tests_test_packaging_rationale_36",
-      "community": 55,
-      "norm_label": "velox \u043e\u0431\u044f\u0437\u0430\u043d \u0442\u044f\u043d\u0443\u0442\u044c velox-core \u2014 \u0438\u043d\u0430\u0447\u0435 wheel \u0441\u043d\u043e\u0432\u0430 \u0431\u0443\u0434\u0435\u0442 \u043f\u0443\u0441\u0442\u044b\u043c."
-    },
-    {
-      "label": "__version__ velox == version \u0432 Cargo.toml == \u0432\u0435\u0440\u0441\u0438\u044f \u0443\u0441\u0442\u0430\u043d\u043e\u0432\u043b\u0435\u043d\u043d\u043e\u0433\u043e \u044f\u0434\u0440\u0430.",
-      "file_type": "rationale",
-      "source_file": "tests/test_packaging.py",
-      "source_location": "L44",
-      "_origin": "ast",
-      "id": "tests_test_packaging_rationale_44",
-      "community": 55,
-      "norm_label": "__version__ velox == version \u0432 cargo.toml == \u0432\u0435\u0440\u0441\u0438\u044f \u0443\u0441\u0442\u0430\u043d\u043e\u0432\u043b\u0435\u043d\u043d\u043e\u0433\u043e \u044f\u0434\u0440\u0430."
-    },
-    {
-      "label": "\u042f\u0434\u0440\u043e \u0441\u043e\u0431\u0440\u0430\u043d\u043e \u0441 abi3 \u2014 \u0438\u043d\u0430\u0447\u0435 \u043f\u0440\u0438\u0434\u0451\u0442\u0441\u044f \u043f\u0443\u0431\u043b\u0438\u043a\u043e\u0432\u0430\u0442\u044c wheel \u043f\u043e\u0434 \u043a\u0430\u0436\u0434\u0443\u044e \u0432\u0435\u0440\u0441\u0438\u044e Python.",
-      "file_type": "rationale",
-      "source_file": "tests/test_packaging.py",
-      "source_location": "L58",
-      "_origin": "ast",
-      "id": "tests_test_packaging_rationale_58",
-      "community": 55,
-      "norm_label": "\u044f\u0434\u0440\u043e \u0441\u043e\u0431\u0440\u0430\u043d\u043e \u0441 abi3 \u2014 \u0438\u043d\u0430\u0447\u0435 \u043f\u0440\u0438\u0434\u0435\u0442\u0441\u044f \u043f\u0443\u0431\u043b\u0438\u043a\u043e\u0432\u0430\u0442\u044c wheel \u043f\u043e\u0434 \u043a\u0430\u0436\u0434\u0443\u044e \u0432\u0435\u0440\u0441\u0438\u044e python."
-    },
-    {
-      "label": "hatchling \u0434\u043e\u043b\u0436\u0435\u043d \u0441\u043e\u0431\u0438\u0440\u0430\u0442\u044c \u043f\u0430\u043a\u0435\u0442 velox \u044f\u0432\u043d\u043e, \u0430 \u043d\u0435 \u0443\u0433\u0430\u0434\u044b\u0432\u0430\u0442\u044c.",
-      "file_type": "rationale",
-      "source_file": "tests/test_packaging.py",
-      "source_location": "L64",
-      "_origin": "ast",
-      "id": "tests_test_packaging_rationale_64",
-      "community": 55,
-      "norm_label": "hatchling \u0434\u043e\u043b\u0436\u0435\u043d \u0441\u043e\u0431\u0438\u0440\u0430\u0442\u044c \u043f\u0430\u043a\u0435\u0442 velox \u044f\u0432\u043d\u043e, \u0430 \u043d\u0435 \u0443\u0433\u0430\u0434\u044b\u0432\u0430\u0442\u044c."
     },
     {
       "label": "test_postgres.py",
@@ -4894,7 +4683,7 @@
       "source_location": "L29",
       "_origin": "ast",
       "id": "tests_test_postgres_real_uow",
-      "community": 21,
+      "community": 30,
       "norm_label": "uow()"
     },
     {
@@ -5196,18 +4985,6 @@
       "id": "tests_test_ws_rationale_1",
       "community": 52,
       "norm_label": "websocket + streaming tests."
-    },
-    {
-      "label": "velox-core",
-      "file_type": "code",
-      "type": "package",
-      "ecosystem": "python",
-      "source_file": "velox-rs/pyproject.toml",
-      "source_location": "L1",
-      "_origin": "ast",
-      "id": "pkg_velox_core",
-      "community": 67,
-      "norm_label": "velox-core"
     },
     {
       "label": "lib.rs",
@@ -5706,7 +5483,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "velox_init",
-      "community": 17,
+      "community": 14,
       "norm_label": "__init__.py"
     },
     {
@@ -5716,7 +5493,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "velox_init_rationale_1",
-      "community": 17,
+      "community": 14,
       "norm_label": "velox \u2014 high-performance asgi web framework with ddd support."
     },
     {
@@ -5826,7 +5603,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "velox_config",
-      "community": 69,
+      "community": 1,
       "norm_label": "config.py"
     },
     {
@@ -5836,7 +5613,7 @@
       "source_location": "L12",
       "_origin": "ast",
       "id": "velox_config_config",
-      "community": 69,
+      "community": 1,
       "norm_label": "config"
     },
     {
@@ -5856,7 +5633,7 @@
       "source_location": "L15",
       "_origin": "ast",
       "id": "velox_config_config_get",
-      "community": 69,
+      "community": 1,
       "norm_label": ".get()"
     },
     {
@@ -5866,7 +5643,7 @@
       "source_location": "",
       "_origin": "ast",
       "id": "velox_config_py_any",
-      "community": 69,
+      "community": 1,
       "norm_label": "any"
     },
     {
@@ -5876,7 +5653,7 @@
       "source_location": "L16",
       "_origin": "ast",
       "id": "velox_config_config_int",
-      "community": 69,
+      "community": 1,
       "norm_label": ".int()"
     },
     {
@@ -5886,7 +5663,7 @@
       "source_location": "L17",
       "_origin": "ast",
       "id": "velox_config_config_float",
-      "community": 69,
+      "community": 1,
       "norm_label": ".float()"
     },
     {
@@ -5896,7 +5673,7 @@
       "source_location": "L18",
       "_origin": "ast",
       "id": "velox_config_config_bool",
-      "community": 69,
+      "community": 1,
       "norm_label": ".bool()"
     },
     {
@@ -5906,7 +5683,7 @@
       "source_location": "L19",
       "_origin": "ast",
       "id": "velox_config_config_list",
-      "community": 69,
+      "community": 1,
       "norm_label": ".list()"
     },
     {
@@ -5916,7 +5693,7 @@
       "source_location": "L22",
       "_origin": "ast",
       "id": "velox_config_envconfig",
-      "community": 71,
+      "community": 1,
       "norm_label": "envconfig"
     },
     {
@@ -5926,7 +5703,7 @@
       "source_location": "L33",
       "_origin": "ast",
       "id": "velox_config_envconfig_init",
-      "community": 71,
+      "community": 1,
       "norm_label": ".__init__()"
     },
     {
@@ -5936,7 +5713,7 @@
       "source_location": "L37",
       "_origin": "ast",
       "id": "velox_config_envconfig_key",
-      "community": 71,
+      "community": 1,
       "norm_label": "._key()"
     },
     {
@@ -5946,7 +5723,7 @@
       "source_location": "L40",
       "_origin": "ast",
       "id": "velox_config_envconfig_get",
-      "community": 71,
+      "community": 1,
       "norm_label": ".get()"
     },
     {
@@ -5956,7 +5733,7 @@
       "source_location": "L43",
       "_origin": "ast",
       "id": "velox_config_envconfig_int",
-      "community": 71,
+      "community": 1,
       "norm_label": ".int()"
     },
     {
@@ -5966,7 +5743,7 @@
       "source_location": "L49",
       "_origin": "ast",
       "id": "velox_config_envconfig_float",
-      "community": 71,
+      "community": 1,
       "norm_label": ".float()"
     },
     {
@@ -5976,7 +5753,7 @@
       "source_location": "L55",
       "_origin": "ast",
       "id": "velox_config_envconfig_bool",
-      "community": 71,
+      "community": 1,
       "norm_label": ".bool()"
     },
     {
@@ -5986,7 +5763,7 @@
       "source_location": "L63",
       "_origin": "ast",
       "id": "velox_config_envconfig_list",
-      "community": 71,
+      "community": 1,
       "norm_label": ".list()"
     },
     {
@@ -5996,7 +5773,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "velox_config_rationale_1",
-      "community": 69,
+      "community": 1,
       "norm_label": "configuration port \u2014 env-based settings with typed parsing."
     },
     {
@@ -6006,7 +5783,7 @@
       "source_location": "L13",
       "_origin": "ast",
       "id": "velox_config_rationale_13",
-      "community": 69,
+      "community": 1,
       "norm_label": "configuration port \u2014 read typed settings."
     },
     {
@@ -6016,7 +5793,7 @@
       "source_location": "L23",
       "_origin": "ast",
       "id": "velox_config_rationale_23",
-      "community": 71,
+      "community": 1,
       "norm_label": "read configuration from environment variables.      usage:         config = envc"
     },
     {
@@ -6116,7 +5893,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "velox_contrib_db",
-      "community": 0,
+      "community": 55,
       "norm_label": "db.py"
     },
     {
@@ -6136,7 +5913,7 @@
       "source_location": "L24",
       "_origin": "ast",
       "id": "velox_contrib_db_relationalrepository",
-      "community": 70,
+      "community": 12,
       "norm_label": "relationalrepository"
     },
     {
@@ -6146,7 +5923,7 @@
       "source_location": "L29",
       "_origin": "ast",
       "id": "velox_contrib_db_relationalrepository_init",
-      "community": 70,
+      "community": 12,
       "norm_label": ".__init__()"
     },
     {
@@ -6156,7 +5933,7 @@
       "source_location": "",
       "_origin": "ast",
       "id": "asyncsession",
-      "community": 70,
+      "community": 12,
       "norm_label": "asyncsession"
     },
     {
@@ -6176,7 +5953,7 @@
       "source_location": "L36",
       "_origin": "ast",
       "id": "velox_contrib_db_relationalrepository_save",
-      "community": 70,
+      "community": 12,
       "norm_label": ".save()"
     },
     {
@@ -6186,7 +5963,7 @@
       "source_location": "L39",
       "_origin": "ast",
       "id": "velox_contrib_db_relationalrepository_list",
-      "community": 70,
+      "community": 12,
       "norm_label": ".list()"
     },
     {
@@ -6216,7 +5993,7 @@
       "source_location": "L66",
       "_origin": "ast",
       "id": "velox_contrib_db_corerepository_init",
-      "community": 70,
+      "community": 12,
       "norm_label": ".__init__()"
     },
     {
@@ -6316,7 +6093,7 @@
       "source_location": "L147",
       "_origin": "ast",
       "id": "velox_contrib_db_relationalunitofwork_session",
-      "community": 70,
+      "community": 12,
       "norm_label": ".session()"
     },
     {
@@ -6326,7 +6103,7 @@
       "source_location": "L152",
       "_origin": "ast",
       "id": "velox_contrib_db_relationalunitofwork_getitem",
-      "community": 70,
+      "community": 12,
       "norm_label": ".__getitem__()"
     },
     {
@@ -6386,7 +6163,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "velox_contrib_db_rationale_1",
-      "community": 0,
+      "community": 55,
       "norm_label": "postgresql adapter \u2014 sqlalchemy async repository and unit of work."
     },
     {
@@ -6406,7 +6183,7 @@
       "source_location": "L25",
       "_origin": "ast",
       "id": "velox_contrib_db_rationale_25",
-      "community": 70,
+      "community": 12,
       "norm_label": "repository backed by sqlalchemy async session."
     },
     {
@@ -6466,7 +6243,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "velox_contrib_health",
-      "community": 42,
+      "community": 0,
       "norm_label": "health.py"
     },
     {
@@ -6476,7 +6253,7 @@
       "source_location": "L12",
       "_origin": "ast",
       "id": "velox_contrib_health_healthstatus",
-      "community": 42,
+      "community": 0,
       "norm_label": "healthstatus"
     },
     {
@@ -6486,7 +6263,7 @@
       "source_location": "L14",
       "_origin": "ast",
       "id": "velox_contrib_health_healthstatus_init",
-      "community": 42,
+      "community": 0,
       "norm_label": ".__init__()"
     },
     {
@@ -6556,7 +6333,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "velox_contrib_health_rationale_1",
-      "community": 42,
+      "community": 0,
       "norm_label": "health checks \u2014 dependency-aware /health endpoint."
     },
     {
@@ -6746,7 +6523,7 @@
       "source_location": "L43",
       "_origin": "ast",
       "id": "velox_contrib_llm_mockllmadapter",
-      "community": 37,
+      "community": 7,
       "norm_label": "mockllmadapter"
     },
     {
@@ -6756,7 +6533,7 @@
       "source_location": "L46",
       "_origin": "ast",
       "id": "velox_contrib_llm_mockllmadapter_init",
-      "community": 37,
+      "community": 7,
       "norm_label": ".__init__()"
     },
     {
@@ -6766,7 +6543,7 @@
       "source_location": "L50",
       "_origin": "ast",
       "id": "velox_contrib_llm_mockllmadapter_complete",
-      "community": 37,
+      "community": 7,
       "norm_label": ".complete()"
     },
     {
@@ -6786,7 +6563,7 @@
       "source_location": "L63",
       "_origin": "ast",
       "id": "velox_contrib_llm_mockllmadapter_embed",
-      "community": 37,
+      "community": 7,
       "norm_label": ".embed()"
     },
     {
@@ -6916,7 +6693,7 @@
       "source_location": "L44",
       "_origin": "ast",
       "id": "velox_contrib_llm_rationale_44",
-      "community": 37,
+      "community": 7,
       "norm_label": "mock adapter \u2014 returns predefined responses for testing."
     },
     {
@@ -7246,7 +7023,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "velox_contrib_security",
-      "community": 11,
+      "community": 17,
       "norm_label": "security.py"
     },
     {
@@ -7266,7 +7043,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "velox_contrib_security_rationale_1",
-      "community": 11,
+      "community": 17,
       "norm_label": "security headers \u2014 production defaults in one middleware.  usage:     from velox"
     },
     {
@@ -7316,7 +7093,7 @@
       "source_location": "L29",
       "_origin": "ast",
       "id": "velox_contrib_staticfiles_staticfiles_mount",
-      "community": 18,
+      "community": 4,
       "norm_label": ".mount()"
     },
     {
@@ -7396,7 +7173,7 @@
       "source_location": "L25",
       "_origin": "ast",
       "id": "velox_contrib_tracing_trace_middleware",
-      "community": 37,
+      "community": 1,
       "norm_label": "trace_middleware()"
     },
     {
@@ -7406,7 +7183,7 @@
       "source_location": "",
       "_origin": "ast",
       "id": "velox_contrib_tracing_py_request",
-      "community": 37,
+      "community": 1,
       "norm_label": "request"
     },
     {
@@ -7416,7 +7193,7 @@
       "source_location": "",
       "_origin": "ast",
       "id": "velox_contrib_tracing_py_response",
-      "community": 37,
+      "community": 1,
       "norm_label": "response"
     },
     {
@@ -7426,7 +7203,7 @@
       "source_location": "L40",
       "_origin": "ast",
       "id": "velox_contrib_tracing_tracelogger",
-      "community": 73,
+      "community": 1,
       "norm_label": "tracelogger"
     },
     {
@@ -7446,7 +7223,7 @@
       "source_location": "L46",
       "_origin": "ast",
       "id": "velox_contrib_tracing_tracelogger_fmt",
-      "community": 73,
+      "community": 1,
       "norm_label": "._fmt()"
     },
     {
@@ -7456,7 +7233,7 @@
       "source_location": "L50",
       "_origin": "ast",
       "id": "velox_contrib_tracing_tracelogger_info",
-      "community": 73,
+      "community": 1,
       "norm_label": ".info()"
     },
     {
@@ -7466,7 +7243,7 @@
       "source_location": "L53",
       "_origin": "ast",
       "id": "velox_contrib_tracing_tracelogger_warning",
-      "community": 73,
+      "community": 1,
       "norm_label": ".warning()"
     },
     {
@@ -7476,7 +7253,7 @@
       "source_location": "L56",
       "_origin": "ast",
       "id": "velox_contrib_tracing_tracelogger_error",
-      "community": 73,
+      "community": 1,
       "norm_label": ".error()"
     },
     {
@@ -7506,7 +7283,7 @@
       "source_location": "L26",
       "_origin": "ast",
       "id": "velox_contrib_tracing_rationale_26",
-      "community": 37,
+      "community": 1,
       "norm_label": "middleware: extract or generate x-trace-id, propagate to context and response."
     },
     {
@@ -7516,7 +7293,7 @@
       "source_location": "L41",
       "_origin": "ast",
       "id": "velox_contrib_tracing_rationale_41",
-      "community": 73,
+      "community": 1,
       "norm_label": "logger that prepends trace_id to every message."
     },
     {
@@ -7796,7 +7573,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "velox_core_app",
-      "community": 17,
+      "community": 19,
       "norm_label": "app.py"
     },
     {
@@ -7806,7 +7583,7 @@
       "source_location": "L15",
       "_origin": "ast",
       "id": "velox_core_app_velox",
-      "community": 18,
+      "community": 4,
       "norm_label": "velox"
     },
     {
@@ -7836,7 +7613,7 @@
       "source_location": "L33",
       "_origin": "ast",
       "id": "velox_core_app_velox_use",
-      "community": 18,
+      "community": 4,
       "norm_label": ".use()"
     },
     {
@@ -7846,7 +7623,7 @@
       "source_location": "L41",
       "_origin": "ast",
       "id": "velox_core_app_velox_route",
-      "community": 18,
+      "community": 4,
       "norm_label": ".route()"
     },
     {
@@ -7856,7 +7633,7 @@
       "source_location": "L56",
       "_origin": "ast",
       "id": "velox_core_app_velox_websocket",
-      "community": 18,
+      "community": 4,
       "norm_label": ".websocket()"
     },
     {
@@ -7866,7 +7643,7 @@
       "source_location": "L65",
       "_origin": "ast",
       "id": "velox_core_app_velox_mount",
-      "community": 18,
+      "community": 4,
       "norm_label": ".mount()"
     },
     {
@@ -7883,7 +7660,7 @@
       "label": "_wants_gzip()",
       "file_type": "code",
       "source_file": "velox/core/app.py",
-      "source_location": "L175",
+      "source_location": "L172",
       "_origin": "ast",
       "id": "velox_core_app_wants_gzip",
       "community": 19,
@@ -7893,7 +7670,7 @@
       "label": "_scope_header()",
       "file_type": "code",
       "source_file": "velox/core/app.py",
-      "source_location": "L193",
+      "source_location": "L190",
       "_origin": "ast",
       "id": "velox_core_app_scope_header",
       "community": 19,
@@ -7903,7 +7680,7 @@
       "label": "_to_response()",
       "file_type": "code",
       "source_file": "velox/core/app.py",
-      "source_location": "L202",
+      "source_location": "L199",
       "_origin": "ast",
       "id": "velox_core_app_to_response",
       "community": 26,
@@ -7923,7 +7700,7 @@
       "label": "_lifespan()",
       "file_type": "code",
       "source_file": "velox/core/app.py",
-      "source_location": "L219",
+      "source_location": "L216",
       "_origin": "ast",
       "id": "velox_core_app_lifespan",
       "community": 19,
@@ -7933,7 +7710,7 @@
       "label": "_send_empty()",
       "file_type": "code",
       "source_file": "velox/core/app.py",
-      "source_location": "L229",
+      "source_location": "L226",
       "_origin": "ast",
       "id": "velox_core_app_send_empty",
       "community": 19,
@@ -7946,7 +7723,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "velox_core_app_rationale_1",
-      "community": 17,
+      "community": 19,
       "norm_label": "velox app \u2014 rust routing, python handler execution."
     },
     {
@@ -7956,7 +7733,7 @@
       "source_location": "L16",
       "_origin": "ast",
       "id": "velox_core_app_rationale_16",
-      "community": 18,
+      "community": 4,
       "norm_label": "asgi \u2014 rust routing (fast), python handlers (async/streaming)."
     },
     {
@@ -7966,7 +7743,7 @@
       "source_location": "L34",
       "_origin": "ast",
       "id": "velox_core_app_rationale_34",
-      "community": 18,
+      "community": 4,
       "norm_label": "add middleware or cors config."
     },
     {
@@ -7976,16 +7753,16 @@
       "source_location": "L66",
       "_origin": "ast",
       "id": "velox_core_app_rationale_66",
-      "community": 18,
+      "community": 4,
       "norm_label": "mount static files or sub-app at a prefix."
     },
     {
       "label": "\u041f\u0430\u0440\u0441\u0438\u043d\u0433 Accept-Encoding \u0441 \u0443\u0447\u0451\u0442\u043e\u043c q-\u0444\u0430\u043a\u0442\u043e\u0440\u043e\u0432 (gzip;q=0 \u2192 False).",
       "file_type": "rationale",
       "source_file": "velox/core/app.py",
-      "source_location": "L176",
+      "source_location": "L173",
       "_origin": "ast",
-      "id": "velox_core_app_rationale_176",
+      "id": "velox_core_app_rationale_173",
       "community": 19,
       "norm_label": "\u043f\u0430\u0440\u0441\u0438\u043d\u0433 accept-encoding \u0441 \u0443\u0447\u0435\u0442\u043e\u043c q-\u0444\u0430\u043a\u0442\u043e\u0440\u043e\u0432 (gzip;q=0 \u2192 false)."
     },
@@ -7993,9 +7770,9 @@
       "label": "\u041f\u043e\u0438\u0441\u043a \u0437\u0430\u0433\u043e\u043b\u043e\u0432\u043a\u0430 \u0432 scope \u0434\u043e \u0441\u043e\u0437\u0434\u0430\u043d\u0438\u044f Request (\u0434\u043b\u044f CORS).",
       "file_type": "rationale",
       "source_file": "velox/core/app.py",
-      "source_location": "L194",
+      "source_location": "L191",
       "_origin": "ast",
-      "id": "velox_core_app_rationale_194",
+      "id": "velox_core_app_rationale_191",
       "community": 19,
       "norm_label": "\u043f\u043e\u0438\u0441\u043a \u0437\u0430\u0433\u043e\u043b\u043e\u0432\u043a\u0430 \u0432 scope \u0434\u043e \u0441\u043e\u0437\u0434\u0430\u043d\u0438\u044f request (\u0434\u043b\u044f cors)."
     },
@@ -8040,20 +7817,10 @@
       "norm_label": "bodytoolarge"
     },
     {
-      "label": "PathParamError",
-      "file_type": "code",
-      "source_file": "velox/core/request.py",
-      "source_location": "L19",
-      "_origin": "ast",
-      "id": "velox_core_request_pathparamerror",
-      "community": 22,
-      "norm_label": "pathparamerror"
-    },
-    {
       "label": "Request",
       "file_type": "code",
       "source_file": "velox/core/request.py",
-      "source_location": "L23",
+      "source_location": "L19",
       "_origin": "ast",
       "id": "velox_core_request_request",
       "community": 23,
@@ -8063,7 +7830,7 @@
       "label": ".__init__()",
       "file_type": "code",
       "source_file": "velox/core/request.py",
-      "source_location": "L28",
+      "source_location": "L24",
       "_origin": "ast",
       "id": "velox_core_request_request_init",
       "community": 23,
@@ -8073,7 +7840,7 @@
       "label": ".params()",
       "file_type": "code",
       "source_file": "velox/core/request.py",
-      "source_location": "L52",
+      "source_location": "L48",
       "_origin": "ast",
       "id": "velox_core_request_request_params",
       "community": 23,
@@ -8083,7 +7850,7 @@
       "label": ".method()",
       "file_type": "code",
       "source_file": "velox/core/request.py",
-      "source_location": "L56",
+      "source_location": "L52",
       "_origin": "ast",
       "id": "velox_core_request_request_method",
       "community": 23,
@@ -8093,7 +7860,7 @@
       "label": ".path()",
       "file_type": "code",
       "source_file": "velox/core/request.py",
-      "source_location": "L60",
+      "source_location": "L56",
       "_origin": "ast",
       "id": "velox_core_request_request_path",
       "community": 23,
@@ -8103,7 +7870,7 @@
       "label": ".headers()",
       "file_type": "code",
       "source_file": "velox/core/request.py",
-      "source_location": "L64",
+      "source_location": "L60",
       "_origin": "ast",
       "id": "velox_core_request_request_headers",
       "community": 23,
@@ -8113,7 +7880,7 @@
       "label": ".get_header()",
       "file_type": "code",
       "source_file": "velox/core/request.py",
-      "source_location": "L69",
+      "source_location": "L65",
       "_origin": "ast",
       "id": "velox_core_request_request_get_header",
       "community": 23,
@@ -8123,7 +7890,7 @@
       "label": ".query()",
       "file_type": "code",
       "source_file": "velox/core/request.py",
-      "source_location": "L74",
+      "source_location": "L70",
       "_origin": "ast",
       "id": "velox_core_request_request_query",
       "community": 23,
@@ -8133,7 +7900,7 @@
       "label": ".body()",
       "file_type": "code",
       "source_file": "velox/core/request.py",
-      "source_location": "L77",
+      "source_location": "L73",
       "_origin": "ast",
       "id": "velox_core_request_request_body",
       "community": 23,
@@ -8143,7 +7910,7 @@
       "label": ".json()",
       "file_type": "code",
       "source_file": "velox/core/request.py",
-      "source_location": "L95",
+      "source_location": "L91",
       "_origin": "ast",
       "id": "velox_core_request_request_json",
       "community": 23,
@@ -8153,7 +7920,7 @@
       "label": ".model()",
       "file_type": "code",
       "source_file": "velox/core/request.py",
-      "source_location": "L102",
+      "source_location": "L98",
       "_origin": "ast",
       "id": "velox_core_request_request_model",
       "community": 23,
@@ -8163,7 +7930,7 @@
       "label": ".form()",
       "file_type": "code",
       "source_file": "velox/core/request.py",
-      "source_location": "L105",
+      "source_location": "L101",
       "_origin": "ast",
       "id": "velox_core_request_request_form",
       "community": 23,
@@ -8200,22 +7967,12 @@
       "norm_label": "\u0442\u0435\u043b\u043e \u0437\u0430\u043f\u0440\u043e\u0441\u0430 \u043f\u0440\u0435\u0432\u044b\u0448\u0430\u0435\u0442 max_body_size \u2192 http 413."
     },
     {
-      "label": "Path-\u043f\u0430\u0440\u0430\u043c\u0435\u0442\u0440 \u043d\u0435 \u043f\u0440\u043e\u0448\u0451\u043b \u0442\u0438\u043f\u0438\u0437\u0430\u0446\u0438\u044e \u2192 HTTP 404 (ASVS 2.1.1).",
+      "label": "ASGI request \u2014 delegates parsing to Rust where possible.",
       "file_type": "rationale",
       "source_file": "velox/core/request.py",
       "source_location": "L20",
       "_origin": "ast",
       "id": "velox_core_request_rationale_20",
-      "community": 22,
-      "norm_label": "path-\u043f\u0430\u0440\u0430\u043c\u0435\u0442\u0440 \u043d\u0435 \u043f\u0440\u043e\u0448\u0435\u043b \u0442\u0438\u043f\u0438\u0437\u0430\u0446\u0438\u044e \u2192 http 404 (asvs 2.1.1)."
-    },
-    {
-      "label": "ASGI request \u2014 delegates parsing to Rust where possible.",
-      "file_type": "rationale",
-      "source_file": "velox/core/request.py",
-      "source_location": "L24",
-      "_origin": "ast",
-      "id": "velox_core_request_rationale_24",
       "community": 23,
       "norm_label": "asgi request \u2014 delegates parsing to rust where possible."
     },
@@ -8223,9 +7980,9 @@
       "label": "\u0411\u044b\u0441\u0442\u0440\u044b\u0439 \u043f\u043e\u0438\u0441\u043a \u043e\u0434\u043d\u043e\u0433\u043e \u0437\u0430\u0433\u043e\u043b\u043e\u0432\u043a\u0430 \u0431\u0435\u0437 \u043f\u043e\u043b\u043d\u043e\u0433\u043e \u043f\u0430\u0440\u0441\u0438\u043d\u0433\u0430 (Rust).",
       "file_type": "rationale",
       "source_file": "velox/core/request.py",
-      "source_location": "L70",
+      "source_location": "L66",
       "_origin": "ast",
-      "id": "velox_core_request_rationale_70",
+      "id": "velox_core_request_rationale_66",
       "community": 23,
       "norm_label": "\u0431\u044b\u0441\u0442\u0440\u044b\u0438 \u043f\u043e\u0438\u0441\u043a \u043e\u0434\u043d\u043e\u0433\u043e \u0437\u0430\u0433\u043e\u043b\u043e\u0432\u043a\u0430 \u0431\u0435\u0437 \u043f\u043e\u043b\u043d\u043e\u0433\u043e \u043f\u0430\u0440\u0441\u0438\u043d\u0433\u0430 (rust)."
     },
@@ -8296,7 +8053,7 @@
       "source_location": "L67",
       "_origin": "ast",
       "id": "velox_core_response_textresponse_init",
-      "community": 17,
+      "community": 37,
       "norm_label": ".__init__()"
     },
     {
@@ -8306,7 +8063,7 @@
       "source_location": "L75",
       "_origin": "ast",
       "id": "velox_core_response_jsonresponse",
-      "community": 17,
+      "community": 37,
       "norm_label": "jsonresponse"
     },
     {
@@ -8316,7 +8073,7 @@
       "source_location": "L80",
       "_origin": "ast",
       "id": "velox_core_response_jsonresponse_init",
-      "community": 17,
+      "community": 37,
       "norm_label": ".__init__()"
     },
     {
@@ -8326,7 +8083,7 @@
       "source_location": "L99",
       "_origin": "ast",
       "id": "velox_core_response_jsonresponse_from_model",
-      "community": 26,
+      "community": 37,
       "norm_label": ".from_model()"
     },
     {
@@ -8336,7 +8093,7 @@
       "source_location": "L104",
       "_origin": "ast",
       "id": "velox_core_response_streamingresponse",
-      "community": 17,
+      "community": 37,
       "norm_label": "streamingresponse"
     },
     {
@@ -8346,7 +8103,7 @@
       "source_location": "L109",
       "_origin": "ast",
       "id": "velox_core_response_streamingresponse_init",
-      "community": 17,
+      "community": 37,
       "norm_label": ".__init__()"
     },
     {
@@ -8386,7 +8143,7 @@
       "source_location": "L76",
       "_origin": "ast",
       "id": "velox_core_response_rationale_76",
-      "community": 17,
+      "community": 37,
       "norm_label": "json response with automatic serialisation."
     },
     {
@@ -8396,7 +8153,7 @@
       "source_location": "L100",
       "_origin": "ast",
       "id": "velox_core_response_rationale_100",
-      "community": 26,
+      "community": 37,
       "norm_label": "encode pydantic/dataclass model to json response."
     },
     {
@@ -8406,7 +8163,7 @@
       "source_location": "L105",
       "_origin": "ast",
       "id": "velox_core_response_rationale_105",
-      "community": 17,
+      "community": 37,
       "norm_label": "server-sent events / chunked streaming response."
     },
     {
@@ -8706,7 +8463,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "velox_di",
-      "community": 72,
+      "community": 1,
       "norm_label": "di.py"
     },
     {
@@ -8716,7 +8473,7 @@
       "source_location": "L10",
       "_origin": "ast",
       "id": "velox_di_container",
-      "community": 72,
+      "community": 1,
       "norm_label": "container"
     },
     {
@@ -8726,7 +8483,7 @@
       "source_location": "L24",
       "_origin": "ast",
       "id": "velox_di_container_init",
-      "community": 72,
+      "community": 1,
       "norm_label": ".__init__()"
     },
     {
@@ -8736,7 +8493,7 @@
       "source_location": "L28",
       "_origin": "ast",
       "id": "velox_di_container_singleton",
-      "community": 72,
+      "community": 1,
       "norm_label": ".singleton()"
     },
     {
@@ -8746,7 +8503,7 @@
       "source_location": "",
       "_origin": "ast",
       "id": "velox_di_py_any",
-      "community": 72,
+      "community": 1,
       "norm_label": "any"
     },
     {
@@ -8766,7 +8523,7 @@
       "source_location": "L34",
       "_origin": "ast",
       "id": "velox_di_container_get",
-      "community": 72,
+      "community": 1,
       "norm_label": ".get()"
     },
     {
@@ -8776,7 +8533,7 @@
       "source_location": "L41",
       "_origin": "ast",
       "id": "velox_di_container_resolve",
-      "community": 72,
+      "community": 1,
       "norm_label": "._resolve()"
     },
     {
@@ -8786,7 +8543,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "velox_di_rationale_1",
-      "community": 72,
+      "community": 1,
       "norm_label": "dependency injection container \u2014 type/string-based, zero-reflect, lazy."
     },
     {
@@ -8796,7 +8553,7 @@
       "source_location": "L11",
       "_origin": "ast",
       "id": "velox_di_rationale_11",
-      "community": 72,
+      "community": 1,
       "norm_label": "simple di container.      usage:         c = container()         c.singleton(con"
     },
     {
@@ -9290,36 +9047,6 @@
       "norm_label": "inject()"
     },
     {
-      "label": "_bind()",
-      "file_type": "code",
-      "source_file": "velox/injection.py",
-      "source_location": "L64",
-      "_origin": "ast",
-      "id": "velox_injection_bind",
-      "community": 22,
-      "norm_label": "_bind()"
-    },
-    {
-      "label": "Request",
-      "file_type": "code",
-      "source_file": "",
-      "source_location": "",
-      "_origin": "ast",
-      "id": "velox_injection_py_request",
-      "community": 22,
-      "norm_label": "request"
-    },
-    {
-      "label": "Any",
-      "file_type": "code",
-      "source_file": "",
-      "source_location": "",
-      "_origin": "ast",
-      "id": "velox_injection_py_any",
-      "community": 22,
-      "norm_label": "any"
-    },
-    {
       "label": "_cast()",
       "file_type": "code",
       "source_file": "velox/injection.py",
@@ -9330,14 +9057,14 @@
       "norm_label": "_cast()"
     },
     {
-      "label": "_invalid()",
+      "label": "Any",
       "file_type": "code",
-      "source_file": "velox/injection.py",
-      "source_location": "L100",
+      "source_file": "",
+      "source_location": "",
       "_origin": "ast",
-      "id": "velox_injection_invalid",
+      "id": "velox_injection_py_any",
       "community": 22,
-      "norm_label": "_invalid()"
+      "norm_label": "any"
     },
     {
       "label": "Auto-injection \u2014 zero-overhead: pre-computed at registration time.",
@@ -9358,26 +9085,6 @@
       "id": "velox_injection_rationale_14",
       "community": 22,
       "norm_label": "wrap handler with pre-computed parameter resolution strategy.      three fast pa"
-    },
-    {
-      "label": "Resolve handler kwargs from Request (path params take precedence).",
-      "file_type": "rationale",
-      "source_file": "velox/injection.py",
-      "source_location": "L65",
-      "_origin": "ast",
-      "id": "velox_injection_rationale_65",
-      "community": 22,
-      "norm_label": "resolve handler kwargs from request (path params take precedence)."
-    },
-    {
-      "label": "Invalid typed parameter \u2192 404 for path params (ASVS 2.1.1), 400 for query.",
-      "file_type": "rationale",
-      "source_file": "velox/injection.py",
-      "source_location": "L101",
-      "_origin": "ast",
-      "id": "velox_injection_rationale_101",
-      "community": 22,
-      "norm_label": "invalid typed parameter \u2192 404 for path params (asvs 2.1.1), 400 for query."
     },
     {
       "label": "middleware.py",
@@ -9906,7 +9613,7 @@
       "source_location": "L93",
       "_origin": "ast",
       "id": "velox_websocket_websocketdisconnect",
-      "community": 14,
+      "community": 22,
       "norm_label": "_websocketdisconnect"
     },
     {
@@ -10010,30 +9717,10 @@
       "norm_label": "velox"
     },
     {
-      "label": "Installation",
-      "file_type": "document",
-      "source_file": "README.md",
-      "source_location": "L5",
-      "_origin": "ast",
-      "id": "readme_installation",
-      "community": 27,
-      "norm_label": "installation"
-    },
-    {
-      "label": "\u0418\u0437 \u0438\u0441\u0445\u043e\u0434\u043d\u0438\u043a\u043e\u0432",
-      "file_type": "document",
-      "source_file": "README.md",
-      "source_location": "L21",
-      "_origin": "ast",
-      "id": "readme_\u0438\u0437_\u0438\u0441\u0445\u043e\u0434\u043d\u0438\u043a\u043e\u0432",
-      "community": 27,
-      "norm_label": "\u0438\u0437 \u0438\u0441\u0445\u043e\u0434\u043d\u0438\u043a\u043e\u0432"
-    },
-    {
       "label": "Benchmarks",
       "file_type": "document",
       "source_file": "README.md",
-      "source_location": "L36",
+      "source_location": "L5",
       "_origin": "ast",
       "id": "readme_benchmarks",
       "community": 27,
@@ -10043,7 +9730,7 @@
       "label": "Raw client (ApacheBench, 50 concurrent connections, keep-alive)",
       "file_type": "document",
       "source_file": "README.md",
-      "source_location": "L48",
+      "source_location": "L17",
       "_origin": "ast",
       "id": "readme_raw_client_apachebench_50_concurrent_connections_keep_alive",
       "community": 27,
@@ -10053,7 +9740,7 @@
       "label": "With database (SQLite, handler \u2192 ORM/Core \u2192 response, ab)",
       "file_type": "document",
       "source_file": "README.md",
-      "source_location": "L67",
+      "source_location": "L31",
       "_origin": "ast",
       "id": "readme_with_database_sqlite_handler_orm_core_response_ab",
       "community": 27,
@@ -10063,7 +9750,7 @@
       "label": "SQLite scaling (what actually works)",
       "file_type": "document",
       "source_file": "README.md",
-      "source_location": "L78",
+      "source_location": "L42",
       "_origin": "ast",
       "id": "readme_sqlite_scaling_what_actually_works",
       "community": 27,
@@ -10073,7 +9760,7 @@
       "label": "PostgreSQL 18 (Docker, default settings, Granian, ab)",
       "file_type": "document",
       "source_file": "README.md",
-      "source_location": "L92",
+      "source_location": "L56",
       "_origin": "ast",
       "id": "readme_postgresql_18_docker_default_settings_granian_ab",
       "community": 27,
@@ -10083,7 +9770,7 @@
       "label": "Where the time goes (SELECT 100 rows)",
       "file_type": "document",
       "source_file": "README.md",
-      "source_location": "L103",
+      "source_location": "L67",
       "_origin": "ast",
       "id": "readme_where_the_time_goes_select_100_rows",
       "community": 27,
@@ -10093,7 +9780,7 @@
       "label": "Payload size (uvicorn, 3 routes, median of 3 runs)",
       "file_type": "document",
       "source_file": "README.md",
-      "source_location": "L114",
+      "source_location": "L78",
       "_origin": "ast",
       "id": "readme_payload_size_uvicorn_3_routes_median_of_3_runs",
       "community": 27,
@@ -10103,7 +9790,7 @@
       "label": "Security (production hardening)",
       "file_type": "document",
       "source_file": "README.md",
-      "source_location": "L124",
+      "source_location": "L88",
       "_origin": "ast",
       "id": "readme_security_production_hardening",
       "community": 27,
@@ -10113,7 +9800,7 @@
       "label": "Run",
       "file_type": "document",
       "source_file": "README.md",
-      "source_location": "L150",
+      "source_location": "L114",
       "_origin": "ast",
       "id": "readme_run",
       "community": 27,
@@ -10123,7 +9810,7 @@
       "label": "Reproduce",
       "file_type": "document",
       "source_file": "README.md",
-      "source_location": "L159",
+      "source_location": "L123",
       "_origin": "ast",
       "id": "readme_reproduce",
       "community": 27,
@@ -10498,60 +10185,9 @@
       "id": "docs_security_asvs_\u043f\u0440\u0438\u043c\u0435\u043d\u0438\u043c\u044b\u0435_\u0442\u0440\u0435\u0431\u043e\u0432\u0430\u043d\u0438\u044f_l1_\u0432\u0441\u0435_\u0437\u0430\u043a\u0440\u044b\u0442\u044b",
       "community": 13,
       "norm_label": "\u043f\u0440\u0438\u043c\u0435\u043d\u0438\u043c\u044b\u0435 \u0442\u0440\u0435\u0431\u043e\u0432\u0430\u043d\u0438\u044f l1 \u2014 \u0432\u0441\u0435 \u0437\u0430\u043a\u0440\u044b\u0442\u044b"
-    },
-    {
-      "label": "README.md",
-      "file_type": "document",
-      "source_file": "velox-rs/README.md",
-      "source_location": "L1",
-      "_origin": "ast",
-      "id": "velox_rs_readme",
-      "community": 27,
-      "norm_label": "readme.md"
-    },
-    {
-      "label": "velox-core",
-      "file_type": "document",
-      "source_file": "velox-rs/README.md",
-      "source_location": "L1",
-      "_origin": "ast",
-      "id": "velox_rs_readme_velox_core",
-      "community": 27,
-      "norm_label": "velox-core"
-    },
-    {
-      "label": "\u0427\u0442\u043e \u0432\u043d\u0443\u0442\u0440\u0438",
-      "file_type": "document",
-      "source_file": "velox-rs/README.md",
-      "source_location": "L8",
-      "_origin": "ast",
-      "id": "velox_rs_readme_\u0447\u0442\u043e_\u0432\u043d\u0443\u0442\u0440\u0438",
-      "community": 27,
-      "norm_label": "\u0447\u0442\u043e \u0432\u043d\u0443\u0442\u0440\u0438"
-    },
-    {
-      "label": "\u0421\u0431\u043e\u0440\u043a\u0430",
-      "file_type": "document",
-      "source_file": "velox-rs/README.md",
-      "source_location": "L16",
-      "_origin": "ast",
-      "id": "velox_rs_readme_\u0441\u0431\u043e\u0440\u043a\u0430",
-      "community": 27,
-      "norm_label": "\u0441\u0431\u043e\u0440\u043a\u0430"
     }
   ],
   "links": [
-    {
-      "relation": "imports",
-      "context": "import",
-      "confidence": "EXTRACTED",
-      "source_file": "_ab_app_velox.py",
-      "source_location": "L1",
-      "weight": 1.0,
-      "source": "ab_app_velox",
-      "target": "velox_core_app_velox",
-      "confidence_score": 1.0
-    },
     {
       "relation": "imports",
       "context": "import",
@@ -15465,37 +15101,6 @@
       "weight": 1.0,
       "source": "prof_send_main",
       "target": "velox_core_response_response",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "depends_on",
-      "context": "dependency",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "pyproject.toml",
-      "source_location": "L1",
-      "weight": 1.0,
-      "source": "pkg_velox",
-      "target": "pkg_velox_core"
-    },
-    {
-      "relation": "defines",
-      "confidence": "EXTRACTED",
-      "source_file": "scripts/build_packages.sh",
-      "source_location": "L21",
-      "weight": 1.0,
-      "source": "scripts_build_packages",
-      "target": "scripts_build_packages_pyo3_use_abi3_forward_compatibility",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "scripts/build_packages.sh",
-      "source_location": "L1",
-      "weight": 1.0,
-      "source": "scripts_build_packages",
-      "target": "scripts_build_packages_sh__entry",
       "confidence_score": 1.0
     },
     {
@@ -22055,26 +21660,6 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "tests/test_injection.py",
-      "source_location": "L60",
-      "weight": 1.0,
-      "source": "tests_test_injection",
-      "target": "tests_test_injection_test_invalid_path_param_returns_404",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "tests/test_injection.py",
-      "source_location": "L66",
-      "weight": 1.0,
-      "source": "tests_test_injection",
-      "target": "tests_test_injection_test_invalid_query_param_returns_400",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "tests/test_injection.py",
       "source_location": "L36",
       "weight": 1.0,
       "source": "tests_test_injection",
@@ -22184,137 +21769,6 @@
       "weight": 1.0,
       "source": "tests_test_middleware_app",
       "target": "velox_core_app_velox"
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "tests/test_packaging.py",
-      "source_location": "L20",
-      "weight": 1.0,
-      "source": "tests_test_packaging",
-      "target": "tests_test_packaging_cargo_version",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "tests/test_packaging.py",
-      "source_location": "L57",
-      "weight": 1.0,
-      "source": "tests_test_packaging",
-      "target": "tests_test_packaging_test_core_is_abi3",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "tests/test_packaging.py",
-      "source_location": "L27",
-      "weight": 1.0,
-      "source": "tests_test_packaging",
-      "target": "tests_test_packaging_test_rust_core_importable",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "tests/test_packaging.py",
-      "source_location": "L35",
-      "weight": 1.0,
-      "source": "tests_test_packaging",
-      "target": "tests_test_packaging_test_velox_declares_core_dependency",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "tests/test_packaging.py",
-      "source_location": "L43",
-      "weight": 1.0,
-      "source": "tests_test_packaging",
-      "target": "tests_test_packaging_test_versions_match",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "tests/test_packaging.py",
-      "source_location": "L63",
-      "weight": 1.0,
-      "source": "tests_test_packaging",
-      "target": "tests_test_packaging_test_wheel_metadata_mentions_python_package",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "rationale_for",
-      "confidence": "EXTRACTED",
-      "source_file": "tests/test_packaging.py",
-      "source_location": "L1",
-      "weight": 1.0,
-      "source": "tests_test_packaging_rationale_1",
-      "target": "tests_test_packaging",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "calls",
-      "context": "call",
-      "confidence": "EXTRACTED",
-      "source_file": "tests/test_packaging.py",
-      "source_location": "L45",
-      "weight": 1.0,
-      "source": "tests_test_packaging_test_versions_match",
-      "target": "tests_test_packaging_cargo_version",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "rationale_for",
-      "confidence": "EXTRACTED",
-      "source_file": "tests/test_packaging.py",
-      "source_location": "L28",
-      "weight": 1.0,
-      "source": "tests_test_packaging_rationale_28",
-      "target": "tests_test_packaging_test_rust_core_importable",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "rationale_for",
-      "confidence": "EXTRACTED",
-      "source_file": "tests/test_packaging.py",
-      "source_location": "L36",
-      "weight": 1.0,
-      "source": "tests_test_packaging_rationale_36",
-      "target": "tests_test_packaging_test_velox_declares_core_dependency",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "rationale_for",
-      "confidence": "EXTRACTED",
-      "source_file": "tests/test_packaging.py",
-      "source_location": "L44",
-      "weight": 1.0,
-      "source": "tests_test_packaging_rationale_44",
-      "target": "tests_test_packaging_test_versions_match",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "rationale_for",
-      "confidence": "EXTRACTED",
-      "source_file": "tests/test_packaging.py",
-      "source_location": "L58",
-      "weight": 1.0,
-      "source": "tests_test_packaging_rationale_58",
-      "target": "tests_test_packaging_test_core_is_abi3",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "rationale_for",
-      "confidence": "EXTRACTED",
-      "source_file": "tests/test_packaging.py",
-      "source_location": "L64",
-      "weight": 1.0,
-      "source": "tests_test_packaging_rationale_64",
-      "target": "tests_test_packaging_test_wheel_metadata_mentions_python_package",
-      "confidence_score": 1.0
     },
     {
       "relation": "contains",
@@ -27057,7 +26511,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "velox/core/request.py",
-      "source_location": "L103",
+      "source_location": "L99",
       "weight": 1.0,
       "source": "velox_core_request_request_model",
       "target": "velox_contrib_pydantic_init_decode_json"
@@ -27689,7 +27143,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "velox/core/app.py",
-      "source_location": "L160",
+      "source_location": "L157",
       "weight": 1.0,
       "source": "velox_core_app_velox_call",
       "target": "velox_contrib_tracing_current_trace_id"
@@ -28176,7 +27630,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "velox/core/app.py",
-      "source_location": "L219",
+      "source_location": "L216",
       "weight": 1.0,
       "source": "velox_core_app",
       "target": "velox_core_app_lifespan",
@@ -28186,7 +27640,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "velox/core/app.py",
-      "source_location": "L193",
+      "source_location": "L190",
       "weight": 1.0,
       "source": "velox_core_app",
       "target": "velox_core_app_scope_header",
@@ -28196,7 +27650,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "velox/core/app.py",
-      "source_location": "L229",
+      "source_location": "L226",
       "weight": 1.0,
       "source": "velox_core_app",
       "target": "velox_core_app_send_empty",
@@ -28206,7 +27660,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "velox/core/app.py",
-      "source_location": "L202",
+      "source_location": "L199",
       "weight": 1.0,
       "source": "velox_core_app",
       "target": "velox_core_app_to_response",
@@ -28226,7 +27680,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "velox/core/app.py",
-      "source_location": "L175",
+      "source_location": "L172",
       "weight": 1.0,
       "source": "velox_core_app",
       "target": "velox_core_app_wants_gzip",
@@ -28252,17 +27706,6 @@
       "weight": 1.0,
       "source": "velox_core_app",
       "target": "velox_core_request_bodytoolarge",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "imports",
-      "context": "import",
-      "confidence": "EXTRACTED",
-      "source_file": "velox/core/app.py",
-      "source_location": "L6",
-      "weight": 1.0,
-      "source": "velox_core_app",
-      "target": "velox_core_request_pathparamerror",
       "confidence_score": 1.0
     },
     {
@@ -28515,16 +27958,6 @@
       "source_location": "L6",
       "weight": 0.8,
       "source": "velox_core_app_velox",
-      "target": "velox_core_request_pathparamerror",
-      "confidence_score": 0.5
-    },
-    {
-      "relation": "uses",
-      "confidence": "INFERRED",
-      "source_file": "velox/core/app.py",
-      "source_location": "L6",
-      "weight": 0.8,
-      "source": "velox_core_app_velox",
       "target": "velox_core_request_request",
       "confidence_score": 0.5
     },
@@ -28699,7 +28132,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "velox/core/app.py",
-      "source_location": "L151",
+      "source_location": "L148",
       "weight": 1.0,
       "source": "velox_core_app_velox_call",
       "target": "velox_core_app_to_response",
@@ -28710,7 +28143,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "velox/core/app.py",
-      "source_location": "L166",
+      "source_location": "L163",
       "weight": 1.0,
       "source": "velox_core_app_velox_call",
       "target": "velox_core_app_wants_gzip",
@@ -28742,9 +28175,9 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "velox/core/app.py",
-      "source_location": "L176",
+      "source_location": "L173",
       "weight": 1.0,
-      "source": "velox_core_app_rationale_176",
+      "source": "velox_core_app_rationale_173",
       "target": "velox_core_app_wants_gzip",
       "confidence_score": 1.0
     },
@@ -28752,9 +28185,9 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "velox/core/app.py",
-      "source_location": "L194",
+      "source_location": "L191",
       "weight": 1.0,
-      "source": "velox_core_app_rationale_194",
+      "source": "velox_core_app_rationale_191",
       "target": "velox_core_app_scope_header",
       "confidence_score": 1.0
     },
@@ -28763,7 +28196,7 @@
       "context": "return_type",
       "confidence": "EXTRACTED",
       "source_file": "velox/core/app.py",
-      "source_location": "L202",
+      "source_location": "L199",
       "weight": 1.0,
       "source": "velox_core_app_to_response",
       "target": "velox_core_app_py_response",
@@ -28775,7 +28208,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "velox/core/app.py",
-      "source_location": "L211",
+      "source_location": "L208",
       "weight": 1.0,
       "source": "velox_core_app_to_response",
       "target": "velox_core_response_jsonresponse_from_model"
@@ -28785,7 +28218,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "velox/core/app.py",
-      "source_location": "L205",
+      "source_location": "L202",
       "weight": 1.0,
       "source": "velox_core_app_to_response",
       "target": "velox_core_response_response",
@@ -28796,7 +28229,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "velox/core/app.py",
-      "source_location": "L215",
+      "source_location": "L212",
       "weight": 1.0,
       "source": "velox_core_app_to_response",
       "target": "velox_core_response_streamingresponse",
@@ -28807,7 +28240,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "velox/core/app.py",
-      "source_location": "L209",
+      "source_location": "L206",
       "weight": 1.0,
       "source": "velox_core_app_to_response",
       "target": "velox_core_response_textresponse",
@@ -28819,7 +28252,7 @@
       "confidence": "INFERRED",
       "confidence_score": 0.8,
       "source_file": "velox/core/app.py",
-      "source_location": "L221",
+      "source_location": "L218",
       "weight": 1.0,
       "source": "velox_core_app_lifespan",
       "target": "velox_websocket_websocket_receive"
@@ -28830,7 +28263,7 @@
       "confidence": "INFERRED",
       "confidence_score": 0.8,
       "source_file": "velox/core/app.py",
-      "source_location": "L223",
+      "source_location": "L220",
       "weight": 1.0,
       "source": "velox_core_app_lifespan",
       "target": "velox_websocket_websocket_send"
@@ -28841,7 +28274,7 @@
       "confidence": "INFERRED",
       "confidence_score": 0.8,
       "source_file": "velox/core/app.py",
-      "source_location": "L230",
+      "source_location": "L227",
       "weight": 1.0,
       "source": "velox_core_app_send_empty",
       "target": "velox_websocket_websocket_send"
@@ -28861,16 +28294,6 @@
       "confidence": "EXTRACTED",
       "source_file": "velox/core/request.py",
       "source_location": "L19",
-      "weight": 1.0,
-      "source": "velox_core_request",
-      "target": "velox_core_request_pathparamerror",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "velox/core/request.py",
-      "source_location": "L23",
       "weight": 1.0,
       "source": "velox_core_request",
       "target": "velox_core_request_request",
@@ -28933,7 +28356,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "velox/core/request.py",
-      "source_location": "L100",
+      "source_location": "L96",
       "weight": 1.0,
       "source": "velox_core_request_request_json",
       "target": "velox_core_request_requesterror",
@@ -28950,44 +28373,12 @@
       "confidence_score": 1.0
     },
     {
-      "relation": "imports",
-      "context": "import",
-      "confidence": "EXTRACTED",
-      "source_file": "velox/injection.py",
-      "source_location": "L8",
-      "weight": 1.0,
-      "source": "velox_injection",
-      "target": "velox_core_request_requesterror",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "calls",
-      "context": "call",
-      "confidence": "EXTRACTED",
-      "source_file": "velox/injection.py",
-      "source_location": "L104",
-      "weight": 1.0,
-      "source": "velox_injection_invalid",
-      "target": "velox_core_request_requesterror",
-      "confidence_score": 1.0
-    },
-    {
       "relation": "inherits",
       "confidence": "EXTRACTED",
       "source_file": "velox/core/request.py",
       "source_location": "L15",
       "weight": 1.0,
       "source": "velox_core_request_bodytoolarge",
-      "target": "exception",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "inherits",
-      "confidence": "EXTRACTED",
-      "source_file": "velox/core/request.py",
-      "source_location": "L19",
-      "weight": 1.0,
-      "source": "velox_core_request_pathparamerror",
       "target": "exception",
       "confidence_score": 1.0
     },
@@ -29026,7 +28417,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "velox/core/request.py",
-      "source_location": "L90",
+      "source_location": "L86",
       "weight": 1.0,
       "source": "velox_core_request_request_body",
       "target": "velox_core_request_bodytoolarge",
@@ -29039,38 +28430,6 @@
       "source_location": "L20",
       "weight": 1.0,
       "source": "velox_core_request_rationale_20",
-      "target": "velox_core_request_pathparamerror",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "imports",
-      "context": "import",
-      "confidence": "EXTRACTED",
-      "source_file": "velox/injection.py",
-      "source_location": "L8",
-      "weight": 1.0,
-      "source": "velox_injection",
-      "target": "velox_core_request_pathparamerror",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "calls",
-      "context": "call",
-      "confidence": "EXTRACTED",
-      "source_file": "velox/injection.py",
-      "source_location": "L103",
-      "weight": 1.0,
-      "source": "velox_injection_invalid",
-      "target": "velox_core_request_pathparamerror",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "rationale_for",
-      "confidence": "EXTRACTED",
-      "source_file": "velox/core/request.py",
-      "source_location": "L24",
-      "weight": 1.0,
-      "source": "velox_core_request_rationale_24",
       "target": "velox_core_request_request",
       "confidence_score": 1.0
     },
@@ -29078,7 +28437,7 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "velox/core/request.py",
-      "source_location": "L77",
+      "source_location": "L73",
       "weight": 1.0,
       "source": "velox_core_request_request",
       "target": "velox_core_request_request_body",
@@ -29088,7 +28447,7 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "velox/core/request.py",
-      "source_location": "L105",
+      "source_location": "L101",
       "weight": 1.0,
       "source": "velox_core_request_request",
       "target": "velox_core_request_request_form",
@@ -29098,7 +28457,7 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "velox/core/request.py",
-      "source_location": "L69",
+      "source_location": "L65",
       "weight": 1.0,
       "source": "velox_core_request_request",
       "target": "velox_core_request_request_get_header",
@@ -29108,7 +28467,7 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "velox/core/request.py",
-      "source_location": "L64",
+      "source_location": "L60",
       "weight": 1.0,
       "source": "velox_core_request_request",
       "target": "velox_core_request_request_headers",
@@ -29118,7 +28477,7 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "velox/core/request.py",
-      "source_location": "L28",
+      "source_location": "L24",
       "weight": 1.0,
       "source": "velox_core_request_request",
       "target": "velox_core_request_request_init",
@@ -29128,7 +28487,7 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "velox/core/request.py",
-      "source_location": "L95",
+      "source_location": "L91",
       "weight": 1.0,
       "source": "velox_core_request_request",
       "target": "velox_core_request_request_json",
@@ -29138,7 +28497,7 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "velox/core/request.py",
-      "source_location": "L56",
+      "source_location": "L52",
       "weight": 1.0,
       "source": "velox_core_request_request",
       "target": "velox_core_request_request_method",
@@ -29148,7 +28507,7 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "velox/core/request.py",
-      "source_location": "L102",
+      "source_location": "L98",
       "weight": 1.0,
       "source": "velox_core_request_request",
       "target": "velox_core_request_request_model",
@@ -29158,7 +28517,7 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "velox/core/request.py",
-      "source_location": "L52",
+      "source_location": "L48",
       "weight": 1.0,
       "source": "velox_core_request_request",
       "target": "velox_core_request_request_params",
@@ -29168,7 +28527,7 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "velox/core/request.py",
-      "source_location": "L60",
+      "source_location": "L56",
       "weight": 1.0,
       "source": "velox_core_request_request",
       "target": "velox_core_request_request_path",
@@ -29178,7 +28537,7 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "velox/core/request.py",
-      "source_location": "L74",
+      "source_location": "L70",
       "weight": 1.0,
       "source": "velox_core_request_request",
       "target": "velox_core_request_request_query",
@@ -29220,9 +28579,9 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "velox/core/request.py",
-      "source_location": "L70",
+      "source_location": "L66",
       "weight": 1.0,
-      "source": "velox_core_request_rationale_70",
+      "source": "velox_core_request_rationale_66",
       "target": "velox_core_request_request_get_header",
       "confidence_score": 1.0
     },
@@ -29231,7 +28590,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "velox/core/request.py",
-      "source_location": "L107",
+      "source_location": "L103",
       "weight": 1.0,
       "source": "velox_core_request_request_form",
       "target": "velox_core_request_request_body",
@@ -29242,7 +28601,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "velox/core/request.py",
-      "source_location": "L96",
+      "source_location": "L92",
       "weight": 1.0,
       "source": "velox_core_request_request_json",
       "target": "velox_core_request_request_body",
@@ -29253,7 +28612,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "velox/core/request.py",
-      "source_location": "L103",
+      "source_location": "L99",
       "weight": 1.0,
       "source": "velox_core_request_request_model",
       "target": "velox_core_request_request_json",
@@ -30727,16 +30086,6 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "velox/injection.py",
-      "source_location": "L64",
-      "weight": 1.0,
-      "source": "velox_injection",
-      "target": "velox_injection_bind",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "velox/injection.py",
       "source_location": "L84",
       "weight": 1.0,
       "source": "velox_injection",
@@ -30751,16 +30100,6 @@
       "weight": 1.0,
       "source": "velox_injection",
       "target": "velox_injection_inject",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "velox/injection.py",
-      "source_location": "L100",
-      "weight": 1.0,
-      "source": "velox_injection",
-      "target": "velox_injection_invalid",
       "confidence_score": 1.0
     },
     {
@@ -30784,49 +30123,6 @@
       "confidence_score": 1.0
     },
     {
-      "relation": "calls",
-      "context": "call",
-      "confidence": "EXTRACTED",
-      "source_file": "velox/injection.py",
-      "source_location": "L79",
-      "weight": 1.0,
-      "source": "velox_injection_bind",
-      "target": "velox_injection_cast",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "references",
-      "context": "generic_arg",
-      "confidence": "EXTRACTED",
-      "source_file": "velox/injection.py",
-      "source_location": "L64",
-      "weight": 1.0,
-      "source": "velox_injection_bind",
-      "target": "velox_injection_py_any",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "references",
-      "context": "parameter_type",
-      "confidence": "EXTRACTED",
-      "source_file": "velox/injection.py",
-      "source_location": "L64",
-      "weight": 1.0,
-      "source": "velox_injection_bind",
-      "target": "velox_injection_py_request",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "rationale_for",
-      "confidence": "EXTRACTED",
-      "source_file": "velox/injection.py",
-      "source_location": "L65",
-      "weight": 1.0,
-      "source": "velox_injection_rationale_65",
-      "target": "velox_injection_bind",
-      "confidence_score": 1.0
-    },
-    {
       "relation": "references",
       "context": "return_type",
       "confidence": "EXTRACTED",
@@ -30835,38 +30131,6 @@
       "weight": 1.0,
       "source": "velox_injection_cast",
       "target": "velox_injection_py_any",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "references",
-      "context": "parameter_type",
-      "confidence": "EXTRACTED",
-      "source_file": "velox/injection.py",
-      "source_location": "L100",
-      "weight": 1.0,
-      "source": "velox_injection_invalid",
-      "target": "velox_injection_py_any",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "calls",
-      "context": "call",
-      "confidence": "EXTRACTED",
-      "source_file": "velox/injection.py",
-      "source_location": "L89",
-      "weight": 1.0,
-      "source": "velox_injection_cast",
-      "target": "velox_injection_invalid",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "rationale_for",
-      "confidence": "EXTRACTED",
-      "source_file": "velox/injection.py",
-      "source_location": "L101",
-      "weight": 1.0,
-      "source": "velox_injection_rationale_101",
-      "target": "velox_injection_invalid",
       "confidence_score": 1.0
     },
     {
@@ -31662,20 +30926,10 @@
       "confidence_score": 1.0
     },
     {
-      "relation": "references",
-      "confidence": "EXTRACTED",
-      "source_file": "velox-rs/README.md",
-      "source_location": "L3",
-      "weight": 1.0,
-      "source": "velox_rs_readme",
-      "target": "readme",
-      "confidence_score": 1.0
-    },
-    {
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "README.md",
-      "source_location": "L36",
+      "source_location": "L5",
       "weight": 1.0,
       "source": "readme_velox",
       "target": "readme_benchmarks",
@@ -31685,27 +30939,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "README.md",
-      "source_location": "L5",
-      "weight": 1.0,
-      "source": "readme_velox",
-      "target": "readme_installation",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "README.md",
-      "source_location": "L21",
-      "weight": 1.0,
-      "source": "readme_installation",
-      "target": "readme_\u0438\u0437_\u0438\u0441\u0445\u043e\u0434\u043d\u0438\u043a\u043e\u0432",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "README.md",
-      "source_location": "L114",
+      "source_location": "L78",
       "weight": 1.0,
       "source": "readme_benchmarks",
       "target": "readme_payload_size_uvicorn_3_routes_median_of_3_runs",
@@ -31715,7 +30949,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "README.md",
-      "source_location": "L92",
+      "source_location": "L56",
       "weight": 1.0,
       "source": "readme_benchmarks",
       "target": "readme_postgresql_18_docker_default_settings_granian_ab",
@@ -31725,7 +30959,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "README.md",
-      "source_location": "L48",
+      "source_location": "L17",
       "weight": 1.0,
       "source": "readme_benchmarks",
       "target": "readme_raw_client_apachebench_50_concurrent_connections_keep_alive",
@@ -31735,7 +30969,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "README.md",
-      "source_location": "L159",
+      "source_location": "L123",
       "weight": 1.0,
       "source": "readme_benchmarks",
       "target": "readme_reproduce",
@@ -31745,7 +30979,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "README.md",
-      "source_location": "L150",
+      "source_location": "L114",
       "weight": 1.0,
       "source": "readme_benchmarks",
       "target": "readme_run",
@@ -31755,7 +30989,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "README.md",
-      "source_location": "L124",
+      "source_location": "L88",
       "weight": 1.0,
       "source": "readme_benchmarks",
       "target": "readme_security_production_hardening",
@@ -31765,7 +30999,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "README.md",
-      "source_location": "L78",
+      "source_location": "L42",
       "weight": 1.0,
       "source": "readme_benchmarks",
       "target": "readme_sqlite_scaling_what_actually_works",
@@ -31775,7 +31009,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "README.md",
-      "source_location": "L103",
+      "source_location": "L67",
       "weight": 1.0,
       "source": "readme_benchmarks",
       "target": "readme_where_the_time_goes_select_100_rows",
@@ -31785,7 +31019,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "README.md",
-      "source_location": "L67",
+      "source_location": "L31",
       "weight": 1.0,
       "source": "readme_benchmarks",
       "target": "readme_with_database_sqlite_handler_orm_core_response_ab",
@@ -32130,38 +31364,7 @@
       "source": "docs_security_asvs_velox_asvs_level_1_compliance_map",
       "target": "docs_security_asvs_\u0441\u0432\u043e\u0434\u043a\u0430_\u043f\u043e_velox",
       "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "velox-rs/README.md",
-      "source_location": "L1",
-      "weight": 1.0,
-      "source": "velox_rs_readme",
-      "target": "velox_rs_readme_velox_core",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "velox-rs/README.md",
-      "source_location": "L16",
-      "weight": 1.0,
-      "source": "velox_rs_readme_velox_core",
-      "target": "velox_rs_readme_\u0441\u0431\u043e\u0440\u043a\u0430",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "velox-rs/README.md",
-      "source_location": "L8",
-      "weight": 1.0,
-      "source": "velox_rs_readme_velox_core",
-      "target": "velox_rs_readme_\u0447\u0442\u043e_\u0432\u043d\u0443\u0442\u0440\u0438",
-      "confidence_score": 1.0
     }
   ],
-  "hyperedges": [],
-  "built_at_commit": "ed06fb8d9cac11ecea0d985669b64847bd8f3a82"
+  "hyperedges": []
 }

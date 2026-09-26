@@ -1,18 +1,13 @@
 # Graph Report - velox  (2026-09-26)
 
 ## Corpus Check
-- 100 files · ~34,990 words
+- 94 files · ~33,962 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 1052 nodes · 2075 edges · 77 communities (64 shown, 13 thin omitted)
-- Extraction: 85% EXTRACTED · 15% INFERRED · 0% AMBIGUOUS · INFERRED: 313 edges (avg confidence: 0.54)
+- 1018 nodes · 2032 edges · 69 communities (58 shown, 11 thin omitted)
+- Extraction: 85% EXTRACTED · 15% INFERRED · 0% AMBIGUOUS · INFERRED: 312 edges (avg confidence: 0.54)
 - Token cost: 0 input · 0 output
-
-## Graph Freshness
-- Built from commit: `ed06fb8d`
-- Run `git rev-parse HEAD` and compare to check if the graph is stale.
-- Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
 - [[_COMMUNITY_app.py|app.py]]
@@ -75,15 +70,9 @@
 - [[_COMMUNITY_bench_modes.py|bench_modes.py]]
 - [[_COMMUNITY___init__.py|__init__.py]]
 - [[_COMMUNITY_velox|velox]]
-- [[_COMMUNITY_Config|Config]]
-- [[_COMMUNITY_RelationalRepository|RelationalRepository]]
-- [[_COMMUNITY_EnvConfig|EnvConfig]]
-- [[_COMMUNITY_Container|Container]]
-- [[_COMMUNITY_TraceLogger|TraceLogger]]
-- [[_COMMUNITY_build_packages.sh|build_packages.sh]]
 
 ## God Nodes (most connected - your core abstractions)
-1. `Velox` - 137 edges
+1. `Velox` - 135 edges
 2. `CommandBus` - 40 edges
 3. `AggregateRoot` - 37 edges
 4. `Command` - 36 edges
@@ -101,23 +90,23 @@
   tests/test_bench.py → velox/core/app.py
 - `OrderModel` --uses--> `RelationalUnitOfWork`  [INFERRED]
   tests/test_db_e2e.py → velox/contrib/db.py
-- `test_env_config_typed()` --calls--> `EnvConfig`  [EXTRACTED]
-  tests/test_infra.py → velox/config.py
-- `test_env_config_prefix()` --calls--> `EnvConfig`  [EXTRACTED]
-  tests/test_infra.py → velox/config.py
+- `app()` --calls--> `Velox`  [EXTRACTED]
+  tests/test_injection.py → velox/core/app.py
+- `app()` --calls--> `Velox`  [EXTRACTED]
+  tests/test_middleware.py → velox/core/app.py
 
 ## Import Cycles
 - None detected.
 
-## Communities (77 total, 13 thin omitted)
+## Communities (69 total, 11 thin omitted)
 
 ### Community 0 - "app.py"
 Cohesion: 0.05
-Nodes (74): ABC, Base, BaseModel, add_item(), AddToCartCmd, Cart, CartItem, CartItemModel (+66 more)
+Nodes (75): ABC, Base, BaseModel, add_item(), AddToCartCmd, Cart, CartItem, CartItemModel (+67 more)
 
 ### Community 1 - "test_infra.py"
-Cohesion: 0.21
-Nodes (6): test_di_missing_raises(), test_di_resolve_with_defaults(), test_di_singleton_and_factory(), Logger, PrintLogger, Application logger port.
+Cohesion: 0.06
+Nodes (28): Config + DI + Tracing + LLM tests., test_di_missing_raises(), test_di_resolve_with_defaults(), test_di_singleton_and_factory(), test_env_config_defaults(), test_env_config_prefix(), test_env_config_typed(), test_trace_id_generated() (+20 more)
 
 ### Community 2 - "VeloxApp"
 Cohesion: 0.13
@@ -128,8 +117,8 @@ Cohesion: 0.09
 Nodes (22): Base, create_user(), list_users(), User, Base, create_user(), list_users(), create_user() (+14 more)
 
 ### Community 4 - "Velox"
-Cohesion: 0.19
-Nodes (16): call_app(), Security tests — fourth batch: content negotiation, trace spoofing, header flood, Percent-encoded UTF-8 декодируется в нормальную строку, не в кракозябры., Middleware-паттерн авторизации: без токена — 401, хендлер не вызывается., accept-encoding: gzip;q=0 — клиент не хочет gzip, не сжимаем., Пользовательский X-Trace-Id не попадает в ответ без trace middleware., test_auth_middleware_short_circuit(), test_broken_query_pairs_no_crash() (+8 more)
+Cohesion: 0.09
+Nodes (20): call_app(), Security tests — fourth batch: content negotiation, trace spoofing, header flood, Percent-encoded UTF-8 декодируется в нормальную строку, не в кракозябры., Middleware-паттерн авторизации: без токена — 401, хендлер не вызывается., accept-encoding: gzip;q=0 — клиент не хочет gzip, не сжимаем., Пользовательский X-Trace-Id не попадает в ответ без trace middleware., test_auth_middleware_short_circuit(), test_broken_query_pairs_no_crash() (+12 more)
 
 ### Community 5 - "test_serialization.py"
 Cohesion: 0.10
@@ -140,8 +129,8 @@ Cohesion: 0.09
 Nodes (30): call_app(), ASVS 5.0 Level 1 compliance tests — каждый тест = одно требование L1.  Имена: te, V3.2.1 (L1): security controls prevent browsers from rendering content     in a, V3.4.1 (L1): Strict-Transport-Security header is included on all responses., V3.4.2 (L1): CORS Access-Control-Allow-Origin is a fixed value and does     not, V3.5.2 (L1): if the application relies on the CORS preflight mechanism,     disa, V4.1.1 (L1): every HTTP response with a message body contains a     Content-Type, V5.2.1 (L1): the application accepts only files of a size it can process     (ma (+22 more)
 
 ### Community 7 - "MockLlmAdapter"
-Cohesion: 0.15
-Nodes (9): ChatMessage, ChatResponse, ClaudeAdapter, LlmPort, OpenAiAdapter, LLM Port — language model abstraction for CQRS/DDD workflows., Anthropic Claude API adapter., Language model port — send prompts, get completions. (+1 more)
+Cohesion: 0.11
+Nodes (13): test_mock_llm_chat(), test_mock_llm_embed(), ChatMessage, ChatResponse, ClaudeAdapter, LlmPort, MockLlmAdapter, OpenAiAdapter (+5 more)
 
 ### Community 8 - "VectorDbPort"
 Cohesion: 0.09
@@ -156,12 +145,12 @@ Cohesion: 0.16
 Nodes (21): call_app(), make_json_app(), Security tests — third batch: JSON parsing attacks, path param decoding, middlew, Бинарный мусор вместо JSON — 400, не 500., json() без тела — 400 (не 500, не краш)., Даже с text/plain заголовком битый body → 400., ASGI path уже декодирован — параметр приходит как есть, без двойного декода., Ошибка в middleware — 500 без внутренностей. (+13 more)
 
 ### Community 11 - "test_security5.py"
-Cohesion: 0.14
-Nodes (20): call_app(), Security tests — production hardening batch: security headers, WS origin, body s, Лимит срабатывает во время чанкованной загрузки, не после., TRACE/TRACK — 404, не эхо (защита от TRACE-атак)., test_max_body_size_413(), test_max_body_size_chunked(), test_no_server_fingerprint_headers(), test_rate_limit_429() (+12 more)
+Cohesion: 0.16
+Nodes (19): call_app(), Security tests — production hardening batch: security headers, WS origin, body s, Лимит срабатывает во время чанкованной загрузки, не после., TRACE/TRACK — 404, не эхо (защита от TRACE-атак)., test_max_body_size_413(), test_max_body_size_chunked(), test_no_server_fingerprint_headers(), test_rate_limit_429() (+11 more)
 
 ### Community 12 - "CoreRepository"
-Cohesion: 0.19
-Nodes (4): CoreRepository, UPDATE by primary key; returns merged dict., SQLAlchemy Core repository — rows in, dicts out (no ORM mapping).      Usage:, INSERT; returns data + generated PK.          With `returning=True` the full row
+Cohesion: 0.13
+Nodes (7): AsyncSession, CoreRepository, UPDATE by primary key; returns merged dict., Repository backed by SQLAlchemy async session., SQLAlchemy Core repository — rows in, dicts out (no ORM mapping).      Usage:, INSERT; returns data + generated PK.          With `returning=True` the full row, RelationalRepository
 
 ### Community 13 - "Velox — ASVS Level 1 Compliance Map"
 Cohesion: 0.10
@@ -169,7 +158,7 @@ Nodes (19): V10 — OAuth and OIDC (5 L1), V11 — Cryptography (3 L1), V12 — 
 
 ### Community 14 - "WebSocket"
 Cohesion: 0.13
-Nodes (10): Enum, WebSocket support — standards-compliant ASGI WebSocket handling., ASGI WebSocket connection — receive/send text, bytes, JSON., Accept the WebSocket connection., Receive one WebSocket message (str for text, bytes for binary)., Receive and parse one JSON message., Close the WebSocket connection., WebSocket (+2 more)
+Nodes (10): Enum, Velox — High-performance ASGI web framework with DDD support., WebSocket support — standards-compliant ASGI WebSocket handling., ASGI WebSocket connection — receive/send text, bytes, JSON., Accept the WebSocket connection., Receive one WebSocket message (str for text, bytes for binary)., Receive and parse one JSON message., Close the WebSocket connection. (+2 more)
 
 ### Community 15 - "Cache"
 Cohesion: 0.11
@@ -180,28 +169,28 @@ Cohesion: 0.24
 Nodes (17): asgi_bench(), bench_asgi(), bench_http(), fmt_gain(), main(), make_app_code(), make_velox(), network_bench() (+9 more)
 
 ### Community 17 - "Response"
-Cohesion: 0.14
-Nodes (17): main(), noop_send(), Микро-разбор Response._send: что именно стоит 3.86 мкс., Request, Response, Static files serving — directory mount with caching and range support., _serve_file(), Velox app — Rust routing, Python handler execution. (+9 more)
+Cohesion: 0.16
+Nodes (12): main(), noop_send(), Микро-разбор Response._send: что именно стоит 3.86 мкс., Security headers — production defaults in one middleware.  Usage:     from velox, Request, Response, Static files serving — directory mount with caching and range support., _serve_file() (+4 more)
 
 ### Community 18 - "test_security2.py"
-Cohesion: 0.09
-Nodes (20): call_app(), Security tests — second batch: static symlink/dotfiles, header injection, WebSoc, CRLF в content_type ответа не создаёт новые заголовки., \\x00 и \\x1f в значениях не попадают в ответ сырыми байтами., Symlink внутри статики, указывающий наружу, не отдаёт внешние файлы., .env/.git не должны отдаваться из статики., test_content_type_header_injection(), test_control_chars_escaped_in_json() (+12 more)
+Cohesion: 0.19
+Nodes (16): call_app(), Security tests — second batch: static symlink/dotfiles, header injection, WebSoc, CRLF в content_type ответа не создаёт новые заголовки., \\x00 и \\x1f в значениях не попадают в ответ сырыми байтами., Symlink внутри статики, указывающий наружу, не отдаёт внешние файлы., .env/.git не должны отдаваться из статики., test_content_type_header_injection(), test_control_chars_escaped_in_json() (+8 more)
 
 ### Community 19 - "app.py"
 Cohesion: 0.16
-Nodes (10): _lifespan(), Парсинг Accept-Encoding с учётом q-факторов (gzip;q=0 → False)., Поиск заголовка в scope до создания Request (для CORS)., _scope_header(), _send_empty(), _wants_gzip(), _clean_header(), CRLF/LF injection guard — truncate at the first line break. (+2 more)
+Nodes (11): _lifespan(), Velox app — Rust routing, Python handler execution., Парсинг Accept-Encoding с учётом q-факторов (gzip;q=0 → False)., Поиск заголовка в scope до создания Request (для CORS)., _scope_header(), _send_empty(), _wants_gzip(), _clean_header() (+3 more)
 
 ### Community 20 - "OpenAPI"
 Cohesion: 0.17
 Nodes (7): _get_return_type(), OpenAPI, Any, OpenAPI 3.0 schema generator — auto-detects types from signatures., Build OpenAPI schema objects from Pydantic models., OpenAPI 3.0 builder with auto type introspection., SchemaBuilder
 
 ### Community 21 - "RelationalUnitOfWork"
-Cohesion: 0.19
-Nodes (11): async_sessionmaker, V1.2.4 (L1): data selection or database queries use parameterized queries., test_asvs_v1_2_4_parameterized_queries(), uow(), uow(), uow(), uow(), create_relational_uow() (+3 more)
+Cohesion: 0.20
+Nodes (10): async_sessionmaker, V1.2.4 (L1): data selection or database queries use parameterized queries., test_asvs_v1_2_4_parameterized_queries(), uow(), uow(), uow(), create_relational_uow(), Unit of Work — auto-commit on exit.      Usage:         async with uow: (+2 more)
 
 ### Community 22 - "request.py"
 Cohesion: 0.15
-Nodes (18): Exception, BodyTooLarge, PathParamError, Request object — Rust-native parsing for headers, query, JSON., Клиентская ошибка запроса (invalid body/JSON) → HTTP 400., Тело запроса превышает max_body_size → HTTP 413., Path-параметр не прошёл типизацию → HTTP 404 (ASVS 2.1.1)., RequestError (+10 more)
+Nodes (12): Exception, BodyTooLarge, Request object — Rust-native parsing for headers, query, JSON., Клиентская ошибка запроса (invalid body/JSON) → HTTP 400., Тело запроса превышает max_body_size → HTTP 413., RequestError, _cast(), inject() (+4 more)
 
 ### Community 23 - "Request"
 Cohesion: 0.18
@@ -216,12 +205,12 @@ Cohesion: 0.26
 Nodes (8): _find_child(), _find_child_by_param(), _Node, Radix tree router — O(path_length) lookup, no regex overhead., Compiled route table — radix tree per method type., Register a route handler for a method + path pattern., Find handler and path parameters. Returns (handler, params)., Router
 
 ### Community 26 - "prof_components.py"
-Cohesion: 0.21
-Nodes (11): bench(), main(), noop_receive(), noop_send(), Разложение горячего пути Velox на компоненты (мкс/оп)., current_trace_id(), Distributed tracing — X-Trace-Id header injection and propagation., Get current trace ID from context. (+3 more)
+Cohesion: 0.26
+Nodes (10): bench(), main(), noop_receive(), noop_send(), Разложение горячего пути Velox на компоненты (мкс/оп)., current_trace_id(), Distributed tracing — X-Trace-Id header injection and propagation., Get current trace ID from context. (+2 more)
 
 ### Community 27 - "Benchmarks"
-Cohesion: 0.11
-Nodes (16): Benchmarks, Installation, Payload size (uvicorn, 3 routes, median of 3 runs), PostgreSQL 18 (Docker, default settings, Granian, ab), Raw client (ApacheBench, 50 concurrent connections, keep-alive), Reproduce, Run, Security (production hardening) (+8 more)
+Cohesion: 0.17
+Nodes (11): Benchmarks, Payload size (uvicorn, 3 routes, median of 3 runs), PostgreSQL 18 (Docker, default settings, Granian, ab), Raw client (ApacheBench, 50 concurrent connections, keep-alive), Reproduce, Run, Security (production hardening), SQLite scaling (what actually works) (+3 more)
 
 ### Community 28 - "prof_clean.py"
 Cohesion: 0.25
@@ -232,8 +221,8 @@ Cohesion: 0.22
 Nodes (7): client(), make_app(), E2E: Velox HTTP → handler → database (SQLite) → response.  Полный путь запроса:, Настоящий SQL-запрос напрямую к БД после HTTP-записи., Ошибка в хендлере → транзакция откатывается, в БД пусто., test_raw_sql_query(), test_rollback_on_error()
 
 ### Community 30 - "test_postgres_real.py"
-Cohesion: 0.22
-Nodes (7): client(), make_app(), E2E: Velox HTTP → CoreRepository → реальный PostgreSQL (Docker, дефолтные настро, Настоящий SQL к Postgres после HTTP-записи., RETURNING возвращает server_defaults (на PG INSERT...RETURNING нативный)., test_pg_raw_sql(), test_pg_returning_defaults()
+Cohesion: 0.20
+Nodes (8): client(), make_app(), E2E: Velox HTTP → CoreRepository → реальный PostgreSQL (Docker, дефолтные настро, Настоящий SQL к Postgres после HTTP-записи., RETURNING возвращает server_defaults (на PG INSERT...RETURNING нативный)., test_pg_raw_sql(), test_pg_returning_defaults(), uow()
 
 ### Community 31 - "cli.py"
 Cohesion: 0.40
@@ -256,8 +245,8 @@ Cohesion: 0.25
 Nodes (5): client(), make_app(), E2E: Velox HTTP → handler → SQLAlchemy Core repository → SQLite.  Тот же путь, ч, Настоящий SQL после HTTP-записи через Core., test_raw_sql_after_http()
 
 ### Community 37 - "JSONResponse"
-Cohesion: 0.14
-Nodes (14): Config + DI + Tracing + LLM tests., test_env_config_defaults(), test_env_config_prefix(), test_env_config_typed(), test_mock_llm_chat(), test_mock_llm_embed(), test_trace_id_generated(), test_trace_id_propagated() (+6 more)
+Cohesion: 0.22
+Nodes (5): JSONResponse, Encode Pydantic/dataclass model to JSON response., Server-Sent Events / chunked streaming response., JSON response with automatic serialisation., StreamingResponse
 
 ### Community 38 - "bench_postgres.py"
 Cohesion: 0.39
@@ -268,8 +257,8 @@ Cohesion: 0.25
 Nodes (7): Velox — стратегия применения (заметки), Архитектурные роли, Вывод, Где Velox силён, Где НЕ применять, Стратегии внедрения, Что допилить для лёгкого применения
 
 ### Community 42 - "HealthCheck"
-Cohesion: 0.20
-Nodes (5): HealthCheck, HealthStatus, Health checks — dependency-aware /health endpoint., Collect health status from registered checkers.      Usage:         hc = HealthC, Register a check: sync or async callable returning bool or HealthStatus.
+Cohesion: 0.29
+Nodes (3): HealthCheck, Collect health status from registered checkers.      Usage:         hc = HealthC, Register a check: sync or async callable returning bool or HealthStatus.
 
 ### Community 43 - "bench_db_pool.py"
 Cohesion: 0.43
@@ -307,38 +296,22 @@ Nodes (5): Connection, bench(), main(), make_sync_db(), Чистые замер�
 Cohesion: 0.53
 Nodes (5): Postgres adapter tests — using SQLite for portability., test_postgres_repo_list(), test_postgres_repo_save_and_get(), test_postgres_uow_rollback(), _UserModel
 
-### Community 55 - "db.py"
-Cohesion: 0.17
-Nodes (12): _cargo_version(), Сборка и версии: Rust-ядро должно ставиться вместе с velox и совпадать по версии, velox_core импортируется и отдаёт все четыре класса., velox обязан тянуть velox-core — иначе wheel снова будет пустым., __version__ velox == version в Cargo.toml == версия установленного ядра., Ядро собрано с abi3 — иначе придётся публиковать wheel под каждую версию Python., hatchling должен собирать пакет velox явно, а не угадывать., test_core_is_abi3() (+4 more)
-
-### Community 69 - "Config"
-Cohesion: 0.20
-Nodes (4): Config, Any, Configuration port — env-based settings with typed parsing., Configuration port — read typed settings.
-
-### Community 70 - "RelationalRepository"
-Cohesion: 0.22
-Nodes (3): AsyncSession, Repository backed by SQLAlchemy async session., RelationalRepository
-
-### Community 72 - "Container"
-Cohesion: 0.31
-Nodes (4): Container, Any, Dependency injection container — type/string-based, zero-reflect, lazy., Simple DI container.      Usage:         c = Container()         c.singleton(Con
-
 ## Knowledge Gaps
-- **47 isolated node(s):** `velox`, `build_packages.sh script`, `PYO3_USE_ABI3_FORWARD_COMPATIBILITY`, `velox-core`, `Из исходников` (+42 more)
+- **41 isolated node(s):** `velox`, `Raw client (ApacheBench, 50 concurrent connections, keep-alive)`, `With database (SQLite, handler → ORM/Core → response, ab)`, `SQLite scaling (what actually works)`, `PostgreSQL 18 (Docker, default settings, Granian, ab)` (+36 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **13 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **11 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `Velox` connect `test_security2.py` to `app.py`, `.factory`, `Velox`, `test_serialization.py`, `test_asvs_l1.py`, `test_security.py`, `test_security3.py`, `test_security5.py`, `CoreRepository`, `WebSocket`, `bench_full.py`, `Response`, `app.py`, `OpenAPI`, `request.py`, `Request`, `prof_components.py`, `prof_clean.py`, `test_db_e2e.py`, `test_postgres_real.py`, `Middleware`, `test_db_core.py`, `test_routing.py`, `JSONResponse`, `test_app.py`, `test_injection.py`, `test_bench.py`, `bench_real.py`, `test_ws.py`, `test_middleware.py`, `cors.py`, `_bench_full_velox.py`, `_bench_payload_velox.py`, `_bench_pool_aiosqlite-1.py`, `_bench_pool_aiosqlite-8.py`, `_bench_pool_sqlite3-8.py`, `_bench_dbvar_aiosqlite.py`?**
-  _High betweenness centrality (0.398) - this node is a cross-community bridge._
-- **Why does `Request` connect `Request` to `app.py`, `Middleware`, `TraceLogger`, `Response`, `test_security2.py`, `request.py`, `prof_components.py`?**
-  _High betweenness centrality (0.030) - this node is a cross-community bridge._
-- **Why does `Response` connect `Response` to `app.py`, `Middleware`, `Velox`, `test_asvs_l1.py`, `TraceLogger`, `test_security5.py`, `test_security2.py`, `app.py`, `prof_components.py`?**
-  _High betweenness centrality (0.028) - this node is a cross-community bridge._
-- **Are the 11 inferred relationships involving `Velox` (e.g. with `BodyTooLarge` and `PathParamError`) actually correct?**
-  _`Velox` has 11 INFERRED edges - model-reasoned connections that need verification._
+- **Why does `Velox` connect `Velox` to `app.py`, `test_infra.py`, `.factory`, `test_serialization.py`, `test_asvs_l1.py`, `test_security.py`, `test_security3.py`, `test_security5.py`, `WebSocket`, `bench_full.py`, `Response`, `test_security2.py`, `app.py`, `OpenAPI`, `request.py`, `Request`, `prof_components.py`, `prof_clean.py`, `test_db_e2e.py`, `test_postgres_real.py`, `Middleware`, `test_db_core.py`, `test_routing.py`, `JSONResponse`, `test_app.py`, `test_injection.py`, `test_bench.py`, `bench_real.py`, `test_ws.py`, `test_middleware.py`, `cors.py`, `db.py`, `_bench_full_velox.py`, `_bench_payload_velox.py`, `_bench_pool_aiosqlite-1.py`, `_bench_pool_aiosqlite-8.py`, `_bench_pool_sqlite3-8.py`?**
+  _High betweenness centrality (0.399) - this node is a cross-community bridge._
+- **Why does `UnitOfWork` connect `app.py` to `CoreRepository`, `RelationalUnitOfWork`, `db.py`?**
+  _High betweenness centrality (0.035) - this node is a cross-community bridge._
+- **Why does `Request` connect `Request` to `app.py`, `test_infra.py`, `Middleware`, `Velox`, `WebSocket`, `Response`, `app.py`, `request.py`, `prof_components.py`?**
+  _High betweenness centrality (0.033) - this node is a cross-community bridge._
+- **Are the 10 inferred relationships involving `Velox` (e.g. with `BodyTooLarge` and `Request`) actually correct?**
+  _`Velox` has 10 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 29 inferred relationships involving `CommandBus` (e.g. with `AddToCartCmd` and `Cart`) actually correct?**
   _`CommandBus` has 29 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 29 inferred relationships involving `AggregateRoot` (e.g. with `AddToCartCmd` and `Cart`) actually correct?**

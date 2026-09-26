@@ -5,7 +5,7 @@ from __future__ import annotations
 from velox.contrib.pydantic import decode_json
 from velox_core import Request as RustRequest
 
-__all__ = ["Request", "RequestError", "BodyTooLarge"]
+__all__ = ["Request", "RequestError", "BodyTooLarge", "PathParamError"]
 
 
 class RequestError(Exception):
@@ -14,6 +14,10 @@ class RequestError(Exception):
 
 class BodyTooLarge(Exception):
     """Тело запроса превышает max_body_size → HTTP 413."""
+
+
+class PathParamError(Exception):
+    """Path-параметр не прошёл типизацию → HTTP 404 (ASVS 2.1.1)."""
 
 
 class Request:

@@ -54,3 +54,15 @@ async def test_default_query_param(client):
 async def test_echo_default(client):
     r = await client.get("/echo?name=Velox")
     assert r.json() == {"hello": "Velox"}
+
+
+@pytest.mark.asyncio
+async def test_invalid_path_param_returns_404(client):
+    r = await client.get("/users/abc")
+    assert r.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_invalid_query_param_returns_400(client):
+    r = await client.get("/search?limit=abc")
+    assert r.status_code == 400

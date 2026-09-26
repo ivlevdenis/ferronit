@@ -7,7 +7,7 @@ name = "velox-core"
 dynamic = ["version"]
 description = "Native Rust core for the Velox ASGI web framework (routing, JSON, gzip, CORS)"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.12"
 classifiers = [
     "Programming Language :: Rust",
     "Programming Language :: Python :: Implementation :: CPython",
@@ -19,7 +19,7 @@ classifiers = [
 # velox/core/request.py, response.py, app.py.
 module-name = "velox_core"
 bindings = "pyo3"
-# Сборка с abi3-py39: один wheel на все CPython >= 3.9 (тег cp39-abi3),
+# Сборка с abi3-py312: один wheel на все CPython >= 3.12 (тег cp312-abi3),
 # вместо матрицы cp312/cp313/cp314. См. Cargo.toml [dependencies] pyo3.
 features = ["pyo3/extension-module"]
 strip = true

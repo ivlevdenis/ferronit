@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Сборка обоих дистрибутивов Velox в dist/
 #
-#   dist/velox_core-<ver>-cp39-abi3-<platform>.whl   — Rust-ядро (maturin)
+#   dist/velox_core-<ver>-cp312-abi3-<platform>.whl  — Rust-ядро (maturin)
 #   dist/velox-<ver>-py3-none-any.whl                — Python-пакет (hatchling)
 #
 # Порядок важен: Python-пакет объявляет зависимость velox-core, поэтому
@@ -20,7 +20,7 @@ mkdir -p "$DIST"
 # не дожидаясь обновления pyo3 (для abi3-сборок это безопасно).
 export PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1
 
-echo "==> 1/2 Rust-ядро (maturin, abi3-py39)"
+echo "==> 1/2 Rust-ядро (maturin, abi3-py312)"
 (cd velox-rs && "$ROOT/.venv/bin/maturin" build --release --out "$DIST" -i "$PY")
 
 echo "==> 2/2 Python-пакет (hatchling)"

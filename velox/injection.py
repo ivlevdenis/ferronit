@@ -5,7 +5,7 @@ from __future__ import annotations
 import inspect
 from typing import Any, get_type_hints
 
-from velox.core.request import Request
+from velox.core.request import PathParamError, Request, RequestError
 
 __all__ = ["inject"]
 
@@ -51,38 +51,54 @@ def inject(handler):
 
     if is_async:
         async def inject_async(req):
-            kwargs = {}
-            for r in resolvers:
-                if r[0] == "req":
-                    kwargs[r[1]] = req
-                else:
-                    _, name, hint, default = r
-                    val = req.params.get(name) or (req.query.get(name, [None])[0] if name in req.query else None) or default
-                    if val is not None and hint:
-                        val = _cast(val, hint)
-                    kwargs[name] = val
-            return await handler(**kwargs)
+            return await handler(**_bind(req, resolvers))
         inject_async.__name__ = handler.__name__
         return inject_async
-    else:
-        def inject_sync(req):
-            kwargs = {}
-            for r in resolvers:
-                if r[0] == "req":
-                    kwargs[r[1]] = req
-                else:
-                    _, name, hint, default = r
-                    val = req.params.get(name) or (req.query.get(name, [None])[0] if name in req.query else None) or default
-                    if val is not None and hint:
-                        val = _cast(val, hint)
-                    kwargs[name] = val
-            return handler(**kwargs)
-        inject_sync.__name__ = handler.__name__
-        return inject_sync
+
+    def inject_sync(req):
+        return handler(**_bind(req, resolvers))
+    inject_sync.__name__ = handler.__name__
+    return inject_sync
 
 
-def _cast(value: str, hint: type) -> Any:
-    if hint is int: return int(value)
-    if hint is float: return float(value)
-    if hint is bool: return value.lower() in ("true", "1", "yes")
+def _bind(req: Request, resolvers: list) -> dict[str, Any]:
+    """Resolve handler kwargs from Request (path params take precedence)."""
+    kwargs: dict[str, Any] = {}
+    for r in resolvers:
+        if r[0] == "req":
+            kwargs[r[1]] = req
+            continue
+        _, name, hint, default = r
+        if name in req.params and req.params[name] != "":
+            val, from_path = req.params[name], True
+        elif name in req.query:
+            val, from_path = req.query[name][0] or default, False
+        else:
+            val, from_path = default, False
+        if val is not None and hint:
+            val = _cast(val, hint, name, from_path)
+        kwargs[name] = val
+    return kwargs
+
+
+def _cast(value: Any, hint: type, name: str = "", from_path: bool = False) -> Any:
+    if hint is int:
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            raise _invalid(name, value, from_path) from None
+    if hint is float:
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            raise _invalid(name, value, from_path) from None
+    if hint is bool:
+        return value if isinstance(value, bool) else value.lower() in ("true", "1", "yes")
     return value
+
+
+def _invalid(name: str, value: Any, from_path: bool):
+    """Invalid typed parameter → 404 for path params (ASVS 2.1.1), 400 for query."""
+    if from_path:
+        return PathParamError(f"Invalid path parameter '{name}': {value!r}")
+    return RequestError(f"Invalid query parameter '{name}': {value!r}")

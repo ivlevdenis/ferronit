@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from velox.contrib.tracing import current_trace_id
-from velox.core.request import BodyTooLarge, Request as PyRequest, RequestError
+from velox.core.request import BodyTooLarge, PathParamError, Request as PyRequest, RequestError
 from velox.core.response import JSONResponse, Response, StreamingResponse, TextResponse
 from velox.middleware import Middleware
 from velox.openapi import OpenAPI
@@ -133,6 +133,9 @@ class Velox:
             py_result = wrapped(req)
             if hasattr(py_result, "__await__"):
                 py_result = await py_result
+        except PathParamError:
+            await _send_empty(send, 404)
+            return
         except RequestError:
             await _send_empty(send, 400)
             return

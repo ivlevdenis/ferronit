@@ -1,0 +1,18 @@
+[package]
+name = "rust_pg_bench"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# Прямой замер слоёв доступа к PostgreSQL на Rust против Python-стенда (bench/pg_direct.py),
+# плюс HTTP-сервис (src/bin/http_service.rs) для сравнения приложений целиком.
+# Diesel сознательно не включён: ему нужен libpq-dev (pg_config и заголовки), которых нет.
+
+[dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "net", "sync"] }
+tokio-postgres = "0.7"
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "postgres"] }
+sea-orm = { version = "1", default-features = false, features = ["sqlx-postgres", "runtime-tokio-rustls", "macros"] }
+axum = "0.8"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

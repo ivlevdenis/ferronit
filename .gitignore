@@ -5,11 +5,13 @@ __pycache__/
 .venv/
 venv/
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
 .benchmarks/
 dist/
 
 # ── Rust ─────────────────────────────────────────────────
-velox-rs/target/
+ferrox-rs/target/
 build/
 Cargo.lock.bak
 
@@ -23,3 +25,21 @@ Cargo.lock.bak
 # ── Прочее ───────────────────────────────────────────────
 *.log
 .DS_Store
+
+# Rust/Go артефакты и бинарники стенда
+bench/**/target/
+bench/go_pg_orm/go_pg_bench
+bench/go_pg_orm_10col/pgx10
+bench/go_pg_orm/ent/
+
+# генерируемые стендом приложения и результаты
+bench/_bench_*.py
+bench/_bench_rows_*.py
+bench/_bench_pg_*.py
+bench/_bench_db_*.py
+bench/_abgen_*.py
+bench/RESULTS_ab.txt
+
+# граф знаний: кэш и бэкапы по датам
+graphify-out/cache/
+graphify-out/20*/

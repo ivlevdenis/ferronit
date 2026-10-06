@@ -1,7 +1,8 @@
-"""Сборка и версии: Rust-ядро должно ставиться вместе с velox и совпадать по версии.
+"""Сборка и версии: единый пакет ferrox содержит Python-слой и нативное ядро.
 
-Эти тесты ловят ровно тот баг, из-за которого `pip install velox` давал
-неработающий пакет: Python-wheel собирался без .so и без зависимости на ядро.
+`pip install ferrox` ставит всё сразу: пакет `ferrox/` (включая `ferrox.db` — слой
+данных) и нативное ядро `ferrox._core`. Отдельных дистрибутивов `ferrox-core`/`ferrox-db`
+быть не должно.
 """
 
 from __future__ import annotations
@@ -10,58 +11,61 @@ import pathlib
 import re
 from importlib import metadata
 
-import pytest
-
-import velox
+import ferrox
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 
 def _cargo_version() -> str:
-    text = (ROOT / "velox-rs" / "Cargo.toml").read_text(encoding="utf-8")
+    text = (ROOT / "ferrox-rs" / "Cargo.toml").read_text(encoding="utf-8")
     match = re.search(r'^version\s*=\s*"([^"]+)"', text, re.MULTILINE)
-    assert match, "в velox-rs/Cargo.toml нет version"
+    assert match, "в ferrox-rs/Cargo.toml нет version"
     return match.group(1)
 
 
-def test_rust_core_importable() -> None:
-    """velox_core импортируется и отдаёт все четыре класса."""
-    import velox_core
+def test_native_core_and_db_live_under_ferrox() -> None:
+    """Ядро доступно как `ferrox._core`, слой данных — как `ferrox.db`."""
+    import ferrox._core as core
 
-    for name in ("Router", "Request", "Response", "VeloxApp"):
-        assert hasattr(velox_core, name), f"velox_core.{name} отсутствует"
+    for name in ("Router", "Request", "Response", "FerroxApp"):
+        assert hasattr(core, name), f"ferrox._core.{name} отсутствует"
+    assert hasattr(core, "db"), "ferrox._core.db отсутствует"
+
+    assert hasattr(ferrox, "db"), "ferrox.db отсутствует"
+    for name in ("connect", "query_json"):
+        assert hasattr(ferrox.db, name), f"ferrox.db.{name} отсутствует"
+    assert ferrox.db.connect is core.db.connect
+    assert ferrox.db.query_json is core.db.query_json
 
 
-def test_velox_declares_core_dependency() -> None:
-    """velox обязан тянуть velox-core — иначе wheel снова будет пустым."""
-    deps = metadata.requires("velox") or []
-    assert any(
-        d.replace(" ", "").startswith("velox-core") for d in deps
-    ), f"в метаданных velox нет зависимости velox-core: {deps}"
+def test_single_distribution() -> None:
+    """ferrox — один дистрибутив; зависимостей на ferrox-core/ferrox-db нет."""
+    requires = metadata.requires("ferrox") or []
+    for prefix in ("ferrox-core", "ferrox-db"):
+        assert not any(d.replace(" ", "").startswith(prefix) for d in requires), (
+            f"ferrox не должен зависеть от {prefix}: {requires}"
+        )
 
 
-def test_versions_match() -> None:
-    """__version__ velox == version в Cargo.toml == версия установленного ядра."""
-    assert velox.__version__ == _cargo_version(), (
-        f"velox.__version__={velox.__version__} != Cargo.toml={_cargo_version()}"
+def test_version_matches_cargo() -> None:
+    """__version__ ferrox == version в ferrox-rs/Cargo.toml == версия дистрибутива."""
+    assert ferrox.__version__ == _cargo_version(), (
+        f"ferrox.__version__={ferrox.__version__} != Cargo.toml={_cargo_version()}"
     )
-    try:
-        core_version = metadata.version("velox-core")
-    except metadata.PackageNotFoundError:  # pragma: no cover
-        pytest.skip("velox-core не установлен как дистрибутив (maturin develop)")
-    assert core_version == velox.__version__, (
-        f"ядро {core_version} != velox {velox.__version__}"
+    assert metadata.version("ferrox") == ferrox.__version__, (
+        f"ferrox {metadata.version('ferrox')} != {ferrox.__version__}"
     )
 
 
 def test_core_is_abi3() -> None:
-    """Ядро собрано с abi3 — иначе придётся публиковать wheel под каждую версию Python."""
-    text = (ROOT / "velox-rs" / "Cargo.toml").read_text(encoding="utf-8")
-    assert "abi3-py" in text, "в Cargo.toml нет фичи abi3-pyXX"
+    """Ядро собрано с abi3 — один wheel на все CPython 3.12+."""
+    text = (ROOT / "ferrox-rs" / "Cargo.toml").read_text(encoding="utf-8")
+    assert "abi3-py" in text, "в ferrox-rs/Cargo.toml нет фичи abi3-pyXX"
 
 
-def test_wheel_metadata_mentions_python_package() -> None:
-    """hatchling должен собирать пакет velox явно, а не угадывать."""
+def test_wheel_metadata_points_to_single_crate() -> None:
+    """maturin mixed-проект: один manifest-path и один Python-пакет."""
     text = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
-    assert 'packages = ["velox"]' in text
-    assert 'path = "velox/__init__.py"' in text
+    assert 'manifest-path = "ferrox-rs/Cargo.toml"' in text
+    assert 'module-name = "ferrox._core"' in text
+    assert 'python-packages = ["ferrox"]' in text

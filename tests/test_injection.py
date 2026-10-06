@@ -3,12 +3,12 @@
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from velox import Velox
+from ferrox import Ferrox
 
 
 @pytest.fixture
 def app():
-    v = Velox(debug=True)
+    v = Ferrox(debug=True)
 
     @v.route("/users/{user_id}")
     def get_user(user_id: int, format: str = "json"):
@@ -40,8 +40,8 @@ async def test_path_param_injection(client):
 
 @pytest.mark.asyncio
 async def test_query_param_injection(client):
-    r = await client.get("/search?q=velox&limit=25")
-    assert r.json() == {"q": "velox", "limit": 25}
+    r = await client.get("/search?q=ferrox&limit=25")
+    assert r.json() == {"q": "ferrox", "limit": 25}
 
 
 @pytest.mark.asyncio
@@ -52,8 +52,8 @@ async def test_default_query_param(client):
 
 @pytest.mark.asyncio
 async def test_echo_default(client):
-    r = await client.get("/echo?name=Velox")
-    assert r.json() == {"hello": "Velox"}
+    r = await client.get("/echo?name=Ferrox")
+    assert r.json() == {"hello": "Ferrox"}
 
 
 @pytest.mark.asyncio

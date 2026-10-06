@@ -1,63 +1,100 @@
-# Velox
+# Ferrox
 
 High-performance Python ASGI web framework with a Rust core.
 
 ## Installation
 
 ```bash
-pip install velox        # velox-core (Rust-ядро) подтянется автоматически
+pip install ferrox        # ставит сразу Python-слой и нативное ядро (ferrox._core + ferrox.db)
 ```
 
-Velox состоит из двух дистрибутивов:
+Ferrox — **один пакет**, собранный [maturin](https://www.maturin.rs)-ом как mixed-проект:
 
-- **`velox`** — Python-слой (ASGI-движок, DDD/CQRS, DI, contrib), чистый Python
-- **`velox-core`** — Rust-ядро (роутинг, парсинг запроса, JSON, gzip, CORS), собирается
-  [maturin](https://www.maturin.rs)-ом и импортируется как `velox_core`
+- **`ferrox`** — Python-слой: ASGI-движок, DDD/CQRS, DI, contrib; внутри лежит нативное
+  ядро `ferrox._core` (роутинг, парсинг запроса, JSON, gzip, CORS)
+- **`ferrox.db`** — слой данных (PostgreSQL → JSON целиком в Rust, для read-heavy ручек
+  с большими выборками): `connect` / `query_json`
 
 Ядро собирается с фичей `abi3-py312`, поэтому один wheel (`cp312-abi3`) работает на всех
-CPython от 3.12 до 3.14+ — матрица версий Python не нужна. Версии `velox` и `velox-core`
-всегда совпадают (проверяется тестом `tests/test_packaging.py`).
+CPython от 3.12 до 3.14+ — матрица версий Python не нужна. Версия в `ferrox/__init__.py`
+и `ferrox-rs/Cargo.toml` всегда совпадает (проверяется тестом `tests/test_packaging.py`).
 
 ### Из исходников
 
 ```bash
 uv venv .venv
-uv pip install --python .venv/bin/python -e .   # dev-установка: ядро соберётся из velox-rs/
-./scripts/build_packages.sh                     # оба wheel-а в dist/
+uv pip install --python .venv/bin/python -e .   # dev-установка: maturin соберёт ferrox + ferrox._core
+./scripts/build_packages.sh                     # один wheel в dist/
 ```
 
-`[tool.uv.sources]` подменяет `velox-core` на локальный путь `velox-rs/`, поэтому
-`pip install -e .` не ходит на PyPI. Ядро отдельно (без переустановки velox):
+`pyproject.toml` — maturin mixed-проект с `manifest-path = "ferrox-rs/Cargo.toml"`, поэтому
+`pip install -e .` не ходит на PyPI. Ядро отдельно (без переустановки ferrox):
 
 ```bash
-cd velox-rs && PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 ../.venv/bin/maturin develop --release
+PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 .venv/bin/maturin develop --release
 ```
+
+## Docker
+
+Образ самодостаточный: ядро компилируется maturin-ом внутри билд-стейджа, наружу идёт
+`python:3.12-slim` с одним wheel-ом, прод-сервером Granian и непривилегированным
+пользователем. Ни ABI, ни Rust на машине для запуска не нужны.
+
+```bash
+docker build -t ferrox:0.8.0 .
+docker run --rm -p 8000:8000 ferrox:0.8.0
+curl localhost:8000/          # {"service":"ferrox","status":"ok","version":"0.8.0",...}
+```
+
+Своё приложение — монтированием каталога и переменной `APP`:
+
+```bash
+docker run --rm -p 8000:8000 -v "$PWD:/app" -e APP=app:app ferrox:0.8.0
+```
+
+`docker compose` поднимает то же самое одной командой:
+
+```bash
+docker compose up --build api            # минимальное приложение, :8000
+docker compose up --build ecommerce      # DDD-пример на SQLite, :8001
+docker compose --profile postgres up -d  # Postgres 18 рядом, :5432
+```
+
+Переменные контейнера: `APP` (модуль:атрибут, по умолчанию `demo_app:app`), `SERVER`
+(`granian` | `uvicorn`), `HOST`, `PORT`, `WORKERS`, `RELOAD=1` (dev-режим с авто-перезагрузкой).
+`HEALTHCHECK` проверяет живое приложение по HTTP, а не только открытый порт.
 
 ## Benchmarks
 
-Velox vs FastAPI, single uvicorn worker, HTTP keep-alive, 5000 requests (median of 3 runs):
+Метод — **только ApacheBench** (`ab -n N -c 50 -k`, C-клиент). Python-клиент (httpx/asyncio)
+сам упирается в ~3.5–3.7k req/s независимо от сервера, поэтому httpx-замеры мерят клиент, а не
+фреймворк; такие скрипты убраны в `bench/legacy_httpx/`. Оба приложения — одинаковый код на
+одинаковом сервере, 1 воркер, медиана из 3 прогонов, маршруты сэмплируются (первый / средний /
+последний), keep-alive. Полный прогон одной командой: `./bench/run_all_ab.sh` →
+`bench/RESULTS_ab.txt` (замеры 2026-10-04, машина простаивала: load 0.33 на 20 ядрах).
 
-| Routes | Velox | FastAPI | Gain |
+| Scenario | Ferrox | FastAPI | Gap |
 |---|---|---|---|
-| 2 (ASGI in-process) `/` | 6 623 req/s | 5 728 req/s | +16% |
-| 2 (ASGI in-process) `/reflect` | 6 461 req/s | 4 514 req/s | +43% |
-| 50 (uvicorn, all routes round-robin) | 3 647 req/s | 2 547 req/s | **+43%** |
-| 1000 (uvicorn, all routes round-robin) | 3 373 req/s | 1 798 req/s | **+88%** |
-| 1000 routes × 500-object payload | 544 req/s | 193 req/s | **+181%** |
+| uvicorn, 50 routes | 20 060 req/s | 6 589 req/s | **×3.04** |
+| uvicorn, 1000 routes | 20 216 req/s | 2 817 req/s | **×7.18** |
+| granian, 50 routes | **96 298 req/s** | 12 135 req/s | **×7.94** |
+| granian, 1000 routes | **94 873 req/s** | 3 416 req/s | **×27.8** |
+| uvicorn, payload 500 objects | 1 915 req/s | 639 req/s | **×3.00** |
+| granian, payload 500 objects | 2 130 req/s | 647 req/s | **×3.29** |
 
-### Raw client (ApacheBench, 50 concurrent connections, keep-alive)
+Что из этого следует:
 
-httpx (asyncio) client caps at ~3.7k req/s regardless of the server — use a C client for real numbers:
-
-| Scenario | Velox | FastAPI | Gap |
-|---|---|---|---|
-| uvicorn, 50 routes, `/route0` | 20 390 req/s | 6 095 req/s | **×3.3** |
-| uvicorn, 1000 routes, `/route999` | 19 987 req/s | 1 616 req/s | **×12.4** |
-| **Granian (Rust ASGI server), 50 routes** | **88 768 req/s** | 11 082 req/s | **×8.0** |
-
-Granian unlocks Velox ×4.35 over uvicorn (88.8k vs 20.4k) but FastAPI only ×1.82 (11.1k vs 6.1k) — the Rust server removes the uvicorn protocol overhead, and Velox's smaller Python footprint benefits the most. 88.8k req/s ≈ 11.3 µs/request — right at the Python handler hot-path limit.
-
-Velox routing does not degrade with route count (20.4k → 20.0k); FastAPI drops 3.8× (6.1k → 1.6k).
+- **Ferrox не деградирует с ростом таблицы маршрутов**: 20 060 → 20 216 req/s (uvicorn) и
+  96 298 → 94 873 (granian) при переходе с 50 на 1000 маршрутов. Внутри одного приложения
+  первый, средний и последний маршруты дают одинаковые числа (uvicorn 1000: 20 216 / 20 047 / 20 498).
+- **FastAPI деградирует вдоль таблицы маршрутов**: на 1000 маршрутах `/route0` — 7 069 req/s,
+  `/route500` — 2 817, `/route999` — 1 734 (падение в 4 раза внутри одного процесса). На границе
+  таблицы разрыв доходит до ×27.8 (granian: 94 873 против 1 971).
+- **Granian убирает накладные расходы протокола uvicorn**: Ferrox ×4.8 (20 060 → 96 298),
+  FastAPI ×1.8 (6 589 → 12 135) — Rust-сервер выгоднее тому, у кого тоньше Python-слой.
+- **Задержки**: Ferrox p99 = 1 мс на granian и 3 мс на uvicorn; FastAPI на 1000 маршрутах
+  доходит до p99 = 46 мс.
+- 96 298 req/s ≈ 10.4 µs на запрос — потолок Python-хендлера, а не сервера.
 
 **Цена abi3.** Ядро собирается с `abi3-py312` (один wheel на все Python ≥ 3.12) — проверено, что это
 почти бесплатно: granian, 1000 маршрутов, ab -n 30000 -c 50 -k, медиана из 5 прогонов —
@@ -66,14 +103,14 @@ Velox routing does not degrade with route count (20.4k → 20.0k); FastAPI drops
 
 ### With database (SQLite, handler → ORM/Core → response, ab)
 
-| Server | Operation | Velox ORM | Velox Core | FastAPI |
+| Server | Operation | Ferrox ORM | Ferrox Core | FastAPI |
 |---|---|---|---|---|
 | Granian | GET (SELECT 100 rows) | 1 616 req/s | **2 362** (+46%) | 1 198 (**+97%**) |
 | Granian | POST (INSERT) | 4 012 req/s | **4 961** (+24%) | 3 143 (**+58%**) |
 | uvicorn | GET (SELECT 100 rows) | 1 371 req/s | — | 1 063 (+29%) |
 | uvicorn | POST (INSERT) | 2 560 req/s | — | 2 121 (+21%) |
 
-The `CoreRepository` (SQLAlchemy Core, dicts instead of ORM objects) adds +46% on reads and +24% on writes; Velox+Core beats FastAPI by ~2× on reads. The DB becomes the shared bottleneck, so the gap narrows — but Velox stays ahead on both reads and writes, and Granian still adds ~20% on top of uvicorn.
+The `CoreRepository` (SQLAlchemy Core, dicts instead of ORM objects) adds +46% on reads and +24% on writes; Ferrox+Core beats FastAPI by ~2× on reads. The DB becomes the shared bottleneck, so the gap narrows — but Ferrox stays ahead on both reads and writes, and Granian still adds ~20% on top of uvicorn.
 
 ### SQLite scaling (what actually works)
 
@@ -87,18 +124,18 @@ Raw ceilings: sync `sqlite3` SELECT 100 rows — 33.5k ops/s, `aiosqlite` — 15
 | sync sqlite3 + `to_thread` | 873 ⚠️ |
 | **raw aiosqlite + 4 workers** | **14 016** |
 
-A single connection serializes concurrent requests; a connection pool makes it *worse* (each aiosqlite connection is a thread — GIL contention). **The working pattern: one aiosqlite connection per process + `velox run --workers N`** — scales almost linearly (4 workers = 90% of the aiosqlite ceiling).
+A single connection serializes concurrent requests; a connection pool makes it *worse* (each aiosqlite connection is a thread — GIL contention). **The working pattern: one aiosqlite connection per process + `ferrox run --workers N`** — scales almost linearly (4 workers = 90% of the aiosqlite ceiling).
 
 ### PostgreSQL 18 (Docker, default settings, Granian, ab)
 
-Requires: `docker run -d --name velox-pg -e POSTGRES_PASSWORD=postgres -e POSTGRES_USER=postgres -e POSTGRES_DB=postgres -p 5432:5432 postgres:latest`
+Requires: `docker run -d --name ferrox-pg -e POSTGRES_PASSWORD=postgres -e POSTGRES_USER=postgres -e POSTGRES_DB=postgres -p 5432:5432 postgres:latest`
 
-| Operation | Velox Core | Velox ORM | FastAPI |
+| Operation | Ferrox Core | Ferrox ORM | FastAPI |
 |---|---|---|---|
 | GET (SELECT 100 rows, LIMIT) | 1 072 req/s | 738 (+45%) | 596 (**+80%**) |
 | POST (INSERT + commit) | 639 req/s | 616 | 568 (+13%) |
 
-POST is disk-bound (fsync in Docker ~1.6 ms/commit); GET shows Velox+Core at +80% over FastAPI. `INSERT...RETURNING` is native on Postgres (no slowdown, unlike SQLite).
+POST is disk-bound (fsync in Docker ~1.6 ms/commit); GET shows Ferrox+Core at +80% over FastAPI. `INSERT...RETURNING` is native on Postgres (no slowdown, unlike SQLite).
 
 ### Where the time goes (SELECT 100 rows)
 
@@ -107,28 +144,35 @@ POST is disk-bound (fsync in Docker ~1.6 ms/commit); GET shows Velox+Core at +80
 | sqlite3 (sync C driver) | 33 506 | — (DB ceiling) |
 | aiosqlite (async) | 15 080 | −55% |
 | SQLAlchemy async ORM | 2 036 | **−87%** |
-| Velox GET on Granian | 1 644 | −19% |
+| Ferrox GET on Granian | 1 644 | −19% |
 
-The ORM mapping is the real bottleneck (~88% of request time), not the framework — Velox adds only ~19% on top of the ORM layer.
+The ORM mapping is the real bottleneck (~88% of request time), not the framework — Ferrox adds only ~19% on top of the ORM layer.
 
-### Payload size (uvicorn, 3 routes, median of 3 runs)
+### Payload size (uvicorn, ab, 50 concurrent, median of 3 runs)
 
-| Response size | Velox | FastAPI | Gain |
+| Response size | Ferrox | FastAPI | Gap |
 |---|---|---|---|
-| small (`{"ok":true}`) | 3 609 req/s | 3 669 req/s | ~0% (network-bound) |
-| medium (50 objects) | 1 961 req/s | 1 008 req/s | **+94%** |
-| big (500 objects) | 546 req/s | 206 req/s | **+165%** |
+| small (`{"ok":true}`) | 19 991 req/s | 6 113 req/s | ×3.27 |
+| medium (50 objects) | 10 089 req/s | 3 170 req/s | ×3.18 |
+| big (500 objects) | 1 915 req/s | 639 req/s | ×3.00 |
 
-**Key takeaway:** routing performance does not degrade as routes are added — the Rust `matchit` router is effectively O(1). FastAPI drops 1.8× when going from 50 to 1000 routes; Velox stays flat. On larger payloads the gap widens (2.4-2.7×) — FastAPI's per-request overhead eats the faster `json.dumps` serialization.
+С ростом ответа обе библиотеки теряют throughput на сериализации (Ferrox 20.0k → 1.9k, FastAPI 6.1k →
+0.6k), но **разрыв остаётся стабильным ×3**: Rust-сериализация не даёт Ferrox «сломаться» на крупных
+ответах. Прежние httpx-числа (546 против 193 req/s, «+181 %») были client-bound — с `ab` реальный
+разрыв снова ×3.
+
+**Key takeaway:** маршрутизация не деградирует с числом маршрутов — Rust `matchit` фактически O(1):
+Ferrox держит 20k/95k req/s при 50 и 1000 маршрутах, FastAPI теряет до 4× внутри одной таблицы.
+Замеры через httpx вводили в заблуждение (потолок клиента ~3.7k req/s) — источник цифр теперь только `ab`.
 
 ### Security (production hardening)
 
 ```python
-from velox import Velox
-from velox.contrib.security import security_headers
-from velox.contrib.ratelimit import rate_limit
+from ferrox import Ferrox
+from ferrox.contrib.security import security_headers
+from ferrox.contrib.ratelimit import rate_limit
 
-app = Velox(max_body_size=10 * 1024 * 1024)   # 413 for oversized bodies
+app = Ferrox(max_body_size=10 * 1024 * 1024)   # 413 for oversized bodies
 app.use(security_headers())                    # nosniff, X-Frame-Options, HSTS, Referrer-Policy
 app.use(rate_limit(limit=100, window=60.0))    # 429 sliding window per IP
 
@@ -147,25 +191,45 @@ async def ws(conn):
 
 Security suite: `tests/security/` — 64 tests (injection, XSS, CRLF, CORS, static symlink/dotfiles, WS origin, body limits, rate limiting, anti-fingerprinting) + **ASVS 5.0 L1 compliance** (17 of 70 requirements, see `docs/security/ASVS.md`).
 
+## Development
+
+```bash
+./scripts/check.sh                      # линт → типы → докстринги → сборка Rust-ядра → тесты
+.venv/bin/python scripts/agent_readiness.py   # покрытие публичного API докстрингами (100%)
+```
+
+- **AGENTS.md** — инструкция для код-агентов (Claude Code, Codex, Cursor, Copilot): структура,
+  команды, инварианты, стиль, границы работ. `CLAUDE.md`, `.cursor/rules/ferrox.mdc` и
+  `.github/copilot-instructions.md` ссылаются на него.
+- **`examples/`** — по одному примеру на кейс: minimal, DI, LLM + SSE, RAG, WebSocket (все под
+  тестами `tests/test_examples.py`); `examples/app.py` — полный DDD-пример.
+- Пакет помечен `py.typed`; для Rust-ядра лежит `ferrox/_core.pyi`, поэтому mypy и IDE
+  видят типы ядра. Линт — ruff, типы — mypy (обе команды в `check.sh`).
+- Всего тестов: **217**; из них `tests/security/` — 64 (в т.ч. 14 ASVS L1).
+
 ### Run
 
 ```bash
-velox dev                          # dev server (uvicorn, auto-reload)
-velox dev --server granian         # dev on Granian (Rust, ~4x faster)
-velox run                          # production (Granian by default, falls back to uvicorn)
-velox run --workers 4              # scale with worker processes
+ferrox dev                          # dev server (uvicorn, auto-reload)
+ferrox dev --server granian         # dev on Granian (Rust, ~4x faster)
+ferrox run                          # production (Granian by default, falls back to uvicorn)
+ferrox run --workers 4              # scale with worker processes
 ```
 
 ### Reproduce
 
 ```bash
-.venv/bin/python bench_real.py              # in-process ASGI comparison
-.venv/bin/python bench_network.py 50        # uvicorn, 50 routes
-.venv/bin/python bench_network.py 1000      # uvicorn, 1000 routes
-.venv/bin/python bench_payload.py           # uvicorn, small/medium/big payloads
-.venv/bin/python bench_full.py              # ALL scenarios in one run (full report)
-.venv/bin/python bench_db.py granian        # DB benchmark (SQLite, GET/POST, ab)
-.venv/bin/python bench_db.py uvicorn
+./bench/run_all_ab.sh                              # вся матрица (routing/payload), пишет bench/RESULTS_ab.txt
+.venv/bin/python bench/ab_bench.py --server granian --routes 1000 --requests 20000
+.venv/bin/python bench/ab_bench.py --server uvicorn --payload big --requests 3000
+.venv/bin/python bench/bench_db.py granian         # DB benchmark (SQLite, GET/POST, ab)
+.venv/bin/python bench/bench_postgres.py granian   # PostgreSQL 18 (Core/ORM vs FastAPI, ab)
+.venv/bin/python bench/bench_rows.py               # ferrox.db / rawmodel vs Litestar/FastAPI (1/100/1000 строк)
+.venv/bin/python bench/bench_rustdb.py             # ferrox.db (запросы в Rust) против asyncpg
 ```
+
+Стенд целиком вынесен в `bench/` (см. `bench/README.md`): это черновой измерительный код, он
+не линтуется, не входит в sdist и Docker-образ. Helper-приложения (`bench/_bench_*.py`) запускаются
+основными скриптами динамически — не удаляй их, не проверив `bench/bench_*.py`.
 
 Machine: local dev box, Python 3.14, single-core uvicorn worker.

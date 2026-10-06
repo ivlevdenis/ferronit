@@ -2,9 +2,9 @@
 
 import pytest
 from sqlalchemy import Column, Integer, String
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from velox.contrib.db import Base, RelationalRepository, RelationalUnitOfWork
+from ferrox.contrib.db import Base, RelationalUnitOfWork
 
 
 class _UserModel(Base):
@@ -20,7 +20,7 @@ async def uow():
         await conn.run_sync(Base.metadata.create_all)
     factory = async_sessionmaker(engine, expire_on_commit=False)
     uow = RelationalUnitOfWork(factory)
-    async with uow as session:
+    async with uow:
         yield uow
     await engine.dispose()
 

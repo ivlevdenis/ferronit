@@ -1,4 +1,4 @@
-"""E2E: Velox HTTP → handler → database (SQLite) → response.
+"""E2E: Ferrox HTTP → handler → database (SQLite) → response.
 
 Полный путь запроса: HTTP-запрос через ASGI → хендлер пишет/читает
 через RelationalUnitOfWork → ответ. Плюс raw SQL проверки.
@@ -6,10 +6,10 @@
 import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import Column, Integer, String, text
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from velox import Velox
-from velox.contrib.db import Base, RelationalUnitOfWork
+from ferrox import Ferrox
+from ferrox.contrib.db import Base, RelationalUnitOfWork
 
 
 class OrderModel(Base):
@@ -30,8 +30,8 @@ async def uow():
     await engine.dispose()
 
 
-def make_app(uow: RelationalUnitOfWork) -> Velox:
-    app = Velox()
+def make_app(uow: RelationalUnitOfWork) -> Ferrox:
+    app = Ferrox()
 
     @app.route("/orders", methods=["POST"])
     async def create_order(req):

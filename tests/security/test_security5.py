@@ -4,9 +4,9 @@ import json
 
 import pytest
 
-from velox import Response, Velox
-from velox.contrib.ratelimit import rate_limit
-from velox.contrib.security import security_headers
+from ferrox import Ferrox, Response
+from ferrox.contrib.ratelimit import rate_limit
+from ferrox.contrib.security import security_headers
 
 
 async def call_app(app, method: str, path: str, headers: list | None = None,
@@ -45,7 +45,7 @@ async def call_app(app, method: str, path: str, headers: list | None = None,
 
 @pytest.mark.asyncio
 async def test_security_headers_defaults():
-    app = Velox()
+    app = Ferrox()
     app.use(security_headers())
 
     @app.route("/api")
@@ -62,7 +62,7 @@ async def test_security_headers_defaults():
 
 @pytest.mark.asyncio
 async def test_security_headers_options_and_override():
-    app = Velox()
+    app = Ferrox()
     app.use(security_headers(hsts=None, csp="default-src 'self'"))
 
     @app.route("/api")
@@ -81,7 +81,7 @@ async def test_security_headers_options_and_override():
 
 @pytest.mark.asyncio
 async def test_ws_origin_allowed_and_denied():
-    app = Velox()
+    app = Ferrox()
 
     @app.websocket("/ws", origins=["https://good.example"])
     async def ws(conn):
@@ -104,7 +104,7 @@ async def test_ws_origin_allowed_and_denied():
     assert any(m.get("type") == "websocket.accept" for m in sent)
 
     # без origins — без ограничений
-    app2 = Velox()
+    app2 = Ferrox()
 
     @app2.websocket("/open")
     async def open_ws(conn):
@@ -118,7 +118,7 @@ async def test_ws_origin_allowed_and_denied():
 
 @pytest.mark.asyncio
 async def test_max_body_size_413():
-    app = Velox(max_body_size=1024)
+    app = Ferrox(max_body_size=1024)
 
     @app.route("/upload", methods=["POST"])
     async def upload(req):
@@ -136,7 +136,7 @@ async def test_max_body_size_413():
 @pytest.mark.asyncio
 async def test_max_body_size_chunked():
     """Лимит срабатывает во время чанкованной загрузки, не после."""
-    app = Velox(max_body_size=100)
+    app = Ferrox(max_body_size=100)
 
     @app.route("/upload", methods=["POST"])
     async def upload(req):
@@ -162,7 +162,7 @@ async def test_max_body_size_chunked():
 
 @pytest.mark.asyncio
 async def test_rate_limit_429():
-    app = Velox()
+    app = Ferrox()
     app.use(rate_limit(limit=3, window=60.0))
 
     @app.route("/api")
@@ -180,7 +180,7 @@ async def test_rate_limit_429():
 
 @pytest.mark.asyncio
 async def test_rate_limit_per_ip():
-    app = Velox()
+    app = Ferrox()
     app.use(rate_limit(limit=2, window=60.0))
 
     @app.route("/api")
@@ -198,7 +198,7 @@ async def test_rate_limit_per_ip():
 
 @pytest.mark.asyncio
 async def test_rate_limit_custom_key():
-    app = Velox()
+    app = Ferrox()
     app.use(rate_limit(limit=2, window=60.0, key=lambda req: req.get_header("x-api-key") or "anon"))
 
     @app.route("/api")
@@ -217,7 +217,7 @@ async def test_rate_limit_custom_key():
 
 @pytest.mark.asyncio
 async def test_no_server_fingerprint_headers():
-    app = Velox()
+    app = Ferrox()
 
     @app.route("/api")
     def api(req):
@@ -232,7 +232,7 @@ async def test_no_server_fingerprint_headers():
 @pytest.mark.asyncio
 async def test_trace_method_not_allowed():
     """TRACE/TRACK — 404, не эхо (защита от TRACE-атак)."""
-    app = Velox()
+    app = Ferrox()
 
     @app.route("/api")
     def api(req):

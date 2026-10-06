@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Velox Architecture</title>
+<title>Ferrox Architecture</title>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -33,7 +33,7 @@ svg { display: block; min-width: 980px; }
 <body>
 <div class="container">
   <div class="header">
-    <h1><span class="dot"></span>Velox Framework — Architecture</h1>
+    <h1><span class="dot"></span>Ferrox Framework — Architecture</h1>
     <p class="subtitle">Python ASGI + Rust core · v0.8 · 113 tests · ASVS 5.0 L1 · ~88k req/s (Granian, 1 worker)</p>
   </div>
 
@@ -58,16 +58,16 @@ svg { display: block; min-width: 980px; }
 
       <!-- ============ 2. SERVER LAYER ============ -->
       <rect x="130" y="160" width="300" height="70" rx="8" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1.5"/>
-      <text x="280" y="188" fill="white" font-size="12" font-weight="600" text-anchor="middle">Server (CLI: velox dev / velox run)</text>
+      <text x="280" y="188" fill="white" font-size="12" font-weight="600" text-anchor="middle">Server (CLI: ferrox dev / ferrox run)</text>
       <text x="280" y="206" fill="#94a3b8" font-size="9" text-anchor="middle">Granian (Rust) — default · uvicorn — fallback</text>
       <text x="280" y="220" fill="#94a3b8" font-size="8" text-anchor="middle">--workers N · --server granian|uvicorn</text>
 
       <!-- ============ 3. ASGI CORE (Python) ============ -->
       <rect x="40" y="290" width="620" height="150" rx="10" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
-      <text x="60" y="312" fill="#34d399" font-size="10" font-weight="600">ASGI Core — Python (velox/core)</text>
+      <text x="60" y="312" fill="#34d399" font-size="10" font-weight="600">ASGI Core — Python (ferrox/core)</text>
 
       <rect x="60" y="325" width="140" height="44" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
-      <text x="130" y="343" fill="white" font-size="10" font-weight="600" text-anchor="middle">Velox.__call__</text>
+      <text x="130" y="343" fill="white" font-size="10" font-weight="600" text-anchor="middle">Ferrox.__call__</text>
       <text x="130" y="358" fill="#94a3b8" font-size="8" text-anchor="middle">ASGI lifecycle</text>
 
       <rect x="215" y="325" width="140" height="44" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
@@ -92,7 +92,7 @@ svg { display: block; min-width: 980px; }
 
       <!-- ============ 4. RUST CORE ============ -->
       <rect x="700" y="290" width="270" height="150" rx="10" fill="rgba(136, 19, 55, 0.4)" stroke="#fb7185" stroke-width="1.5"/>
-      <text x="720" y="312" fill="#fb7185" font-size="10" font-weight="600">Rust Core — velox_core (PyO3)</text>
+      <text x="720" y="312" fill="#fb7185" font-size="10" font-weight="600">Rust Core — ferrox_core (PyO3)</text>
 
       <rect x="720" y="325" width="230" height="40" rx="6" fill="rgba(136, 19, 55, 0.4)" stroke="#fb7185" stroke-width="1.5"/>
       <text x="835" y="342" fill="white" font-size="10" font-weight="600" text-anchor="middle">matchit router · O(1) · 1k routes</text>
@@ -104,7 +104,7 @@ svg { display: block; min-width: 980px; }
 
       <!-- ============ 5. CONTRIB ============ -->
       <rect x="40" y="480" width="930" height="120" rx="10" fill="rgba(6, 78, 59, 0.3)" stroke="#34d399" stroke-width="1.5" stroke-dasharray="6,3"/>
-      <text x="60" y="500" fill="#34d399" font-size="10" font-weight="600">Contrib — production modules (velox/contrib)</text>
+      <text x="60" y="500" fill="#34d399" font-size="10" font-weight="600">Contrib — production modules (ferrox/contrib)</text>
 
       <rect x="60" y="515" width="135" height="70" rx="6" fill="rgba(136, 19, 55, 0.4)" stroke="#fb7185" stroke-width="1.5"/>
       <text x="127" y="535" fill="white" font-size="10" font-weight="600" text-anchor="middle">Security</text>
@@ -141,7 +141,7 @@ svg { display: block; min-width: 980px; }
 
       <!-- ============ 6. DDD / HEXAGONAL ============ -->
       <rect x="40" y="640" width="930" height="120" rx="10" fill="rgba(76, 29, 149, 0.35)" stroke="#a78bfa" stroke-width="1.5"/>
-      <text x="60" y="660" fill="#a78bfa" font-size="10" font-weight="600">Domain Layer — DDD / Hexagonal (velox/ddd.py · hexagonal.py)</text>
+      <text x="60" y="660" fill="#a78bfa" font-size="10" font-weight="600">Domain Layer — DDD / Hexagonal (ferrox/ddd.py · hexagonal.py)</text>
 
       <rect x="60" y="675" width="170" height="70" rx="6" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5"/>
       <text x="145" y="695" fill="white" font-size="10" font-weight="600" text-anchor="middle">CQRS Bus</text>
@@ -263,7 +263,7 @@ svg { display: block; min-width: 980px; }
     </div>
   </div>
 
-  <p class="footer">Velox Framework • August 2026 • docs/security/ASVS.md · 113 tests</p>
+  <p class="footer">Ferrox Framework • August 2026 • docs/security/ASVS.md · 113 tests</p>
 </div>
 </body>
 </html>

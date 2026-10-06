@@ -6,8 +6,8 @@ import os
 
 import pytest
 
-from velox import Response, Velox
-from velox.contrib.staticfiles import StaticFiles
+from ferrox import Ferrox, Response
+from ferrox.contrib.staticfiles import StaticFiles
 
 
 async def call_app(app, method: str, path: str, headers: list | None = None,
@@ -54,7 +54,7 @@ async def test_static_symlink_escape(tmp_path):
     link = tmp_path / "link.txt"
     os.symlink(target, link)  # link внутри, target внутри — но проверим и наружу
 
-    app = Velox()
+    app = Ferrox()
     app.mount("/static", StaticFiles(str(tmp_path)))
 
     # symlink на файл ВНЕ статики
@@ -81,7 +81,7 @@ async def test_static_dotfiles_hidden(tmp_path):
     (tmp_path / ".git").write_text("repo")
     (tmp_path / "index.html").write_text("<h1>ok</h1>")
 
-    app = Velox()
+    app = Ferrox()
     app.mount("/static", StaticFiles(str(tmp_path)))
 
     status, _, body = await call_app(app, "GET", "/static/.env")
@@ -100,7 +100,7 @@ async def test_static_dotfiles_hidden(tmp_path):
 @pytest.mark.asyncio
 async def test_content_type_header_injection():
     """CRLF в content_type ответа не создаёт новые заголовки."""
-    app = Velox()
+    app = Ferrox()
 
     @app.route("/ct")
     def ct(req):
@@ -116,7 +116,7 @@ async def test_content_type_header_injection():
 
 @pytest.mark.asyncio
 async def test_ws_unknown_path_closes():
-    app = Velox()
+    app = Ferrox()
 
     @app.websocket("/ws")
     async def ws(conn):
@@ -132,7 +132,7 @@ async def test_ws_unknown_path_closes():
 
 @pytest.mark.asyncio
 async def test_ws_handler_error_closes():
-    app = Velox()
+    app = Ferrox()
 
     @app.websocket("/ws")
     async def ws(conn):
@@ -148,7 +148,7 @@ async def test_ws_handler_error_closes():
 
 @pytest.mark.asyncio
 async def test_gzip_response_valid():
-    app = Velox()
+    app = Ferrox()
 
     @app.route("/data")
     def data(req):
@@ -169,7 +169,7 @@ async def test_gzip_response_valid():
 
 @pytest.mark.asyncio
 async def test_giant_query_string_no_crash():
-    app = Velox()
+    app = Ferrox()
 
     @app.route("/search")
     def search(req):
@@ -185,7 +185,7 @@ async def test_giant_query_string_no_crash():
 @pytest.mark.asyncio
 async def test_control_chars_escaped_in_json():
     """\\x00 и \\x1f в значениях не попадают в ответ сырыми байтами."""
-    app = Velox()
+    app = Ferrox()
 
     @app.route("/ctrl")
     def ctrl(req):
@@ -204,7 +204,7 @@ async def test_control_chars_escaped_in_json():
 
 @pytest.mark.asyncio
 async def test_huge_body_no_crash():
-    app = Velox()
+    app = Ferrox()
 
     @app.route("/upload", methods=["POST"])
     async def upload(req):
@@ -224,7 +224,7 @@ async def test_huge_body_no_crash():
 
 @pytest.mark.asyncio
 async def test_method_not_allowed_no_500():
-    app = Velox()
+    app = Ferrox()
 
     @app.route("/only-get")
     def only_get(req):

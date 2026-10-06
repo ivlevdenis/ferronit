@@ -1,0 +1,55 @@
+# Ferrox — запуск образа «одной командой».
+#
+#   docker compose up --build api           # минимальное приложение (порт 8000)
+#   docker compose up --build ecommerce     # полный DDD-пример на SQLite (порт 8001)
+#   docker compose --profile postgres up -d # Postgres 18 рядом (порт 5432)
+#
+# ecommerce переключается на Postgres так:
+#   DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/ferrox
+
+services:
+  api:
+    build: .
+    image: ferrox:0.8.0
+    ports:
+      - "8000:8000"
+    environment:
+      APP: demo_app:app
+      WORKERS: "2"
+      PORT: "8000"
+    restart: unless-stopped
+
+  # examples/app.py — e-commerce с DDD/CQRS (SQLite внутри контейнера)
+  ecommerce:
+    build: .
+    image: ferrox:0.8.0
+    ports:
+      - "8001:8000"
+    environment:
+      APP: examples.app:app
+      DATABASE_URL: sqlite+aiosqlite:////tmp/ecommerce.db
+      HEALTH_PATH: /cart
+      WORKERS: "1"
+    working_dir: /app
+    command:
+      - sh
+      - -c
+      - >-
+        python -c "import asyncio, examples.app as a; asyncio.run(a.init_db())"
+        && exec ferrox-entrypoint
+
+  postgres:
+    image: postgres:18-alpine
+    profiles: ["postgres"]
+    # 5433 на хосте: не конфликтует с локальным Postgres/тестовым ferrox-pg на 5432
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_DB: ferrox
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10

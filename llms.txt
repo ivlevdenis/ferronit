@@ -1,0 +1,44 @@
+# Ferrox
+
+> Ferrox — высокопроизводительный Python ASGI-фреймворк с Rust-ядром: роутинг, парсинг
+> запроса, JSON, gzip и CORS реализованы на Rust (`ferrox._core`), а бизнес-логика остаётся
+> обычным Python с DDD/CQRS, hexagonal-портами и DI. В том же ядре — слой данных `ferrox.db`
+> (PostgreSQL → JSON целиком в Rust). Python ≥ 3.12, abi3-py312 (один wheel на 3.12+).
+> Замеры: 88 768 req/s на Granian против 11 082 у FastAPI (×8.0), hot path ~11 мкс на запрос.
+
+Этот файл — краткая карта для языковых моделей и агентов.
+
+## Основное
+
+- [AGENTS.md](AGENTS.md): инструкция для код-агентов — структура, команды, инварианты, стиль, границы работ
+- [README.md](README.md): обзор, установка, бенчмарки, безопасность, Docker, запуск
+- [docs/security/ASVS.md](docs/security/ASVS.md): карта соответствия OWASP ASVS 5.0 Level 1 (17/70)
+- [docs/design/application-strategy.md](docs/design/application-strategy.md): где применять фреймворк
+- [examples/app.py](examples/app.py): полный пример — DDD + CQRS + hexagonal + SQLAlchemy
+
+## Публичный API
+
+- Приложение: `ferrox.Ferrox` (`@app.route`, `@app.websocket`, `app.use`, `app.mount`)
+- Запрос/ответ: `ferrox.Request`, `ferrox.Response`, `ferrox.JSONResponse`, `ferrox.StreamingResponse`, `ferrox.TextResponse`
+- DDD: `ferrox.ddd` — `AggregateRoot`, `Command`, `Query`, `CommandBus`, `QueryBus`, `Repository`
+- Порты и адаптеры: `ferrox.hexagonal` — `Port`, `Adapter`, `UnitOfWork`, `ApplicationService`, `Logger`, `Cache`, `MessageBus`, `EventBus`
+- DI: `ferrox.di.Container`; конфиг: `ferrox.config.EnvConfig`
+- БД: `ferrox.contrib.db` — `CoreRepository`, `RelationalRepository`, `create_relational_uow`; `ferrox.contrib.rawdb` + `rawmodel` (asyncpg без SQLAlchemy); `ferrox.db` (PostgreSQL → JSON в Rust)
+- LLM: `ferrox.contrib.llm` — `LlmPort`, `OpenAiAdapter`, `ClaudeAdapter`, `MockLlmAdapter`
+- Векторный поиск: `ferrox.contrib.vectordb` — `VectorDbPort`, `QdrantAdapter`, `ChromaAdapter`, `MockVectorDb`
+- Прочее: `ferrox.contrib.cors`, `security`, `ratelimit`, `staticfiles`, `tracing`, `health`, `kafka`, `pydantic`
+
+## Команды
+
+```bash
+./scripts/check.sh        # линт → типы → сборка Rust-ядра → тесты
+.venv/bin/pytest tests/ -q
+ferrox dev --server granian
+ferrox run --workers 4
+docker build -t ferrox:0.8.0 . && ./scripts/docker_smoke.sh
+```
+
+## Optional
+
+- [infographic/](infographic/ferrox-why/): материалы для презентации (вёрстка + рендер через CDP)
+- Бенчмарк-скрипты в `bench/` (`bench_*.py`, `micro_bench_*.py`, `prof_*.py`): измерительный стенд, не часть пакета

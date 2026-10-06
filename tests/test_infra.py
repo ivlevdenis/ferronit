@@ -1,15 +1,14 @@
 """Config + DI + Tracing + LLM tests."""
 
 import pytest
-
-from velox.config import EnvConfig
-from velox.contrib.llm import ChatMessage, MockLlmAdapter
-from velox.contrib.tracing import TraceLogger, current_trace_id, trace_middleware
-from velox.di import Container
-from velox.hexagonal import Logger, PrintLogger
-from velox import Velox
 from httpx import ASGITransport, AsyncClient
 
+from ferrox import Ferrox
+from ferrox.config import EnvConfig
+from ferrox.contrib.llm import ChatMessage, MockLlmAdapter
+from ferrox.contrib.tracing import trace_middleware
+from ferrox.di import Container
+from ferrox.hexagonal import Logger, PrintLogger
 
 # ── Config ────────────────────────────────────────────────────────────
 
@@ -87,7 +86,7 @@ async def test_mock_llm_embed():
 
 @pytest.mark.asyncio
 async def test_trace_id_generated():
-    v = Velox()
+    v = Ferrox()
     v.use(trace_middleware)
 
     @v.route("/")
@@ -104,7 +103,7 @@ async def test_trace_id_generated():
 
 @pytest.mark.asyncio
 async def test_trace_id_propagated():
-    v = Velox()
+    v = Ferrox()
     v.use(trace_middleware)
 
     @v.route("/")

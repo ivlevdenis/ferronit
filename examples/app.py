@@ -1,4 +1,4 @@
-"""Velox E-Commerce API — full DDD + Hexagonal + Postgres.
+"""Ferrox E-Commerce API — full DDD + Hexagonal + Postgres.
 
 Endpoints:
   POST /cart/items      — add item to cart
@@ -20,16 +20,16 @@ except ImportError:
 from pydantic import BaseModel
 from sqlalchemy import Column, Float, Integer, String
 
-from velox import JSONResponse, Velox
-from velox.contrib.cors import cors
-from velox.contrib.db import Base, create_relational_uow
-from velox.contrib.pydantic.pydantic_codec import install
-from velox.contrib.staticfiles import StaticFiles
-from velox.ddd import AggregateRoot, Command, CommandBus, Query, QueryBus
-from velox.hexagonal import ApplicationService
+from ferrox import JSONResponse, Ferrox
+from ferrox.contrib.cors import cors
+from ferrox.contrib.db import Base, create_relational_uow
+from ferrox.contrib.pydantic.pydantic_codec import install
+from ferrox.contrib.staticfiles import StaticFiles
+from ferrox.ddd import AggregateRoot, Command, CommandBus, Query, QueryBus
+from ferrox.hexagonal import ApplicationService
 
 install()
-app = Velox(debug=True)
+app = Ferrox(debug=True)
 app.use(cors())
 app.mount("/static", StaticFiles("./public"))
 

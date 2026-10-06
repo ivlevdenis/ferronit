@@ -4,8 +4,8 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 from pydantic import BaseModel
 
-from velox import Velox, JSONResponse
-from velox.contrib.pydantic.pydantic_codec import install as install_pydantic
+from ferrox import Ferrox, JSONResponse
+from ferrox.contrib.pydantic.pydantic_codec import install as install_pydantic
 
 install_pydantic()
 
@@ -17,7 +17,7 @@ class Item(BaseModel):
 
 @pytest.fixture
 def app():
-    v = Velox(debug=True)
+    v = Ferrox(debug=True)
 
     @v.route("/items", methods=["POST"])
     async def create(req):

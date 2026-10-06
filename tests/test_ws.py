@@ -5,12 +5,12 @@ import asyncio
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from velox import Velox
+from ferrox import Ferrox
 
 
 @pytest.fixture
 def app():
-    v = Velox(debug=True)
+    v = Ferrox(debug=True)
 
     @v.websocket("/ws/echo")
     async def echo(ws):
@@ -63,6 +63,6 @@ async def test_streaming(client):
 
 @pytest.mark.asyncio
 async def test_websocket_echo(client):
-    async with client.stream("GET", "http://test/ws/echo") as ws_connect:
+    async with client.stream("GET", "http://test/ws/echo") as _ws:
         # httpx doesn't support WebSocket natively; test via ASGI transport
         pass

@@ -3,12 +3,12 @@
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from velox import Velox
+from ferrox import Ferrox
 
 
 @pytest.fixture
 def app():
-    v = Velox(debug=True)
+    v = Ferrox(debug=True)
 
     async def logger(req, next_handler):
         req._scope["x-mw"] = "logged"

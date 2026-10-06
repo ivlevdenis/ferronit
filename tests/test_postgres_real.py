@@ -1,15 +1,15 @@
-"""E2E: Velox HTTP → CoreRepository → реальный PostgreSQL (Docker, дефолтные настройки).
+"""E2E: Ferrox HTTP → CoreRepository → реальный PostgreSQL (Docker, дефолтные настройки).
 
-Требует: docker run -d --name velox-pg -e POSTGRES_PASSWORD=postgres \
+Требует: docker run -d --name ferrox-pg -e POSTGRES_PASSWORD=postgres \
     -e POSTGRES_USER=postgres -e POSTGRES_DB=postgres -p 5432:5432 postgres:latest
 """
 import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import Column, Integer, MetaData, String, Table, text
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from velox import Velox
-from velox.contrib.db import RelationalUnitOfWork
+from ferrox import Ferrox
+from ferrox.contrib.db import RelationalUnitOfWork
 
 DATABASE_URL = "postgresql+asyncpg://postgres:postgres@localhost:5432/postgres"
 
@@ -36,8 +36,8 @@ async def uow():
     await engine.dispose()
 
 
-def make_app(uow: RelationalUnitOfWork) -> Velox:
-    app = Velox()
+def make_app(uow: RelationalUnitOfWork) -> Ferrox:
+    app = Ferrox()
 
     @app.route("/orders", methods=["POST"])
     async def create_order(req):

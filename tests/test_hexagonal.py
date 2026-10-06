@@ -3,10 +3,9 @@
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from velox import Velox
-from velox.ddd import AggregateRoot, Command, CommandBus
-from velox.hexagonal import Adapter, ApplicationService, Port, UnitOfWork
-
+from ferrox import Ferrox
+from ferrox.ddd import AggregateRoot, Command, CommandBus
+from ferrox.hexagonal import ApplicationService, Port, UnitOfWork
 
 # ── Domain ─────────────────────────────────────────────────────────────
 
@@ -54,7 +53,7 @@ class InMemoryUoW(UnitOfWork):
 # ── Application ───────────────────────────────────────────────────────
 
 class CreateOrderCmd(Command):
-    __slots__ = ("order_id", "amount")
+    __slots__ = ("amount", "order_id")
     def __init__(self, oid: str, amount: int):
         self.order_id = oid
         self.amount = amount
@@ -88,7 +87,7 @@ async def test_hexagonal_full():
     bus = CommandBus()
     bus.register(CreateOrderCmd, service.create)
 
-    v = Velox()
+    v = Ferrox()
 
     @v.route("/orders", methods=["POST"])
     async def create_order(req):

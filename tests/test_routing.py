@@ -3,12 +3,12 @@
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from velox import Velox
+from ferrox import Ferrox
 
 
 @pytest.fixture
 def app():
-    v = Velox(debug=True)
+    v = Ferrox(debug=True)
 
     @v.route("/users/{user_id}")
     def get_user(req):

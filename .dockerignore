@@ -1,0 +1,31 @@
+# Контекст сборки: только исходники, нужные билд-стейджу
+.git
+.github
+.venv
+venv
+__pycache__
+*.py[cod]
+*.egg-info
+.pytest_cache
+.benchmarks
+build
+dist
+ferrox-rs/target
+graphify-out
+docs
+tests
+# измерительный стенд целиком (черновые скрипты + helper-приложения)
+bench
+# секреты и сессии — никогда
+*.session
+*.session-journal
+.env
+.env.*
+# бенч-хлам в корне
+_bench_*.py
+_ab_*.py
+bench_*.py
+micro_bench_*.py
+prof_*.py
+*.log
+*.db

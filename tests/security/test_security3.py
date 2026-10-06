@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from velox import Velox
+from ferrox import Ferrox
 
 
 async def call_app(app, method: str, path: str, headers: list | None = None,
@@ -41,7 +41,7 @@ async def call_app(app, method: str, path: str, headers: list | None = None,
 
 
 def make_json_app():
-    app = Velox()
+    app = Ferrox()
 
     @app.route("/echo", methods=["POST"])
     async def echo(req):
@@ -152,7 +152,7 @@ async def test_json_wrong_content_type_still_validates():
 @pytest.mark.asyncio
 async def test_path_params_decoding():
     """ASGI path уже декодирован — параметр приходит как есть, без двойного декода."""
-    app = Velox()
+    app = Ferrox()
 
     @app.route("/users/{user_id}")
     def get_user(req):
@@ -174,7 +174,7 @@ async def test_path_params_decoding():
 @pytest.mark.asyncio
 async def test_middleware_error_500_generic():
     """Ошибка в middleware — 500 без внутренностей."""
-    app = Velox()
+    app = Ferrox()
 
     def evil_mw(req, next_handler):
         raise RuntimeError("middleware-secret-xyz")
@@ -195,7 +195,7 @@ async def test_middleware_error_500_generic():
 
 @pytest.mark.asyncio
 async def test_unicode_paths_no_crash():
-    app = Velox()
+    app = Ferrox()
 
     @app.route("/users/{user_id}")
     def get_user(req):
@@ -213,7 +213,7 @@ async def test_unicode_paths_no_crash():
 
 @pytest.mark.asyncio
 async def test_ws_receive_json_broken_closes():
-    app = Velox()
+    app = Ferrox()
 
     @app.websocket("/ws")
     async def ws(conn):

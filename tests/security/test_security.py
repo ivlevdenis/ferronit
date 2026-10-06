@@ -1,18 +1,16 @@
 """Security tests — first 10: injection, traversal, header injection, CORS, error handling.
 
-Проверяют реальное поведение Velox; тесты, падающие из-за отсутствия
+Проверяют реальное поведение Ferrox; тесты, падающие из-за отсутствия
 защиты, фиксируются вместе с фиксом (тест — регрессионный страж).
 """
 import pytest
-from httpx import ASGITransport, AsyncClient
-from sqlalchemy import Column, Integer, MetaData, String, Table, insert
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+from sqlalchemy import Column, Integer, MetaData, String, Table
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from velox import Velox
-from velox.contrib.cors import cors
-from velox.contrib.db import RelationalUnitOfWork
-from velox.contrib.staticfiles import StaticFiles
-
+from ferrox import Ferrox
+from ferrox.contrib.cors import cors
+from ferrox.contrib.db import RelationalUnitOfWork
+from ferrox.contrib.staticfiles import StaticFiles
 
 # ── helpers ───────────────────────────────────────────────────────────
 
@@ -97,7 +95,7 @@ async def test_sql_injection_in_filter():
 async def test_static_path_traversal(tmp_path):
     """../../etc/passwd не отдаётся из статики."""
     (tmp_path / "public.txt").write_text("hello")
-    app = Velox()
+    app = Ferrox()
     app.mount("/static", StaticFiles(str(tmp_path)))
 
     status, _, body = await call_app(app, "GET", "/static/../../etc/passwd")
@@ -119,11 +117,11 @@ async def test_static_path_traversal(tmp_path):
 @pytest.mark.asyncio
 async def test_crlf_header_injection():
     """Заголовок с CRLF из пользовательского ввода не создаёт новые заголовки."""
-    app = Velox()
+    app = Ferrox()
 
     @app.route("/echo")
     def echo(req):
-        resp = __import__("velox").Response(body=b"ok")
+        resp = __import__("ferrox").Response(body=b"ok")
         resp._headers["X-User"] = req.query.get("v", [""])[0]
         return resp
 
@@ -138,7 +136,7 @@ async def test_crlf_header_injection():
 @pytest.mark.asyncio
 async def test_xss_json_html_escaping():
     """JSON-ответ не должен содержать сырой <script> (XSS при <script>JSON</script>)."""
-    app = Velox()
+    app = Ferrox()
 
     @app.route("/xss")
     def xss(req):
@@ -155,7 +153,7 @@ async def test_xss_json_html_escaping():
 @pytest.mark.asyncio
 async def test_deep_nested_json_no_crash():
     """Глубокая вложенность JSON не роняет процесс — валидный HTTP-ответ."""
-    app = Velox()
+    app = Ferrox()
 
     @app.route("/echo", methods=["POST"])
     async def echo(req):
@@ -174,7 +172,7 @@ async def test_deep_nested_json_no_crash():
 @pytest.mark.asyncio
 async def test_cors_denied_origin():
     """Origin вне списка не получает Access-Control-Allow-Origin."""
-    app = Velox()
+    app = Ferrox()
     app.use(cors(allow_origins=["https://good.example"]))
 
     @app.route("/api")
@@ -207,7 +205,7 @@ async def test_cors_denied_origin():
 @pytest.mark.asyncio
 async def test_debug_off_hides_error_details():
     """debug=False: 500 без деталей исключения."""
-    app = Velox(debug=False)
+    app = Ferrox(debug=False)
 
     @app.route("/boom")
     def boom(req):
@@ -224,7 +222,7 @@ async def test_debug_off_hides_error_details():
 @pytest.mark.asyncio
 async def test_invalid_json_returns_400():
     """Битый JSON от клиента — 400, не 500."""
-    app = Velox()
+    app = Ferrox()
 
     @app.route("/echo", methods=["POST"])
     async def echo(req):
@@ -241,7 +239,7 @@ async def test_invalid_json_returns_400():
 @pytest.mark.asyncio
 async def test_malformed_path_no_crash():
     """Мусорные/битые пути не роняют роутер."""
-    app = Velox()
+    app = Ferrox()
 
     @app.route("/users/{user_id}")
     def get_user(req):

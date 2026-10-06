@@ -3,12 +3,12 @@
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from velox import Velox
+from ferrox import Ferrox
 
 
 @pytest.fixture
-def app() -> Velox:
-    v = Velox(debug=True)
+def app() -> Ferrox:
+    v = Ferrox(debug=True)
 
     @v.route("/")
     def home(req):
@@ -42,9 +42,9 @@ async def test_json_response(client):
 
 @pytest.mark.asyncio
 async def test_text_response(client):
-    r = await client.get("/hello?name=Velox")
+    r = await client.get("/hello?name=Ferrox")
     assert r.status_code == 200
-    assert r.text == "Hello, Velox!"
+    assert r.text == "Hello, Ferrox!"
 
 
 @pytest.mark.asyncio

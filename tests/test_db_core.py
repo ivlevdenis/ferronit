@@ -1,4 +1,4 @@
-"""E2E: Velox HTTP → handler → SQLAlchemy Core repository → SQLite.
+"""E2E: Ferrox HTTP → handler → SQLAlchemy Core repository → SQLite.
 
 Тот же путь, что и test_db_e2e, но через Core: строки → dict,
 без ORM-маппинга (как в проде на Core).
@@ -6,10 +6,10 @@
 import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import Column, Integer, MetaData, String, Table, text
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from velox import Velox
-from velox.contrib.db import RelationalUnitOfWork
+from ferrox import Ferrox
+from ferrox.contrib.db import RelationalUnitOfWork
 
 metadata = MetaData()
 
@@ -33,8 +33,8 @@ async def uow():
     await engine.dispose()
 
 
-def make_app(uow: RelationalUnitOfWork) -> Velox:
-    app = Velox()
+def make_app(uow: RelationalUnitOfWork) -> Ferrox:
+    app = Ferrox()
 
     @app.route("/orders", methods=["POST"])
     async def create_order(req):

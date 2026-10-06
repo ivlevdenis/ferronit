@@ -1,40 +1,90 @@
 [project]
-name = "velox"
+name = "ferrox"
 dynamic = ["version"]
-description = "High-performance Python ASGI web framework with a Rust core"
+description = "High-performance Python ASGI web framework with a Rust core (routing, JSON, PostgreSQL)"
 readme = "README.md"
 requires-python = ">=3.12"
-# Ядро собирается maturin-ом из velox-rs/ и ставится отдельным дистрибутивом.
-# Для локальной разработки путь подменяется через [tool.uv.sources] ниже.
-dependencies = ["velox-core>=0.8.0,<0.9"]
+# Единый пакет: нативное ядро (ferrox._core, включая ferrox._core.db) собирается в этот же
+# wheel, поэтому внешних рантайм-зависимостей нет.
+dependencies = []
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Topic :: Internet :: WWW/HTTP",
+]
 
 [project.scripts]
-velox = "velox.cli:main"
+ferrox = "ferrox.cli:main"
 
 [project.optional-dependencies]
 server = ["granian[reload]>=2.8", "uvicorn[standard]>=0.30"]
 db = ["sqlalchemy[asyncio]>=2.0"]
 postgres = ["asyncpg>=0.29"]
 pydantic = ["pydantic>=2.0"]
-dev = ["pytest>=8", "pytest-asyncio", "pytest-benchmark", "httpx", "maturin>=1.14,<2"]
+dev = ["pytest>=8", "pytest-asyncio", "pytest-benchmark", "httpx", "maturin>=1.14,<2",
+       "ruff>=0.6", "mypy>=1.11"]
 
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["maturin>=1.14,<2"]
+build-backend = "maturin"
 
-[tool.hatch.version]
-path = "velox/__init__.py"
-
-[tool.hatch.build.targets.wheel]
-packages = ["velox"]
-
-[tool.hatch.build.targets.sdist]
-include = ["velox/", "velox-rs/src/", "velox-rs/Cargo.toml", "velox-rs/pyproject.toml", "README.md"]
-
-# Локальная разработка: velox-core берётся из velox-rs/, а не с PyPI.
-[tool.uv.sources]
-velox-core = { path = "velox-rs" }
+[tool.maturin]
+# Единый пакет: Python `ferrox/` и нативное ядро собираются в один wheel. Rust-крейт лежит
+# в ferrox-rs/ и строится как `ferrox._core`; публичный слой данных — `ferrox.db`.
+# Версия — из ferrox-rs/Cargo.toml.
+manifest-path = "ferrox-rs/Cargo.toml"
+module-name = "ferrox._core"
+bindings = "pyo3"
+python-source = "."
+python-packages = ["ferrox"]
+features = ["pyo3/extension-module"]
+strip = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+
+# ── Линтер ────────────────────────────────────────────────────────────
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = [
+    ".venv", "build", "dist", "ferrox-rs/target",
+    "graphify-out", "infographic",
+    "bench",                 # измерительный стенд: черновые скрипты, не часть пакета
+    "examples/app1k_raw.py", # генератор 1000 маршрутов для замеров
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM", "PERF", "RUF"]
+ignore = [
+    "E501",   # длину строк держим под контролем при чтении, а не линтером
+    "B008",   # app.use(cors()) — вызов в дефолтном аргументе осознан
+    "RUF012", # ClassVar для mutable-атрибутов: в этом коде такого паттерна нет
+    "RUF002", "RUF003",  # типографские «—» и русские пояснения в докстрингах/комментариях
+    "B024",   # Port/Adapter — маркерные интерфейсы без методов (осознанно)
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Security-набор намеренно проверяет «плохие» конструкции (инъекции, битые входы)
+"tests/security/*.py" = ["S", "E501"]
+# Распаковка кортежей в тестах ради наглядности (часть значений не используется)
+"tests/**/*.py" = ["RUF059"]
+
+# ── Типы ──────────────────────────────────────────────────────────────
+[tool.mypy]
+python_version = "3.12"
+files = ["ferrox"]
+show_error_codes = true
+show_column_numbers = true
+check_untyped_defs = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+no_implicit_optional = true
+strict_equality = true
+pretty = true
+
+# Опциональные зависимости: стабов нет в природе — импорты не считаем ошибкой
+[[tool.mypy.overrides]]
+module = ["aiokafka.*", "aiokafka", "asyncpg.*", "qdrant_client.*", "chromadb.*"]
+ignore_missing_imports = true

@@ -1,9 +1,10 @@
 """DDD integration tests — full command/query/aggregate lifecycle."""
 
 import pytest
+from httpx import ASGITransport, AsyncClient
 
-from velox import Velox
-from velox.ddd import (
+from ferrox import Ferrox
+from ferrox.ddd import (
     AggregateRoot,
     Command,
     CommandBus,
@@ -12,8 +13,6 @@ from velox.ddd import (
     QueryBus,
     Repository,
 )
-from httpx import ASGITransport, AsyncClient
-
 
 # ── Domain ─────────────────────────────────────────────────────────────
 
@@ -32,7 +31,7 @@ class User(AggregateRoot):
 # ── Commands / Queries ────────────────────────────────────────────────
 
 class CreateUser(Command):
-    __slots__ = ("user_id", "name")
+    __slots__ = ("name", "user_id")
     def __init__(self, user_id: str, name: str):
         self.user_id = user_id
         self.name = name
@@ -108,7 +107,7 @@ async def test_ddd_http_integration():
     cmd_bus.register(CreateUser, CreateUserHandler(repo))
     query_bus.register(GetUser, GetUserHandler(repo))
 
-    v = Velox(debug=True)
+    v = Ferrox(debug=True)
 
     @v.route("/users", methods=["POST"])
     async def create(req):

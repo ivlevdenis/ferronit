@@ -19,7 +19,7 @@ ferrox = "ferrox.cli:main"
 [project.optional-dependencies]
 server = ["granian[reload]>=2.8", "uvicorn[standard]>=0.30"]
 db = ["sqlalchemy[asyncio]>=2.0"]
-postgres = ["asyncpg>=0.29"]
+postgres = ["asyncpg>=0.29", "msgspec>=0.19"]
 pydantic = ["pydantic>=2.0"]
 dev = ["pytest>=8", "pytest-asyncio", "pytest-benchmark", "httpx", "maturin>=1.14,<2",
        "ruff>=0.6", "mypy>=1.11"]

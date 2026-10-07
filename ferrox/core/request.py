@@ -49,13 +49,14 @@ class Request:
         query: Query string as ``{name: [values]}`` — every value is a list.
     """
 
-    __slots__ = ("_headers_cache", "_params", "_receive", "_rust", "_scope")
+    __slots__ = ("_headers_cache", "_params", "_query_cache", "_receive", "_rust", "_scope")
 
     def __init__(self, scope: dict, receive, path_params: dict[str, str] | None = None) -> None:
         self._scope = scope
         self._receive = receive
         self._params: dict[str, str] = path_params or scope.get("route_params", {})
         self._headers_cache: dict[str, str] | None = None
+        self._query_cache: dict[str, list[str]] | None = None
 
         method = scope.get("method", "GET")
         path = scope.get("path", "/")
@@ -115,12 +116,15 @@ class Request:
 
     @property
     def query(self) -> dict[str, list[str]]:
-        """dict[str, list[str]]: Parsed query string, parsed lazily.
+        """dict[str, list[str]]: Parsed query string, parsed lazily and cached.
 
         Every value is a list, even for a single occurrence, so repeated keys
-        such as ``?a=1&a=2`` are preserved as ``{"a": ["1", "2"]}``.
+        such as ``?a=1&a=2`` are preserved as ``{"a": ["1", "2"]}``. The Rust
+        getter re-parses on every call, so the result is memoised here.
         """
-        return self._rust.query
+        if self._query_cache is None:
+            self._query_cache = self._rust.query
+        return self._query_cache
 
     async def body(self) -> bytes:
         """Read and return the complete request body.
@@ -168,7 +172,11 @@ class Request:
             raise RequestError(f"Invalid JSON: {e}") from None
 
     async def model(self, target: type):
-        """Parse the JSON body into a Pydantic model or dataclass.
+        """Parse the JSON body into a ``msgspec.Struct``, Pydantic model or dataclass.
+
+        ``msgspec.Struct`` is decoded straight from the body bytes in one C pass
+        (fast path); anything else goes through the registered codec (pydantic)
+        or the dataclass fallback.
 
         Args:
             target: The model type to decode into.
@@ -177,9 +185,19 @@ class Request:
             The decoded ``target`` instance.
 
         Raises:
-            RequestError: If the body is malformed JSON or is not a JSON object
-                or array — mapped to HTTP 400.
+            RequestError: If the body is malformed JSON, fails validation, or is
+                not a JSON object/array — mapped to HTTP 400.
         """
+        # Fast path: msgspec.Struct — декод из байт одним C-проходом.
+        if isinstance(target, type) and hasattr(target, "__struct_fields__"):
+            import msgspec
+
+            body = await self.body()
+            try:
+                return msgspec.json.decode(body, type=target)
+            except ValueError as exc:
+                raise RequestError(f"Invalid JSON: {exc}") from None
+
         data = await self.json()
         if not isinstance(data, (dict, list)):
             raise RequestError("JSON body must be an object or array")

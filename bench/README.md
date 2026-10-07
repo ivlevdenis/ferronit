@@ -34,7 +34,7 @@ sdist/Docker-образ. Логика фреймворка от него не з
 | `bench_db_pool.py` | пул коннектов против одного: почему пул вредит (GIL) — **на `ab`** |
 | `bench_postgres.py [granian\|uvicorn]` | PostgreSQL 18 в Docker: Core vs ORM vs FastAPI — **на `ab`** |
 | `micro_bench_db.py`, `micro_bench_json.py`, `micro_bench_response.py`, `micro_bench_model.py` | микрозамеры слоёв (драйвер БД, Rust JSON против json.dumps, сборка ответа json+gzip, маппинг строк dict/модель) — без HTTP |
-| `bench_rows.py` | Ferrox-модель vs Litestar/FastAPI: 1/100/1000 строк из PostgreSQL — **на `ab`** |
+| `bench_rows.py`, `plot_rows.py` | Ferrox vs Litestar/FastAPI/Django: 1/100/1000 строк из PostgreSQL — **на `ab`**; `plot_rows.py` строит HTML-график |
 | `pg_direct.py` | прямой замер PostgreSQL без фреймворка (asyncpg, `SELECT ... LIMIT 100`) |
 | `pg_wire.py`, `wire_bench.py` | самодельный клиент по проводу PostgreSQL (SCRAM, простой и расширенный протокол, пайплайн) против asyncpg |
 | `profile_db_path.py` | профиль пути через базу: `/ping`, `/asyncpg`, `/raw`, `/core`, `/orm` + разложение по блокам |
@@ -287,37 +287,37 @@ granian, 1 воркер. Два прогона:
   без defaults/`__table__`-датакласса). Пока не взят.
 * Тесты — `tests/test_rawmodel.py`, **25 тестов** (сюита 176 → 207), часть интеграционная на PG.
 
-### Rust-энкодер моделей и HTTP-сравнение (`bench/bench_rows.py`, окт 2026)
+### HTTP-сравнение фреймворков (`bench/bench_rows.py` + `plot_rows.py`, окт 2026)
 
-Модель можно вернуть в ответ как есть — Rust-ядро (`ferrox._core.write_json`) пишет `Model`/dataclass прямо
-из полей (`__columns__` / `__dataclass_fields__`), без промежуточного `dict`. Заодно
-диспетчеризация типов переведена с пробных `extract` (каждая неудача — исключение Python)
-на `downcast`-проверки. 1 / 100 / 1000 строк из PostgreSQL, `ab -c 50 -k`, granian, 1 воркер,
+Восемь вариантов, 1 / 100 / 1000 строк из PostgreSQL, `ab -c 50 -k`, granian, 1 воркер,
 лучшее из 2 (req/s):
 
-| строк | ferrox-model | litestar-msgspec | fastapi-orm | litestar-orm | ferrox-msgspec |
-|---|---|---|---|---|---|
-| 1 | 9 072–9 174 | 11 207–11 966 | 1 947–2 108 | 2 360–2 361 | **14 581–15 316** |
-| 100 | 5 332–5 580 | 8 110–8 308 | 576–630 | 964–1 053 | **10 409–11 318** |
-| 1000 | 1 093–1 113 | 2 150–2 199 | 160–161 | 297–307 | **2 315–2 492** |
+| вариант | 1 строка | 100 строк | 1000 строк | /ping |
+|---|---|---|---|---|
+| ferrox-asyncpg (dict) | **15 540** | 7 849 | 1 275 | 91 935 |
+| ferrox-msgspec | 14 611 | **10 664** | **2 279** | 91 642 |
+| ferrox-rawmodel | 13 959 | 9 011 | 2 199 | 91 208 |
+| litestar-asyncpg (dict) | 12 094 | 6 929 | 1 588 | 36 936 |
+| litestar-msgspec | 11 138 | 8 218 | 2 032 | 36 636 |
+| litestar-orm | 2 474 | 1 028 | 283 | 37 503 |
+| fastapi-orm | 2 072 | 680 | 161 | 24 408 |
+| django-orm | 481 | 474 | 417 | 1 784 |
 
-`/ping` (тот же сервер, без БД): ferrox-model 97 181, ferrox-msgspec 96 963, litestar-msgspec
-38 330, litestar-orm 38 539, fastapi-orm 25 180. `ferrox-msgspec` — контрольная колонка:
-тот же asyncpg-запрос и `msgspec`, но фреймворк Ferrox; её разница с `litestar-msgspec` — это
-чистый фреймворк.
-
-* **Эффект энкодера**: на 1000 строках `RustResp.json` **1.2 мс → 0.19 мс** (×6.3),
-  `ferrox-model` **512 → 1 093 req/s** (×2.1); на 100 строках ×1.65. Улучшение общее —
-  ускоряет любой JSON-ответ, не только модели.
-* **Расклад по слоям**: `/ping` Ferrox ×2.5 к Litestar и ×3.9 к FastAPI; с одинаковым
-  `msgspec` Ferrox обгоняет Litestar на всех объёмах (×1.2–1.4). То есть заявленное
-  преимущество Litestar на строках было заслугой `msgspec`, а не роутера.
-* **ORM в разы позади**: на 1000 строках fastapi-orm 161 и litestar-orm 297 против
-  1 093 у `ferrox-model` и ~2 400 у msgspec-вариантов.
-* **Что осталось**: разрыв `ferrox-model` ↔ `ferrox-msgspec` (1 093 против 2 400) — это
-  `RawUnitOfWork` (BEGIN/COMMIT на запрос) и identity-map, а не сериализация.
-* Тесты сериализации — `tests/test_model_json.py` (6 тестов: одиночная модель, порядок
-  полей, модели в контейнере/вложенно, обычный dataclass, скаляры и экранирование).
+* **Ferrox быстрее Litestar во всём.** `/ping` (чистый фреймворк) — **×2.5**; на строках —
+  ×1.1–1.3, потому что там доминирует общая часть (PostgreSQL + asyncpg + msgspec), а не
+  роутер. FastAPI — ×3.8 на `/ping` и ×10–14 на строках (сверху ещё SQLAlchemy ORM).
+  Django — sync-view под ASGI, упирается в threadpool-обвязку (1 784 на `/ping`).
+* **rawmodel теперь ≈ msgspec.** Перевод модели на `msgspec.Struct`, `RawUnitOfWork(readonly=True)`
+  (без BEGIN/COMMIT для чтения) и отказ от identity-map на `list()` убрали 2-кратный разрыв;
+  осталось ~5–10 % — репозиторий и сборка SQL.
+* **Контрольные `dict`-варианты.** На 1 строке dict + ферроксов Rust-JSON (15 540) даже быстрее
+  msgspec (14 611): построение `Struct` окупается только на широких выборках; на 1000 строк
+  msgspec уже впереди (2 279 против 1 275).
+* График — `.venv/bin/python bench/plot_rows.py` → `bench_rows.html` (самодостаточный SVG,
+  тёмная тема, подписи значений, офлайн).
+* Разложение времени на 1000 строк (in-process): fetch ~437 µs, явная транзакция `BEGIN/COMMIT`
+  ~140 µs, identity-map ~53 µs — поэтому read-only путь и отсутствие identity-map на `list()`
+  и есть выигрыш rawmodel.
 
 ### Go: слои доступа и HTTP-сервис (`bench/go_pg_orm/`, окт 2026)
 

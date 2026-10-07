@@ -137,6 +137,30 @@ Requires: `docker run -d --name ferrox-pg -e POSTGRES_PASSWORD=postgres -e POSTG
 
 POST is disk-bound (fsync in Docker ~1.6 ms/commit); GET shows Ferrox+Core at +80% over FastAPI. `INSERT...RETURNING` is native on Postgres (no slowdown, unlike SQLite).
 
+### Ferrox vs Litestar и FastAPI (1/100/1000 строк)
+
+Тот же PostgreSQL, один сервер для всех (granian, 1 воркер), `ab -c 50 -k`, лучший из 2.
+Полная матрица из восьми вариантов — `bench/bench_rows.py`; график — `bench/plot_rows.py`
+(→ `bench_rows.html`). req/s:
+
+| вариант | 1 строка | 100 строк | 1000 строк | /ping |
+|---|---|---|---|---|
+| Ferrox + asyncpg (dict) | **15 540** | 7 849 | 1 275 | 91 935 |
+| Ferrox + msgspec | 14 611 | **10 664** | **2 279** | 91 642 |
+| Ferrox + rawmodel | 13 959 | 9 011 | 2 199 | 91 208 |
+| Litestar + msgspec | 11 138 | 8 218 | 2 032 | 36 636 |
+| Litestar + ORM | 2 474 | 1 028 | 283 | 37 503 |
+| FastAPI + ORM | 2 072 | 680 | 161 | 24 408 |
+| Django + ORM | 481 | 474 | 417 | 1 784 |
+
+- **Ferrox быстрее Litestar во всём**: на `/ping` (чистый фреймворк) — **×2.5**; на строках —
+  ×1.1–1.3, потому что там доминирует общая часть (PostgreSQL + asyncpg + msgspec), а не роутер.
+  FastAPI — ×3.8 на `/ping` и ×10–14 на строках (сверху SQLAlchemy ORM).
+- **`rawmodel` (типизированные модели + SQL-DSL) идёт ≈ вровень с `msgspec`** — 2-кратной
+  платы за модель больше нет (перевод на `msgspec.Struct`, read-only транзакции, без
+  identity-map на `list`).
+- Django — sync-view под ASGI: threadpool-обвязка режет `/ping` до 1 784 req/s.
+
 ### Where the time goes (SELECT 100 rows)
 
 | Layer | ops/s | Loss |
@@ -224,7 +248,8 @@ ferrox run --workers 4              # scale with worker processes
 .venv/bin/python bench/ab_bench.py --server uvicorn --payload big --requests 3000
 .venv/bin/python bench/bench_db.py granian         # DB benchmark (SQLite, GET/POST, ab)
 .venv/bin/python bench/bench_postgres.py granian   # PostgreSQL 18 (Core/ORM vs FastAPI, ab)
-.venv/bin/python bench/bench_rows.py               # ferrox.db / rawmodel vs Litestar/FastAPI (1/100/1000 строк)
+.venv/bin/python bench/bench_rows.py               # Ferrox vs Litestar/FastAPI/Django (1/100/1000 строк)
+.venv/bin/python bench/plot_rows.py               # график → bench_rows.html (SVG, тёмная тема)
 .venv/bin/python bench/bench_rustdb.py             # ferrox.db (запросы в Rust) против asyncpg
 ```
 

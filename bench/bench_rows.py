@@ -46,7 +46,8 @@ FERROX_APP = '''
 import asyncio
 import os
 
-from ferrox import Ferrox
+import msgspec
+from ferrox import Response, Ferrox
 from ferrox.contrib.rawdb import RawUnitOfWork, create_raw_pool
 from ferrox.contrib.rawmodel import Model
 
@@ -80,9 +81,11 @@ app = Ferrox()
 
 @app.route("/rows")
 async def rows(req):
-    async with RawUnitOfWork(await get_pool()) as uow:
+    async with RawUnitOfWork(await get_pool(), readonly=True) as uow:
         models = await uow.model(BenchRow).list(limit=ROWS)
-    return {"rows": models}  # Rust-энкодер пишет модели напрямую, без dict-проекции
+    # Модели — msgspec.Struct: сериализация в C, без dict-проекции.
+    body = msgspec.json.encode({"rows": models})
+    return Response(body, content_type="application/json")
 
 
 @app.route("/ping")

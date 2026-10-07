@@ -1,4 +1,4 @@
-module velox_bench
+module ferrox_bench
 
 go 1.25.0
 

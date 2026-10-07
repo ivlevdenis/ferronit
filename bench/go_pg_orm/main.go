@@ -1,5 +1,5 @@
 // Прямой замер слоёв доступа к PostgreSQL на Go: pgx (драйвер), sqlx, GORM.
-// Плюс HTTP-сервис с теми же маршрутами, что у Velox (Python) и axum (Rust) в этом стенде.
+// Плюс HTTP-сервис с теми же маршрутами, что у Ferrox (Python) и axum (Rust) в этом стенде.
 //
 // Замеры слоёв (GOMAXPROCS=1 — аналог одного потока/процесса):
 //   GOMAXPROCS=1 ./go_pg_bench --mode gorm --op select --clients 10 --requests 1000
@@ -30,7 +30,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
-	"velox_bench/ent"
+	"ferrox_bench/ent"
 
 	_ "github.com/jackc/pgx/v5/stdlib" // драйвер для database/sql, sqlx и ent
 )

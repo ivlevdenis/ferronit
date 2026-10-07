@@ -54,6 +54,27 @@ class Condition:
         self.sql = sql
         self.params = list(params)
 
+    def __and__(self, other) -> Condition:
+        """Combine two conditions with ``AND`` (``a & b``)."""
+        if not isinstance(other, Condition):
+            return NotImplemented
+        right = _renumber_placeholders(other.sql, len(other.params), len(self.params))
+        return Condition(f"({self.sql}) AND ({right})", [*self.params, *other.params])
+
+    def __or__(self, other) -> Condition:
+        """Combine two conditions with ``OR`` (``a | b``)."""
+        if not isinstance(other, Condition):
+            return NotImplemented
+        right = _renumber_placeholders(other.sql, len(other.params), len(self.params))
+        return Condition(f"({self.sql}) OR ({right})", [*self.params, *other.params])
+
+
+def _renumber_placeholders(sql: str, count: int, offset: int) -> str:
+    """Renumber ``$1..$count`` by ``offset`` (descending — ``$1`` не затирает ``$10``)."""
+    for index in range(count, 0, -1):
+        sql = re.sub(rf"\${index}(?!\d)", f"${index + offset}", sql)
+    return sql
+
 
 def _merge_filters(filters: Sequence[Condition]) -> tuple[str, list[Any]]:
     """Combine conditions into one ``WHERE`` clause with continuous placeholders.
@@ -72,11 +93,9 @@ def _merge_filters(filters: Sequence[Condition]) -> tuple[str, list[Any]]:
     clauses: list[str] = []
     params: list[Any] = []
     for condition in filters:
-        sql = condition.sql
-        for index in range(len(condition.params), 0, -1):
-            # (?!\d) — чтобы $1 не затирал начало $10
-            sql = re.sub(rf"\${index}(?!\d)", f"${len(params) + index}", sql)
-        clauses.append(f"({sql})")
+        clauses.append(
+            f"({_renumber_placeholders(condition.sql, len(condition.params), len(params))})"
+        )
         params.extend(condition.params)
     return " AND ".join(clauses), params
 

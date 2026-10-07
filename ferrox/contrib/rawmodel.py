@@ -29,6 +29,7 @@ table="app_users")``) or declaratively on the model itself:
 from __future__ import annotations
 
 import builtins
+from collections.abc import Sequence
 from typing import Any
 
 import asyncpg
@@ -45,6 +46,8 @@ __all__ = [
     "Model",
     "Query",
     "RawModelRepository",
+    "and_",
+    "or_",
     "select",
 ]
 
@@ -159,10 +162,38 @@ class Column:
         return Condition(f"{self.name} <= $1", [other])
 
     def __eq__(self, other: Any) -> Condition:  # type: ignore[override]
+        if other is None:
+            return Condition(f"{self.name} IS NULL", [])
         return Condition(f"{self.name} = $1", [other])
 
     def __ne__(self, other: Any) -> Condition:  # type: ignore[override]
+        if other is None:
+            return Condition(f"{self.name} IS NOT NULL", [])
         return Condition(f"{self.name} <> $1", [other])
+
+    def in_(self, values: Sequence[Any]) -> Condition:
+        """``IN``: поле входит в набор значений (``col = ANY($1)``)."""
+        return Condition(f"{self.name} = ANY($1)", [list(values)])
+
+    def not_in(self, values: Sequence[Any]) -> Condition:
+        """``NOT IN``: поле не входит в набор значений."""
+        return Condition(f"NOT ({self.name} = ANY($1))", [list(values)])
+
+    def like(self, pattern: str) -> Condition:
+        """``LIKE`` с wildcard-паттерном (``%``/``_``)."""
+        return Condition(f"{self.name} LIKE $1", [pattern])
+
+    def ilike(self, pattern: str) -> Condition:
+        """``ILIKE`` — LIKE без учёта регистра."""
+        return Condition(f"{self.name} ILIKE $1", [pattern])
+
+    def is_null(self) -> Condition:
+        """``IS NULL``."""
+        return Condition(f"{self.name} IS NULL", [])
+
+    def is_not_null(self) -> Condition:
+        """``IS NOT NULL``."""
+        return Condition(f"{self.name} IS NOT NULL", [])
 
     def asc(self) -> str:
         """Ordering term: ascending."""
@@ -229,6 +260,27 @@ class Query:
         self._offset = n
         return self
 
+    def first(self) -> Query:
+        """Ограничить одной строкой (``LIMIT 1``)."""
+        return self.limit(1)
+
+    one = first  # алиас: `select(...).one()` читается естественнее
+
+    def columns(self, *names: str) -> Query:
+        """Выбрать конкретные колонки вместо всех полей модели."""
+        self._select = f"SELECT {', '.join(names)} FROM {self._table}"
+        return self
+
+    def count(self) -> Query:
+        """Агрегат ``count(*)``; результат забирается через ``repo.fetch_value()``."""
+        self._select = f"SELECT count(*) FROM {self._table}"
+        return self
+
+    def aggregate(self, expression: str) -> Query:
+        """Произвольный агрегат (``sum(col)``, ``avg(col)``, ...); через ``fetch_value()``."""
+        self._select = f"SELECT {expression} FROM {self._table}"
+        return self
+
     def compile(self) -> tuple[str, list[Any]]:
         """Compile to ``(sql, params)`` with continuous ``$N`` placeholders."""
         sql = self._select
@@ -249,6 +301,22 @@ class Query:
 def select(model: type[Model], table: str | None = None) -> Query:
     """Start a ``SELECT`` over ``model``."""
     return Query(model, table)
+
+
+def or_(*conditions: Condition) -> Condition:
+    """Объединить условия через ``OR`` — ``or_(a, b, c)`` или ``(a) | (b)``."""
+    result = conditions[0]
+    for condition in conditions[1:]:
+        result = result | condition
+    return result
+
+
+def and_(*conditions: Condition) -> Condition:
+    """Объединить условия через ``AND`` — ``and_(a, b)`` или ``(a) & (b)``."""
+    result = conditions[0]
+    for condition in conditions[1:]:
+        result = result & condition
+    return result
 
 
 class IdentityMap:
@@ -389,6 +457,24 @@ class RawModelRepository[M: Model](Adapter):
         sql, params = query.compile()
         rows = await self._conn.fetch(sql, *params)
         return [self._model(*row) for row in rows]
+
+    async def fetch_one(self, query: Query) -> M | None:
+        """Fetch the first matching row, or ``None``.
+
+        Adds ``LIMIT 1`` when the query has no limit yet, so the database does
+        not materialise the whole result set.
+        """
+        if query._limit is None:
+            query = query.limit(1)
+        sql, params = query.compile()
+        row = await self._conn.fetchrow(sql, *params)
+        return self._model(*row) if row is not None else None
+
+    async def fetch_value(self, query: Query) -> Any | None:
+        """Fetch the first column of the first row — for ``count()``/``aggregate()``."""
+        sql, params = query.compile()
+        row = await self._conn.fetchrow(sql, *params)
+        return row[0] if row is not None else None
 
     async def save(self, obj: M) -> M:
         """Insert a row and return the full server-side instance.

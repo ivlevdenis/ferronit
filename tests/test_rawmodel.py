@@ -17,6 +17,7 @@ from ferrox.contrib.rawmodel import (
     IdentityMap,
     Model,
     RawModelRepository,
+    or_,
     select,
 )
 
@@ -127,6 +128,48 @@ def test_order_by_columns_and_raw_terms() -> None:
     sql, params = select(User).order_by(User.c.name, User.c.id.desc()).compile()
     assert sql == "SELECT id, name, email FROM users ORDER BY name, id DESC"
     assert params == []
+
+
+def test_or_combine_conditions() -> None:
+    sql, params = select(User).where(or_(User.c.id > 1, User.c.name == "A")).compile()
+    assert sql == "SELECT id, name, email FROM users WHERE ((id > $1) OR (name = $2))"
+    assert params == [1, "A"]
+
+
+def test_in_like_is_null() -> None:
+    sql, params = (
+        select(User)
+        .where(User.c.id.in_([1, 2, 3]), User.c.name.ilike("%a%"), User.c.email.is_null())
+        .compile()
+    )
+    assert sql == (
+        "SELECT id, name, email FROM users "
+        "WHERE (id = ANY($1)) AND (name ILIKE $2) AND (email IS NULL)"
+    )
+    assert params == [[1, 2, 3], "%a%"]
+
+
+def test_eq_none_means_is_null() -> None:
+    sql, params = select(User).where(User.c.email == None).compile()  # noqa: E711
+    assert sql == "SELECT id, name, email FROM users WHERE (email IS NULL)"
+    assert params == []
+
+
+def test_count_aggregate_compile() -> None:
+    sql, params = select(User).where(User.c.id > 0).count().compile()
+    assert sql == "SELECT count(*) FROM users WHERE (id > $1)"
+    assert params == [0]
+
+
+def test_columns_override() -> None:
+    sql, _ = select(User).columns("id", "name").compile()
+    assert sql == "SELECT id, name FROM users"
+
+
+def test_first_adds_limit() -> None:
+    sql, params = select(User).first().compile()
+    assert sql == "SELECT id, name, email FROM users LIMIT $1"
+    assert params == [1]
 
 
 def test_unknown_column_raises_attribute_error() -> None:
@@ -318,6 +361,23 @@ async def test_integration_query_fetch(repo) -> None:
     )
     rows = await repo.fetch(query)
     assert [row.name for row in rows] == ["keep"]
+
+
+async def test_integration_or_in_fetch_one_fetch_value(repo) -> None:
+    for name, email, age in [("a", "a@x", 10), ("b", "b@x", 20), ("c", "c@x", 30)]:
+        await repo.save(RawUser(name=name, email=email, age=age))
+
+    rows = await repo.fetch(select(RawUser).where(or_(RawUser.c.age < 15, RawUser.c.age > 25)))
+    assert sorted(r.age for r in rows) == [10, 30]
+
+    rows = await repo.fetch(select(RawUser).where(RawUser.c.id.in_([1, 3])))
+    assert sorted(r.id for r in rows) == [1, 3]
+
+    one = await repo.fetch_one(select(RawUser).where(RawUser.c.age == 20))
+    assert one is not None and one.name == "b"
+
+    total = await repo.fetch_value(select(RawUser).count())
+    assert total == 3
 
 
 async def test_integration_update_returns_fresh_model(repo) -> None:

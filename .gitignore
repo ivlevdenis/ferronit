@@ -46,3 +46,7 @@ graphify-out/20*/
 
 # собранное ядро: maturin кладёт .so внутрь пакета при develop/build
 ferrox/_core*.so
+
+# генерируемые графики стендов
+bench/bench_params.html
+bench_rows.html

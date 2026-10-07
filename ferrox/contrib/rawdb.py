@@ -68,6 +68,14 @@ class Condition:
         right = _renumber_placeholders(other.sql, len(other.params), len(self.params))
         return Condition(f"({self.sql}) OR ({right})", [*self.params, *other.params])
 
+    def or_(self, other: Condition) -> Condition:
+        """Fluent ``OR`` — ``a.or_(b)`` (читается лучше, чем ``(a) | (b)``)."""
+        return self | other
+
+    def and_(self, other: Condition) -> Condition:
+        """Fluent ``AND`` — ``a.and_(b)``."""
+        return self & other
+
 
 def _renumber_placeholders(sql: str, count: int, offset: int) -> str:
     """Renumber ``$1..$count`` by ``offset`` (descending — ``$1`` не затирает ``$10``)."""

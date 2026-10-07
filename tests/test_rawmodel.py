@@ -136,6 +136,31 @@ def test_or_combine_conditions() -> None:
     assert params == [1, "A"]
 
 
+def test_where_any_and_fluent_or() -> None:
+    q = select(User).where_any(User.c.id > 1, User.c.name == "A", User.c.email.is_null())
+    sql, params = q.compile()
+    assert sql == (
+        "SELECT id, name, email FROM users "
+        "WHERE ((id > $1) OR (name = $2) OR (email IS NULL))"
+    )
+    assert params == [1, "A"]
+
+    # fluent-методы дают тот же результат
+    cond = (User.c.id > 1).or_(User.c.name == "A").and_(User.c.email.is_null())
+    sql2, params2 = select(User).where(cond).compile()
+    assert sql2 == (
+        "SELECT id, name, email FROM users "
+        "WHERE (((id > $1) OR (name = $2)) AND (email IS NULL))"
+    )
+    assert params2 == [1, "A"]
+
+
+def test_between() -> None:
+    sql, params = select(User).where(User.c.id.between(5, 10)).compile()
+    assert sql == "SELECT id, name, email FROM users WHERE (id BETWEEN $1 AND $2)"
+    assert params == [5, 10]
+
+
 def test_in_like_is_null() -> None:
     sql, params = (
         select(User)

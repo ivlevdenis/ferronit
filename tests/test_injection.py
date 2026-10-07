@@ -1,9 +1,17 @@
 """Injection tests — auto-resolve path/query params from handler signature."""
 
+from typing import Annotated
+
+import msgspec
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from ferrox import Ferrox
+from ferrox import Ferrox, Header
+
+
+class Item(msgspec.Struct):
+    name: str
+    price: float
 
 
 @pytest.fixture
@@ -41,6 +49,22 @@ def app():
     @v.route("/maybe")
     def maybe(n: int | None = None):
         return {"n": n}
+
+    @v.route("/whoami")
+    def whoami(
+        req,
+        x_api_key: Annotated[str, Header("x-api-key")] = "",
+        x_user_id: Annotated[int, Header("x-user-id")] = 0,
+    ):
+        return {"key": x_api_key, "uid": x_user_id}
+
+    @v.route("/required")
+    def required(q: str):
+        return {"q": q}
+
+    @v.route("/items", methods=["POST"])
+    async def create(req, payload: Item):
+        return {"name": payload.name, "price": payload.price}
 
     return v
 
@@ -127,3 +151,34 @@ async def test_union_optional_int_param(client):
 async def test_union_optional_invalid_is_400(client):
     r = await client.get("/maybe?n=abc")
     assert r.status_code == 400
+
+
+async def test_header_param_injection(client):
+    r = await client.get("/whoami", headers={"x-api-key": "secret", "x-user-id": "42"})
+    assert r.json() == {"key": "secret", "uid": 42}
+
+
+async def test_header_param_defaults(client):
+    r = await client.get("/whoami")
+    assert r.json() == {"key": "", "uid": 0}
+
+
+async def test_header_param_invalid_int_is_400(client):
+    r = await client.get("/whoami", headers={"x-api-key": "secret", "x-user-id": "abc"})
+    assert r.status_code == 400
+
+
+async def test_required_query_param_missing_is_400(client):
+    r = await client.get("/required")
+    assert r.status_code == 400
+
+
+async def test_required_query_param_present(client):
+    r = await client.get("/required?q=x")
+    assert r.json() == {"q": "x"}
+
+
+async def test_body_model_injection(client):
+    r = await client.post("/items", json={"name": "widget", "price": 9.9})
+    assert r.status_code == 200
+    assert r.json() == {"name": "widget", "price": 9.9}

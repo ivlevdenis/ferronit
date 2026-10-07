@@ -5,7 +5,7 @@ from __future__ import annotations
 from ferrox._core import FerroxApp as RustApp
 from ferrox._core import Response as RustResp
 from ferrox.contrib.tracing import current_trace_id
-from ferrox.core.request import BodyTooLarge, PathParamError, RequestError
+from ferrox.core.request import BodyTooLarge, PathParamError, RequestError, UnsupportedMediaType
 from ferrox.core.request import Request as PyRequest
 from ferrox.core.response import JSONResponse, Response, StreamingResponse, TextResponse
 from ferrox.middleware import Middleware
@@ -208,6 +208,9 @@ class Ferrox:
             return
         except RequestError:
             await _send_empty(send, 400)
+            return
+        except UnsupportedMediaType:
+            await _send_empty(send, 415)
             return
         except BodyTooLarge:
             await _send_empty(send, 413)

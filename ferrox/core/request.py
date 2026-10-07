@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 from ferrox._core import Request as RustRequest
 from ferrox.contrib.pydantic import decode_json
@@ -12,6 +13,7 @@ __all__ = [
     "PathParamError",
     "Request",
     "RequestError",
+    "UnsupportedMediaType",
     "UploadedFile",
 ]
 
@@ -31,6 +33,14 @@ class BodyTooLarge(Exception):
     Raised by :meth:`Request.body` while streaming chunks, as soon as the
     accumulated size passes ``ferrox.max_body_size`` taken from the ASGI scope.
     The application maps it to a 413 response.
+    """
+
+
+class UnsupportedMediaType(Exception):
+    """Content-Type is not supported for the requested operation → HTTP 415.
+
+    Raised by :meth:`Request.form` and :meth:`Request.files` when the body is
+    neither urlencoded nor multipart. The application maps it to a 415 response.
     """
 
 
@@ -72,6 +82,15 @@ class UploadedFile:
     filename: str
     content: bytes
     content_type: str
+
+    @property
+    def size(self) -> int:
+        """Size of the uploaded file in bytes."""
+        return len(self.content)
+
+    def save(self, path: str | Path) -> None:
+        """Write the uploaded file to disk."""
+        Path(path).write_bytes(self.content)
 
 
 def _boundary_from(content_type: str) -> bytes | None:
@@ -310,7 +329,7 @@ class Request:
         if content_type.startswith("multipart/form-data"):
             fields, _ = await self._multipart()
             return fields
-        raise RequestError(f"Unsupported content type for form(): {content_type or 'none'}")
+        raise UnsupportedMediaType(f"Unsupported content type for form(): {content_type or 'none'}")
 
     async def files(self) -> dict[str, list[UploadedFile]]:
         """Return uploaded files from a ``multipart/form-data`` body.
@@ -329,7 +348,7 @@ class Request:
         if self._multipart_cache is None:
             content_type = (self.get_header("content-type") or "").lower()
             if not content_type.startswith("multipart/form-data"):
-                raise RequestError("multipart/form-data expected")
+                raise UnsupportedMediaType("multipart/form-data expected")
             boundary = _boundary_from(content_type)
             if boundary is None:
                 raise RequestError("multipart/form-data без boundary")

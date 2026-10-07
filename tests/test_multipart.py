@@ -29,6 +29,21 @@ def app():
     async def form_only(req):
         return {"fields": await req.form()}
 
+    @v.route("/files", methods=["POST"])
+    async def files_only(req):
+        files = await req.files()
+        return {"count": sum(len(v) for v in files.values())}
+
+    @v.route("/meta", methods=["POST"])
+    async def meta(req):
+        files = await req.files()
+        return {
+            "files": [
+                {"filename": f.filename, "size": f.size, "content_type": f.content_type}
+                for f in files.get("file", [])
+            ]
+        }
+
     return v
 
 
@@ -85,4 +100,25 @@ async def test_urlencoded_form(client) -> None:
 
 async def test_form_rejects_json_content_type(client) -> None:
     r = await client.post("/form", json={"a": 1})
-    assert r.status_code == 400
+    assert r.status_code == 415
+
+
+async def test_files_rejects_non_multipart(client) -> None:
+    r = await client.post("/files", content=b"plain text", headers={"content-type": "text/plain"})
+    assert r.status_code == 415
+
+
+async def test_uploaded_file_size(client) -> None:
+    r = await client.post("/meta", files={"file": ("a.bin", b"12345", "application/octet-stream")})
+    assert r.json()["files"] == [
+        {"filename": "a.bin", "size": 5, "content_type": "application/octet-stream"}
+    ]
+
+
+def test_uploaded_file_save(tmp_path) -> None:
+    from ferrox import UploadedFile
+
+    upload = UploadedFile(filename="a.txt", content=b"hello", content_type="text/plain")
+    destination = tmp_path / "out.txt"
+    upload.save(destination)
+    assert destination.read_bytes() == b"hello"

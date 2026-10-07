@@ -298,13 +298,16 @@ fn write_model_field(
 /// Write a model/dataclass instance as a JSON object, without an intermediate dict.
 ///
 /// A `rawmodel.Model` exposes `__columns__` (field names in `SELECT *` order);
-/// a plain dataclass exposes `__dataclass_fields__` (name → field, in declaration
-/// order). Either way values are read with `getattr` and written recursively.
-/// Returns `false` when `obj` is neither, so the caller can fall back.
+/// a `msgspec.Struct` exposes `__struct_fields__`; a plain dataclass exposes
+/// `__dataclass_fields__` (name → field, in declaration order). Either way values
+/// are read with `getattr` and written recursively. Returns `false` when `obj` is
+/// neither, so the caller can fall back.
 fn write_model(py: Python<'_>, obj: &Bound<'_, PyAny>, out: &mut Vec<u8>) -> PyResult<bool> {
     let ty = obj.get_type();
     let columns = if let Ok(columns) = ty.getattr("__columns__") {
         columns
+    } else if let Ok(fields) = ty.getattr("__struct_fields__") {
+        fields
     } else if let Ok(fields) = ty.getattr("__dataclass_fields__") {
         fields
     } else {

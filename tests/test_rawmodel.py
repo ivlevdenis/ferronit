@@ -188,7 +188,7 @@ async def test_repository_uses_pluralized_table_by_default() -> None:
     conn = FakeConnection(row=(1, "A", "a@example.com"))
     repo = RawModelRepository(conn, User)
     await repo.get(1)
-    assert conn.calls[-1][1] == "SELECT * FROM users WHERE id = $1"
+    assert conn.calls[-1][1] == "SELECT id, name, email FROM users WHERE id = $1"
 
 
 async def test_repository_honours_explicit_table() -> None:
@@ -207,6 +207,13 @@ async def test_save_returns_model_with_generated_id() -> None:
     assert conn.calls[-1][2] == ("Zoe", "z@example.com")  # pk не уходит в INSERT
 
 
+async def test_list_selects_only_model_columns() -> None:
+    conn = FakeConnection(rows=[])
+    repo = RawModelRepository(conn, User)
+    await repo.list()
+    assert conn.calls[-1][1] == "SELECT id, name, email FROM users LIMIT $1 OFFSET $2"
+
+
 async def test_get_uses_identity_map_and_skips_second_query() -> None:
     conn = FakeConnection(row=(1, "A", "a@example.com"))
     identity_map = IdentityMap()
@@ -220,12 +227,20 @@ async def test_get_uses_identity_map_and_skips_second_query() -> None:
     assert len(conn.calls) == calls_after_first  # второго запроса нет
 
 
+async def test_list_does_not_populate_identity_map() -> None:
+    conn = FakeConnection(rows=[(1, "A", "a@example.com")])
+    identity_map = IdentityMap()
+    repo = RawModelRepository(conn, User, identity_map=identity_map)
+    await repo.list()
+    assert identity_map.get(User, 1) is None  # list не кладёт строки в карту
+
+
 async def test_update_returns_model_via_returning() -> None:
     conn = FakeConnection(row=(1, "B", "a@example.com"))
     repo = RawModelRepository(conn, User)
     updated = await repo.update(1, {"name": "B"})
     assert updated == User(id=1, name="B", email="a@example.com")
-    assert "RETURNING *" in conn.calls[-1][1]
+    assert "RETURNING id, name, email" in conn.calls[-1][1]
 
 
 async def test_update_missing_row_returns_none() -> None:
@@ -331,6 +346,26 @@ async def test_integration_identity_map_dedupes(pool) -> None:
         # новый вызов uow.model(...) делит ту же identity map
         other = uow.model(RawUser)
         assert await other.get(saved.id) is first
+
+
+async def test_selects_only_model_columns(pool) -> None:
+    """Модель может быть уже таблицы: SELECT/RETURNING берут только её поля."""
+
+    class Partial(Model):
+        __table__ = TABLE  # в raw_repo_test есть ещё колонка age, которой нет в модели
+        id: int = 0
+        name: str = ""
+        email: str = ""
+
+    conn = await pool.acquire()
+    try:
+        repo = RawModelRepository(conn, Partial)
+        saved = await repo.save(Partial(name="P", email="p@example.com"))
+        assert saved == Partial(id=1, name="P", email="p@example.com")
+        assert await repo.get(1) == Partial(id=1, name="P", email="p@example.com")
+        assert await repo.list() == [Partial(id=1, name="P", email="p@example.com")]
+    finally:
+        await pool.release(conn)
 
 
 async def test_integration_unit_of_work_commits_and_rolls_back(pool) -> None:

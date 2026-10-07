@@ -204,6 +204,10 @@ class RawUnitOfWork(UnitOfWork):
     """Unit of Work over an asyncpg pool: one connection, one transaction.
 
     Create one instance per request — the object holds the connection state.
+    By default it opens an explicit transaction (``BEGIN``/``COMMIT``) so that
+    writes commit atomically and roll back on error. For read-only units pass
+    ``readonly=True`` — the transaction is skipped (one round-trip saved), and
+    ``SELECT``/``get``/``list`` run in autocommit.
 
     Usage:
         uow = RawUnitOfWork(pool)
@@ -213,11 +217,14 @@ class RawUnitOfWork(UnitOfWork):
             # committed on clean exit, rolled back on exception
     """
 
-    __slots__ = ("_conn", "_identity_map", "_pk", "_pool")
+    __slots__ = ("_conn", "_identity_map", "_pk", "_pool", "_readonly")
 
-    def __init__(self, pool: asyncpg.Pool, pk: str = "id") -> None:
+    def __init__(
+        self, pool: asyncpg.Pool, pk: str = "id", *, readonly: bool = False
+    ) -> None:
         self._pool = pool
         self._pk = pk
+        self._readonly = readonly
         self._conn: asyncpg.Connection | None = None
         self._identity_map: Any | None = None
 
@@ -245,8 +252,8 @@ class RawUnitOfWork(UnitOfWork):
         """Build a model-returning repository sharing this unit's connection.
 
         The repository returns ``rawmodel.Model`` instances instead of dicts and
-        shares one ``IdentityMap`` for the whole unit of work, so repeated reads
-        of the same row hand back the same instance.
+        shares one ``IdentityMap`` for the whole unit of work, so repeated point
+        reads (``get``) of the same row hand back the same instance.
 
         Args:
             model_cls: A ``ferrox.contrib.rawmodel.Model`` subclass.
@@ -276,8 +283,10 @@ class RawUnitOfWork(UnitOfWork):
         conn = await self._pool.acquire()
         try:
             # без явного BEGIN asyncpg коммитит каждый оператор сам,
-            # и Unit of Work перестаёт быть единицей работы (откат не работает)
-            await conn.execute("BEGIN")
+            # и Unit of Work перестаёт быть единицей работы (откат не работает).
+            # В read-only режиме транзакция не нужна — читаем в autocommit.
+            if not self._readonly:
+                await conn.execute("BEGIN")
         except BaseException:
             await self._pool.release(conn)
             raise

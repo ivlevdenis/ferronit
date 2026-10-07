@@ -323,7 +323,7 @@ def _to_response(result) -> Response:
         return TextResponse(result)
     if hasattr(result, "model_dump"):
         return JSONResponse.from_model(result)
-    if hasattr(result, "__dataclass_fields__"):
+    if hasattr(result, "__dataclass_fields__") or hasattr(result, "__columns__") or hasattr(result, "__struct_fields__"):
         r = RustResp.json(result, 200)
         return Response(body=bytes(r.body), status=r.status, content_type=r.content_type)
     if hasattr(result, "__aiter__"):

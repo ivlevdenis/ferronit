@@ -35,6 +35,9 @@ class SchemaBuilder:
             return SchemaBuilder._clean(model.model_json_schema())
         if hasattr(model, "__dataclass_fields__"):
             return SchemaBuilder._from_dataclass(model)
+        columns = getattr(model, "__columns__", None) or getattr(model, "__struct_fields__", None)
+        if columns is not None:
+            return {"type": "object", "properties": {n: {"type": "string"} for n in columns}}
         return {"type": "object"}
 
     @staticmethod

@@ -7,8 +7,9 @@ row-to-instance mapping is a plain positional ``cls(*row)`` — no ``dict``, no
 reflection and no code generation on the hot path.
 
 A model is just a subclass of ``Model`` with annotated fields in ``SELECT *``
-column order; the metaclass turns it into a ``slots`` dataclass and captures the
-column order once at class-definition time:
+column order; the metaclass keeps it an immutable ``msgspec.Struct`` (fast
+construction and C-level JSON) and captures the column order once at
+class-definition time:
 
     class User(Model):
         id: int = 0
@@ -28,11 +29,12 @@ table="app_users")``) or declaratively on the model itself:
 from __future__ import annotations
 
 import builtins
-import dataclasses
-from collections.abc import Sequence
-from typing import Any, ClassVar, Self, cast
+from typing import Any
 
 import asyncpg
+import msgspec
+from msgspec.structs import StructMeta  # type: ignore[attr-defined]
+from msgspec.structs import fields as struct_fields
 
 from ferrox.contrib.rawdb import Condition, _merge_filters
 from ferrox.hexagonal import Adapter
@@ -100,44 +102,36 @@ def _resolve_table(model: type[Model]) -> str:
     return _pluralize(model.__name__.lower())
 
 
-class ModelMeta(type):
-    """Metaclass turning each ``Model`` subclass into a ``slots`` dataclass."""
+class ModelMeta(StructMeta):
+    """Metaclass: каждый подкласс ``Model`` — ``msgspec.Struct`` + колонки по порядку."""
 
     def __new__(mcs, name, bases, ns, **kw: Any):
         cls = super().__new__(mcs, name, bases, ns, **kw)
-        if bases and "__dataclass_fields__" not in ns:
-            cls = dataclasses.dataclass(cast(Any, cls), slots=True, weakref_slot=True)
-            cls.__columns__ = tuple(f.name for f in dataclasses.fields(cast(Any, cls)))
+        if name != "Model":
+            cls.__columns__ = tuple(f.name for f in struct_fields(cls))
+            cls.__select_columns__ = ", ".join(cls.__columns__)
             cls.c = _Columns({name: Column(name) for name in cls.__columns__})
         return cls
 
 
-class Model(metaclass=ModelMeta):
+class Model(msgspec.Struct, metaclass=ModelMeta):
     """Base class for a declarative row model.
 
     Subclass it and annotate the columns as fields, in the order ``SELECT *``
-    returns them. The subclass becomes a ``slots`` dataclass automatically, and
-    the column order is stored once, at class-definition time.
+    returns them. The subclass is an immutable ``msgspec.Struct``: fast
+    positional construction and C-level JSON serialisation.
     """
 
-    __slots__ = ()
-    __columns__: ClassVar[tuple[str, ...]]
-    __table__: ClassVar[str | None] = None
-    c: ClassVar[_Columns]
+    __table__ = None
 
     @classmethod
-    def from_row(cls, row: Sequence[Any]) -> Self:
-        """Build an instance from a positional row (e.g. an asyncpg ``Record``).
-
-        A thin convenience over ``cls(*row)`` for callers that want an explicit
-        factory; the repository constructs the model directly, so this call is
-        not on the hot path.
-        """
+    def from_row(cls, row: Any) -> Any:
+        """Build an instance from a positional row (e.g. an asyncpg ``Record``)."""
         return cls(*row)
 
     def to_tuple(self) -> tuple[Any, ...]:
         """Return the field values in declaration order."""
-        return dataclasses.astuple(cast(Any, self))
+        return msgspec.structs.astuple(self)
 
 
 class Column:
@@ -203,11 +197,13 @@ class Query:
         rows = await repo.fetch(q)
     """
 
-    __slots__ = ("_limit", "_model", "_offset", "_order", "_table", "_where")
+    __slots__ = ("_limit", "_model", "_offset", "_order", "_select", "_table", "_where")
 
     def __init__(self, model: type[Model], table: str | None = None) -> None:
         self._model = model
         self._table = table or _resolve_table(model)
+        # Предкомпиляция статики: колонки известны на уровне класса.
+        self._select = f"SELECT {model.__select_columns__} FROM {self._table}"
         self._where: list[Condition] = []
         self._order: list[str] = []
         self._limit: int | None = None
@@ -235,8 +231,7 @@ class Query:
 
     def compile(self) -> tuple[str, list[Any]]:
         """Compile to ``(sql, params)`` with continuous ``$N`` placeholders."""
-        columns = ", ".join(self._model.__columns__)
-        sql = f"SELECT {columns} FROM {self._table}"
+        sql = self._select
         where, params = _merge_filters(self._where)
         if where:
             sql += f" WHERE {where}"
@@ -259,10 +254,11 @@ def select(model: type[Model], table: str | None = None) -> Query:
 class IdentityMap:
     """Instance cache mapping ``(model, primary_key)`` to a loaded instance.
 
-    Lives for one unit of work: repeated reads of the same row return the same
-    instance without a round-trip to the database. The cache holds strong
-    references and is meant to be discarded with the unit of work, so the unit's
-    lifetime (not the garbage collector) bounds the memory it retains.
+    Lives for one unit of work: repeated point reads (``get``) of the same row
+    return the same instance without a round-trip to the database. ``list`` does
+    not populate it. The cache holds strong references and is meant to be
+    discarded with the unit of work, so the unit's lifetime (not the garbage
+    collector) bounds the memory it retains.
     """
 
     __slots__ = ("_map",)
@@ -303,6 +299,7 @@ class RawModelRepository[M: Model](Adapter):
         "_insert_sql",
         "_model",
         "_pk",
+        "_select_columns",
         "_select_pk_sql",
         "_table",
     )
@@ -321,13 +318,17 @@ class RawModelRepository[M: Model](Adapter):
         self._table = table or _resolve_table(model_cls)
         self._identity_map = identity_map
         self._columns = model_cls.__columns__
+        self._select_columns = model_cls.__select_columns__
         self._insert_columns = tuple(c for c in self._columns if c != pk)
         columns = ", ".join(self._insert_columns)
         placeholders = ", ".join(f"${i}" for i in range(1, len(self._insert_columns) + 1))
         self._insert_sql = (
-            f"INSERT INTO {self._table} ({columns}) VALUES ({placeholders}) RETURNING *"
+            f"INSERT INTO {self._table} ({columns}) VALUES ({placeholders})"
+            f" RETURNING {self._select_columns}"
         )
-        self._select_pk_sql = f"SELECT * FROM {self._table} WHERE {self._pk} = $1"
+        self._select_pk_sql = (
+            f"SELECT {self._select_columns} FROM {self._table} WHERE {self._pk} = $1"
+        )
         self._delete_sql = f"DELETE FROM {self._table} WHERE {self._pk} = $1"
 
     async def get(self, id: Any) -> M | None:
@@ -367,15 +368,13 @@ class RawModelRepository[M: Model](Adapter):
         where, params = _merge_filters(filters)
         clause = f" WHERE {where}" if where else ""
         sql = (
-            f"SELECT * FROM {self._table}{clause}"
+            f"SELECT {self._select_columns} FROM {self._table}{clause}"
             f" LIMIT ${len(params) + 1} OFFSET ${len(params) + 2}"
         )
         rows = await self._conn.fetch(sql, *params, limit, offset)
-        objs = [self._model(*row) for row in rows]
-        if self._identity_map is not None:
-            for obj in objs:
-                self._identity_map.put(self._model, getattr(obj, self._pk), obj)
-        return objs
+        # Identity-map наполняется только из get(): на list() карта почти никогда
+        # не пригождается, а класть каждую строку в неё — лишние ~50 µs на 1000 строк.
+        return [self._model(*row) for row in rows]
 
     async def fetch(self, query: Query) -> builtins.list[M]:
         """Run a compiled ``Query`` and return model instances.
@@ -419,7 +418,7 @@ class RawModelRepository[M: Model](Adapter):
         assignments = ", ".join(f"{c} = ${i}" for i, c in enumerate(data, 1))
         row = await self._conn.fetchrow(
             f"UPDATE {self._table} SET {assignments} WHERE {self._pk} = ${len(data) + 1}"
-            " RETURNING *",
+            f" RETURNING {self._select_columns}",
             *data.values(),
             id,
         )

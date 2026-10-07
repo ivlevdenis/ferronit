@@ -176,6 +176,15 @@ async def test_unit_of_work_requires_context(pool) -> None:
         _ = uow[TABLE]
 
 
+async def test_unit_of_work_readonly_skips_transaction(pool) -> None:
+    """readonly=True не открывает BEGIN/COMMIT — для чтения транзакция не нужна."""
+    async with RawUnitOfWork(pool, readonly=True) as uow:
+        assert not uow.connection.is_in_transaction()
+        await uow[TABLE].list()
+    async with RawUnitOfWork(pool) as uow:
+        assert uow.connection.is_in_transaction()
+
+
 async def test_same_rows_as_core_repository(pool) -> None:
     """Ключевая проверка «тот же контракт»: результаты совпадают с SQLAlchemy Core."""
     from sqlalchemy import Column, Integer, MetaData, String, Table

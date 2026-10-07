@@ -2,10 +2,18 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from ferrox._core import Request as RustRequest
 from ferrox.contrib.pydantic import decode_json
 
-__all__ = ["BodyTooLarge", "PathParamError", "Request", "RequestError"]
+__all__ = [
+    "BodyTooLarge",
+    "PathParamError",
+    "Request",
+    "RequestError",
+    "UploadedFile",
+]
 
 
 class RequestError(Exception):
@@ -34,6 +42,50 @@ class PathParamError(Exception):
     """
 
 
+def _parse_cookies(header: str | None) -> dict[str, str]:
+    """Parse a ``Cookie`` header into ``{name: value}``.
+
+    Handles whitespace around separators and quoted values; malformed pairs
+    (no ``=``) are skipped.
+    """
+    result: dict[str, str] = {}
+    if not header:
+        return result
+    for part in header.split(";"):
+        part = part.strip()
+        if not part or "=" not in part:
+            continue
+        name, _, value = part.partition("=")
+        name = name.strip()
+        value = value.strip()
+        if len(value) >= 2 and value[0] == '"' and value[-1] == '"':
+            value = value[1:-1]
+        if name:
+            result[name] = value
+    return result
+
+
+@dataclass(frozen=True, slots=True)
+class UploadedFile:
+    """An uploaded file part from a ``multipart/form-data`` request."""
+
+    filename: str
+    content: bytes
+    content_type: str
+
+
+def _boundary_from(content_type: str) -> bytes | None:
+    """Extract the multipart boundary from a ``Content-Type`` header value."""
+    for piece in content_type.split(";"):
+        piece = piece.strip()
+        if piece.lower().startswith("boundary="):
+            boundary = piece.partition("=")[2].strip()
+            if len(boundary) >= 2 and boundary[0] == '"' and boundary[-1] == '"':
+                boundary = boundary[1:-1]
+            return boundary.encode("latin-1")
+    return None
+
+
 class Request:
     """ASGI HTTP request with Rust-native header and query parsing.
 
@@ -47,9 +99,19 @@ class Request:
         path: Request path without the query string.
         headers: Request headers, keys lower-cased (parsed lazily).
         query: Query string as ``{name: [values]}`` — every value is a list.
+        cookies: Cookies from the ``Cookie`` header (parsed lazily).
     """
 
-    __slots__ = ("_headers_cache", "_params", "_query_cache", "_receive", "_rust", "_scope")
+    __slots__ = (
+        "_cookies_cache",
+        "_headers_cache",
+        "_multipart_cache",
+        "_params",
+        "_query_cache",
+        "_receive",
+        "_rust",
+        "_scope",
+    )
 
     def __init__(self, scope: dict, receive, path_params: dict[str, str] | None = None) -> None:
         self._scope = scope
@@ -57,6 +119,8 @@ class Request:
         self._params: dict[str, str] = path_params or scope.get("route_params", {})
         self._headers_cache: dict[str, str] | None = None
         self._query_cache: dict[str, list[str]] | None = None
+        self._cookies_cache: dict[str, str] | None = None
+        self._multipart_cache: tuple[dict[str, list[str]], dict[str, list[UploadedFile]]] | None = None
 
         method = scope.get("method", "GET")
         path = scope.get("path", "/")
@@ -113,6 +177,26 @@ class Request:
             str | None: The header value, or ``None`` when the header is absent.
         """
         return self._rust.get_header(name)
+
+    @property
+    def cookies(self) -> dict[str, str]:
+        """dict[str, str]: Cookies from the ``Cookie`` header, parsed lazily and cached.
+
+        Values are unquoted when they arrive ``"quoted"``; whitespace around
+        ``name=value`` pairs is ignored.
+        """
+        if self._cookies_cache is None:
+            self._cookies_cache = _parse_cookies(self.get_header("cookie"))
+        return self._cookies_cache
+
+    def get_cookie(self, name: str, default: str | None = None) -> str | None:
+        """Return a single cookie value, or ``default`` when it is absent.
+
+        Args:
+            name: Cookie name (exact match).
+            default: Value returned when the cookie is not present.
+        """
+        return self.cookies.get(name, default)
 
     @property
     def query(self) -> dict[str, list[str]]:
@@ -204,12 +288,59 @@ class Request:
         return decode_json(data, target)
 
     async def form(self) -> dict[str, list[str]]:
-        """Parse a URL-encoded form body into a mapping of value lists.
+        """Parse a URL-encoded or multipart form body into field value lists.
+
+        For ``application/x-www-form-urlencoded`` every field is decoded as
+        UTF-8. For ``multipart/form-data`` only text fields are returned — use
+        :meth:`files` for uploaded files. Every value is a list so repeated
+        fields are preserved.
 
         Returns:
-            dict[str, list[str]]: Field names to their values; every value is a
-            list, so repeated fields are preserved.
+            dict[str, list[str]]: Field names to their values.
+
+        Raises:
+            RequestError: If the content type is not a form type — mapped to 400.
         """
-        from urllib.parse import parse_qs
-        body = await self.body()
-        return parse_qs(body.decode("latin-1"))
+        content_type = (self.get_header("content-type") or "").lower()
+        if content_type.startswith("application/x-www-form-urlencoded"):
+            from urllib.parse import parse_qs
+
+            body = await self.body()
+            return parse_qs(body.decode("utf-8"))
+        if content_type.startswith("multipart/form-data"):
+            fields, _ = await self._multipart()
+            return fields
+        raise RequestError(f"Unsupported content type for form(): {content_type or 'none'}")
+
+    async def files(self) -> dict[str, list[UploadedFile]]:
+        """Return uploaded files from a ``multipart/form-data`` body.
+
+        Returns:
+            dict[str, list[UploadedFile]]: Field name → uploaded files.
+
+        Raises:
+            RequestError: If the content type is not ``multipart/form-data``.
+        """
+        _, files = await self._multipart()
+        return files
+
+    async def _multipart(self) -> tuple[dict[str, list[str]], dict[str, list[UploadedFile]]]:
+        """Parse and cache the multipart body once per request (разбор — в Rust)."""
+        if self._multipart_cache is None:
+            content_type = (self.get_header("content-type") or "").lower()
+            if not content_type.startswith("multipart/form-data"):
+                raise RequestError("multipart/form-data expected")
+            boundary = _boundary_from(content_type)
+            if boundary is None:
+                raise RequestError("multipart/form-data без boundary")
+            await self.body()  # кладёт байты тела в Rust-ядро
+            raw_fields, raw_files = self._rust.parse_multipart(boundary.decode("latin-1"))
+            files = {
+                name: [
+                    UploadedFile(filename=filename, content=content, content_type=content_type)
+                    for filename, content_type, content in uploads
+                ]
+                for name, uploads in raw_files.items()
+            }
+            self._multipart_cache = (raw_fields, files)
+        return self._multipart_cache

@@ -55,6 +55,11 @@ class Request:
     def json(self) -> Any:
         """Parse the body as JSON; raises ValueError on malformed input."""
 
+    def parse_multipart(
+        self, boundary: str
+    ) -> tuple[dict[str, list[str]], dict[str, list[tuple[str, str, bytes]]]]:
+        """Parse a multipart/form-data body: (fields, files)."""
+
 class Response:
     """Rust-built response: status, body bytes and content type."""
 

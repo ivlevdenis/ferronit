@@ -150,6 +150,54 @@ impl Request {
             .map(|v| json_to_python(py, &v))
             .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("Invalid JSON: {}", e)))
     }
+
+    /// Parse a ``multipart/form-data`` body.
+    ///
+    /// Returns ``(fields, files)``: fields — ``dict[str, list[str]]``, files —
+    /// ``dict[str, list[(filename, content_type, bytes)]]``. The body must be
+    /// stored first via :meth:`set_body`.
+    fn parse_multipart(&self, py: Python<'_>, boundary: String) -> PyResult<(PyObject, PyObject)> {
+        let body = self.body.as_deref().unwrap_or(b"");
+        let delim = format!("--{boundary}");
+        let fields = PyDict::new(py);
+        let files = PyDict::new(py);
+
+        for chunk in split_bytes(body, delim.as_bytes()) {
+            if chunk.is_empty() {
+                continue;
+            }
+            if chunk.starts_with(b"--") {
+                break; // финальный --boundary--
+            }
+            let chunk = chunk.strip_prefix(b"\r\n").unwrap_or(chunk);
+            let Some((head, mut content)) = split_once_double_crlf(chunk) else {
+                continue;
+            };
+            if content.ends_with(b"\r\n") {
+                content = &content[..content.len() - 2];
+            }
+            let (name, filename, content_type) = parse_part_headers(head);
+            let Some(name) = name else { continue };
+            if let Some(filename) = filename {
+                let item = (filename, content_type, PyBytes::new(py, content));
+                match files.get_item(&name)? {
+                    Some(existing) => existing.downcast::<PyList>()?.append(item)?,
+                    None => {
+                        files.set_item(&name, PyList::new(py, [item])?)?;
+                    }
+                }
+            } else {
+                let text = String::from_utf8_lossy(content).into_owned();
+                match fields.get_item(&name)? {
+                    Some(existing) => existing.downcast::<PyList>()?.append(text)?,
+                    None => {
+                        fields.set_item(&name, PyList::new(py, [text])?)?;
+                    }
+                }
+            }
+        }
+        Ok((fields.into(), files.into()))
+    }
 }
 
 fn url_decode(s: &str) -> String {
@@ -179,6 +227,113 @@ fn url_decode(s: &str) -> String {
         Ok(text) => text,
         // не UTF-8 — значит пришла настоящая latin-1-строка: разворачиваем побайтово
         Err(e) => e.into_bytes().iter().map(|&b| b as char).collect(),
+    }
+}
+
+fn split_once_double_crlf(data: &[u8]) -> Option<(&[u8], &[u8])> {
+    let needle = b"\r\n\r\n";
+    let pos = data.windows(needle.len()).position(|w| w == needle)?;
+    Some((&data[..pos], &data[pos + needle.len()..]))
+}
+
+fn find_subslice(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+    if needle.is_empty() {
+        return Some(0);
+    }
+    haystack.windows(needle.len()).position(|w| w == needle)
+}
+
+fn split_bytes<'a>(data: &'a [u8], sep: &[u8]) -> Vec<&'a [u8]> {
+    let mut out = Vec::new();
+    let mut rest = data;
+    while !rest.is_empty() {
+        match find_subslice(rest, sep) {
+            Some(pos) => {
+                let (chunk, tail) = rest.split_at(pos);
+                out.push(chunk);
+                rest = &tail[sep.len()..];
+            }
+            None => {
+                out.push(rest);
+                break;
+            }
+        }
+    }
+    out
+}
+
+fn parse_part_headers(head: &[u8]) -> (Option<String>, Option<String>, String) {
+    let mut name = None;
+    let mut filename = None;
+    let mut content_type = String::new();
+    for line in head.split(|&b| b == b'\n') {
+        let line = line.strip_suffix(b"\r").unwrap_or(line);
+        let Some(colon) = line.iter().position(|&b| b == b':') else {
+            continue;
+        };
+        let key = String::from_utf8_lossy(&line[..colon]).trim().to_ascii_lowercase();
+        let value = String::from_utf8_lossy(&line[colon + 1..]).trim().to_string();
+        if key == "content-disposition" {
+            let (n, f) = parse_disposition(&value);
+            name = n;
+            filename = f;
+        } else if key == "content-type" {
+            content_type = value;
+        }
+    }
+    (name, filename, content_type)
+}
+
+fn parse_disposition(value: &str) -> (Option<String>, Option<String>) {
+    let mut name = None;
+    let mut filename = None;
+    for piece in value.split(';') {
+        let piece = piece.trim();
+        let Some(eq) = piece.find('=') else { continue };
+        let key = piece[..eq].trim().to_ascii_lowercase();
+        let mut val = piece[eq + 1..].trim();
+        if val.len() >= 2 && val.starts_with('"') && val.ends_with('"') {
+            val = &val[1..val.len() - 1];
+        }
+        if key == "name" {
+            name = Some(val.to_string());
+        } else if key == "filename" {
+            filename = Some(val.to_string());
+        } else if key == "filename*" {
+            // RFC 5987: filename*=UTF-8''<percent-encoded> — предпочитаем его
+            filename = Some(match val.find("''") {
+                Some(pos) => percent_decode(&val[pos + 2..]),
+                None => percent_decode(val),
+            });
+        }
+    }
+    (name, filename)
+}
+
+fn percent_decode(s: &str) -> String {
+    let bytes = s.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%' && i + 2 < bytes.len() {
+            if let (Some(h), Some(l)) = (hex_val(bytes[i + 1]), hex_val(bytes[i + 2])) {
+                out.push(h * 16 + l);
+                i += 3;
+                continue;
+            }
+        }
+        out.push(bytes[i]);
+        i += 1;
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+fn hex_val(b: u8) -> Option<u8> {
+    match b {
+        b'0'..=b'9' => Some(b - b'0'),
+        b'a'..=b'f' => Some(b - b'a' + 10),
+        b'A'..=b'F' => Some(b - b'A' + 10),
+        _ => None,
     }
 }
 

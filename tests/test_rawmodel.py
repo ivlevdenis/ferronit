@@ -147,6 +147,40 @@ def test_invert_operator() -> None:
     assert params == [[1, 2, 3]]
 
 
+def test_where_dsl_and_or_in() -> None:
+    sql, params = select(User).where(
+        "id > 1 and (name ilike '%a%' or email in ('x', 'y'))"
+    ).compile()
+    assert sql == (
+        "SELECT id, name, email FROM users "
+        "WHERE ((id > $1) AND ((name ILIKE $2) OR (email = ANY($3))))"
+    )
+    assert params == [1, "%a%", ["x", "y"]]
+
+
+def test_where_dsl_predicates() -> None:
+    sql, params = select(User).where(
+        "email is not null and id not in (1, 2) and id between 1 and 3"
+    ).compile()
+    assert sql == (
+        "SELECT id, name, email FROM users "
+        "WHERE (((email IS NOT NULL) AND (NOT (id = ANY($1)))) "
+        "AND (id BETWEEN $2 AND $3))"
+    )
+    assert params == [[1, 2], 1, 3]
+
+
+def test_where_dsl_null_and_errors() -> None:
+    sql, params = select(User).where("name != null").compile()
+    assert sql == "SELECT id, name, email FROM users WHERE (name IS NOT NULL)"
+    assert params == []
+
+    with pytest.raises(ValueError, match="Unknown column"):
+        select(User).where("nope > 1")
+    with pytest.raises(ValueError):
+        select(User).where("age >")
+
+
 def test_between() -> None:
     sql, params = select(User).where(User.c.id.between(5, 10)).compile()
     assert sql == "SELECT id, name, email FROM users WHERE (id BETWEEN $1 AND $2)"

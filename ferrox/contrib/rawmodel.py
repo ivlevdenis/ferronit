@@ -29,6 +29,7 @@ table="app_users")``) or declaratively on the model itself:
 from __future__ import annotations
 
 import builtins
+import re
 from collections.abc import Sequence
 from typing import Any
 
@@ -242,9 +243,21 @@ class Query:
         self._limit: int | None = None
         self._offset: int | None = None
 
-    def where(self, *conditions: Condition) -> Query:
-        """Add ``AND``-combined filter conditions."""
-        self._where.extend(conditions)
+    def where(self, *conditions: Condition | str) -> Query:
+        """Add ``AND``-combined filter conditions.
+
+        Условие может быть готовым :class:`Condition` (сравнения через ``User.c.*``,
+        ``|``/``&``/``~``) или строкой мини-DSL — она парсится и параметры биндятся:
+
+            select(User).where("age > 18 and (name ilike '%a%' or status in ('x','y'))")
+
+        Имена колонок проверяются по модели; значения уходят как bound-параметры
+        (не вставляются в SQL).
+        """
+        for condition in conditions:
+            if isinstance(condition, str):
+                condition = parse_where(condition, self._model.__columns__)
+            self._where.append(condition)
         return self
 
     def order_by(self, *specs: Column | str) -> Query:
@@ -303,6 +316,205 @@ class Query:
 def select(model: type[Model], table: str | None = None) -> Query:
     """Start a ``SELECT`` over ``model``."""
     return Query(model, table)
+
+
+# --- WHERE mini-DSL ---------------------------------------------------------
+
+_TOKEN_RE = re.compile(
+    r"""
+    (?P<ws>\s+)
+  | (?P<num>-?\d+(?:\.\d+)?)
+  | (?P<str>'(?:[^']|'')*'|"(?:[^"]|"")*")
+  | (?P<op><=|>=|!=|=|<|>)
+  | (?P<punct>[(),])
+  | (?P<ident>[A-Za-z_][A-Za-z0-9_]*)
+    """,
+    re.VERBOSE,
+)
+
+_RESERVED = {
+    "and", "or", "not", "in", "like", "ilike", "is", "null",
+    "between", "true", "false",
+}
+
+
+def _tokenize(expression: str) -> list[tuple[str, Any]]:
+    tokens: list[tuple[str, Any]] = []
+    pos = 0
+    while pos < len(expression):
+        match = _TOKEN_RE.match(expression, pos)
+        if match is None:
+            raise ValueError(f"Unexpected character at {pos}: {expression[pos]!r}")
+        pos = match.end()
+        kind = match.lastgroup or ""
+        value: Any = match.group()
+        if kind == "ws":
+            continue
+        if kind == "num":
+            value = float(value) if "." in value else int(value)
+            kind = "value"
+        elif kind == "str":
+            quote = value[0]
+            value = value[1:-1].replace(quote * 2, quote)
+            kind = "value"
+        elif kind == "ident":
+            kind = "word"
+        elif kind == "punct":
+            kind = value
+        tokens.append((kind, value))
+    return tokens
+
+
+class _Parser:
+    def __init__(self, tokens: list[tuple[str, Any]], columns: Sequence[str]) -> None:
+        self._tokens = tokens
+        self._columns = set(columns)
+        self._i = 0
+
+    def _peek(self) -> tuple[str, Any]:
+        if self._i >= len(self._tokens):
+            return ("", None)
+        return self._tokens[self._i]
+
+    def _next(self) -> tuple[str, Any]:
+        token = self._tokens[self._i]
+        self._i += 1
+        return token
+
+    def _is_word(self, word: str) -> bool:
+        kind, value = self._peek()
+        return kind == "word" and value.lower() == word
+
+    def _expect_word(self, word: str) -> None:
+        if not self._is_word(word):
+            raise ValueError(f"Expected {word!r}, got {self._peek()!r}")
+        self._next()
+
+    def _expect(self, kind: str) -> None:
+        actual, value = self._peek()
+        if actual != kind:
+            raise ValueError(f"Expected {kind!r}, got {value!r}")
+        self._next()
+
+    def parse(self) -> Condition:
+        condition = self._parse_or()
+        if self._i != len(self._tokens):
+            raise ValueError(f"Unexpected token: {self._peek()!r}")
+        return condition
+
+    def _parse_or(self) -> Condition:
+        condition = self._parse_and()
+        while self._is_word("or"):
+            self._next()
+            condition = condition | self._parse_and()
+        return condition
+
+    def _parse_and(self) -> Condition:
+        condition = self._parse_unary()
+        while self._is_word("and"):
+            self._next()
+            condition = condition & self._parse_unary()
+        return condition
+
+    def _parse_unary(self) -> Condition:
+        if self._is_word("not"):
+            self._next()
+            return ~self._parse_unary()
+        kind, _ = self._peek()
+        if kind == "(":
+            self._next()
+            condition = self._parse_or()
+            self._expect(")")
+            return condition
+        return self._parse_predicate()
+
+    def _parse_predicate(self) -> Condition:
+        kind, name = self._next()
+        if kind != "word" or name.lower() in _RESERVED:
+            raise ValueError(f"Expected column name, got {name!r}")
+        if name not in self._columns:
+            raise ValueError(f"Unknown column {name!r}")
+
+        op_kind, op = self._peek()
+        if op_kind == "op":
+            self._next()
+            value = self._parse_value()
+            if value is None:
+                return Condition(f"{name} IS {'NOT ' if op == '!=' else ''}NULL", [])
+            sql_op = "<>" if op == "!=" else op
+            return Condition(f"{name} {sql_op} $1", [value])
+        if self._is_word("is"):
+            self._next()
+            negated = False
+            if self._is_word("not"):
+                self._next()
+                negated = True
+            self._expect_word("null")
+            return Condition(f"{name} IS {'NOT ' if negated else ''}NULL", [])
+        if self._is_word("in"):
+            self._next()
+            values = self._parse_list()
+            return Condition(f"{name} = ANY($1)", [values])
+        if self._is_word("not"):
+            self._next()
+            self._expect_word("in")
+            values = self._parse_list()
+            return Condition(f"NOT ({name} = ANY($1))", [values])
+        if self._is_word("like") or self._is_word("ilike"):
+            op = "ILIKE" if self._peek()[1].lower() == "ilike" else "LIKE"
+            self._next()
+            value = self._parse_value()
+            return Condition(f"{name} {op} $1", [value])
+        if self._is_word("between"):
+            self._next()
+            low = self._parse_value()
+            self._expect_word("and")
+            high = self._parse_value()
+            return Condition(f"{name} BETWEEN $1 AND $2", [low, high])
+        raise ValueError(f"Expected operator after column {name!r}, got {self._peek()!r}")
+
+    def _parse_list(self) -> list[Any]:
+        self._expect("(")
+        values: list[Any] = []
+        kind, _ = self._peek()
+        if kind == ")":
+            self._next()
+            return values
+        values.append(self._parse_value())
+        while True:
+            kind, _ = self._peek()
+            if kind == ",":
+                self._next()
+                values.append(self._parse_value())
+            elif kind == ")":
+                self._next()
+                return values
+            else:
+                raise ValueError(f"Expected ',' or ')', got {self._peek()!r}")
+
+    def _parse_value(self) -> Any:
+        kind, value = self._next()
+        if kind == "value":
+            return value
+        if kind == "word":
+            lowered = value.lower()
+            if lowered == "true":
+                return True
+            if lowered == "false":
+                return False
+            if lowered == "null":
+                return None
+        raise ValueError(f"Expected value, got {value!r}")
+
+
+def parse_where(expression: str, columns: Sequence[str]) -> Condition:
+    """Parse a ``WHERE`` mini-DSL string into a :class:`Condition`.
+
+    Поддерживает: ``and``/``or``/``not``, скобки, ``= != < <= > >=``,
+    ``in (...)/not in (...)``, ``like``/``ilike``, ``is [not] null``,
+    ``between ... and ...``. Имена колонок сверяются с ``columns``.
+    """
+    return _Parser(_tokenize(expression), columns).parse()
 
 
 class IdentityMap:

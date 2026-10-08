@@ -17,7 +17,6 @@ from ferrox.contrib.rawmodel import (
     IdentityMap,
     Model,
     RawModelRepository,
-    or_,
     select,
 )
 
@@ -131,28 +130,21 @@ def test_order_by_columns_and_raw_terms() -> None:
 
 
 def test_or_combine_conditions() -> None:
-    sql, params = select(User).where(or_(User.c.id > 1, User.c.name == "A")).compile()
+    sql, params = select(User).where((User.c.id > 1) | (User.c.name == "A")).compile()
     assert sql == "SELECT id, name, email FROM users WHERE ((id > $1) OR (name = $2))"
     assert params == [1, "A"]
 
 
-def test_where_any_and_fluent_or() -> None:
-    q = select(User).where_any(User.c.id > 1, User.c.name == "A", User.c.email.is_null())
-    sql, params = q.compile()
-    assert sql == (
-        "SELECT id, name, email FROM users "
-        "WHERE ((id > $1) OR (name = $2) OR (email IS NULL))"
-    )
-    assert params == [1, "A"]
+def test_and_operator() -> None:
+    sql, params = select(User).where((User.c.id > 1) & User.c.email.is_null()).compile()
+    assert sql == "SELECT id, name, email FROM users WHERE ((id > $1) AND (email IS NULL))"
+    assert params == [1]
 
-    # fluent-методы дают тот же результат
-    cond = (User.c.id > 1).or_(User.c.name == "A").and_(User.c.email.is_null())
-    sql2, params2 = select(User).where(cond).compile()
-    assert sql2 == (
-        "SELECT id, name, email FROM users "
-        "WHERE (((id > $1) OR (name = $2)) AND (email IS NULL))"
-    )
-    assert params2 == [1, "A"]
+
+def test_invert_operator() -> None:
+    sql, params = select(User).where(~User.c.id.in_([1, 2, 3])).compile()
+    assert sql == "SELECT id, name, email FROM users WHERE (NOT (id = ANY($1)))"
+    assert params == [[1, 2, 3]]
 
 
 def test_between() -> None:
@@ -392,7 +384,7 @@ async def test_integration_or_in_fetch_one_fetch_value(repo) -> None:
     for name, email, age in [("a", "a@x", 10), ("b", "b@x", 20), ("c", "c@x", 30)]:
         await repo.save(RawUser(name=name, email=email, age=age))
 
-    rows = await repo.fetch(select(RawUser).where(or_(RawUser.c.age < 15, RawUser.c.age > 25)))
+    rows = await repo.fetch(select(RawUser).where((RawUser.c.age < 15) | (RawUser.c.age > 25)))
     assert sorted(r.age for r in rows) == [10, 30]
 
     rows = await repo.fetch(select(RawUser).where(RawUser.c.id.in_([1, 3])))

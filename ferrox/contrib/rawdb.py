@@ -61,20 +61,16 @@ class Condition:
         right = _renumber_placeholders(other.sql, len(other.params), len(self.params))
         return Condition(f"({self.sql}) AND ({right})", [*self.params, *other.params])
 
+    def __invert__(self) -> Condition:
+        """Negate a condition — ``~a`` → ``NOT (a)``."""
+        return Condition(f"NOT ({self.sql})", list(self.params))
+
     def __or__(self, other) -> Condition:
         """Combine two conditions with ``OR`` (``a | b``)."""
         if not isinstance(other, Condition):
             return NotImplemented
         right = _renumber_placeholders(other.sql, len(other.params), len(self.params))
         return Condition(f"({self.sql}) OR ({right})", [*self.params, *other.params])
-
-    def or_(self, other: Condition) -> Condition:
-        """Fluent ``OR`` — ``a.or_(b)`` (читается лучше, чем ``(a) | (b)``)."""
-        return self | other
-
-    def and_(self, other: Condition) -> Condition:
-        """Fluent ``AND`` — ``a.and_(b)``."""
-        return self & other
 
 
 def _renumber_placeholders(sql: str, count: int, offset: int) -> str:

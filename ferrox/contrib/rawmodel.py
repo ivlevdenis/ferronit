@@ -37,7 +37,7 @@ import msgspec
 from msgspec.structs import StructMeta  # type: ignore[attr-defined]
 from msgspec.structs import fields as struct_fields
 
-from ferrox.contrib.rawdb import Condition, _merge_filters, _renumber_placeholders
+from ferrox.contrib.rawdb import Condition, _merge_filters
 from ferrox.hexagonal import Adapter
 
 __all__ = [
@@ -46,8 +46,6 @@ __all__ = [
     "Model",
     "Query",
     "RawModelRepository",
-    "and_",
-    "or_",
     "select",
 ]
 
@@ -249,16 +247,6 @@ class Query:
         self._where.extend(conditions)
         return self
 
-    def where_all(self, *conditions: Condition) -> Query:
-        """Синоним :meth:`where` — все условия через ``AND``."""
-        return self.where(*conditions)
-
-    def where_any(self, *conditions: Condition) -> Query:
-        """Условия через ``OR`` (внутри вызова), а между вызовами — ``AND``."""
-        if conditions:
-            self._where.append(or_(*conditions))
-        return self
-
     def order_by(self, *specs: Column | str) -> Query:
         """Set ordering by columns (ascending by default) or raw terms."""
         self._order.extend(s.name if isinstance(s, Column) else s for s in specs)
@@ -315,27 +303,6 @@ class Query:
 def select(model: type[Model], table: str | None = None) -> Query:
     """Start a ``SELECT`` over ``model``."""
     return Query(model, table)
-
-
-def or_(*conditions: Condition) -> Condition:
-    """Объединить условия через ``OR`` — ``or_(a, b, c)`` (плоское, без гнезда)."""
-    return _combine(" OR ", conditions)
-
-
-def and_(*conditions: Condition) -> Condition:
-    """Объединить условия через ``AND`` — ``and_(a, b)`` (плоское)."""
-    return _combine(" AND ", conditions)
-
-
-def _combine(separator: str, conditions: tuple[Condition, ...]) -> Condition:
-    clauses: list[str] = []
-    params: list[Any] = []
-    for condition in conditions:
-        clauses.append(
-            f"({_renumber_placeholders(condition.sql, len(condition.params), len(params))})"
-        )
-        params.extend(condition.params)
-    return Condition(separator.join(clauses), params)
 
 
 class IdentityMap:

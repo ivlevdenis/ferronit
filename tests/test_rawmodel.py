@@ -1,10 +1,10 @@
-"""Тесты декларативных моделей над сырым asyncpg-слоем (``ferrox.contrib.rawmodel``).
+"""Тесты декларативных моделей над сырым asyncpg-слоем (``ferronit.contrib.rawmodel``).
 
 Юнит-часть (плюрализация имён таблиц, компиляция ``Query``, ``IdentityMap``,
 репозиторий с фейковым соединением) работает без базы. Интеграционная часть
 требует контейнер PostgreSQL на :5432 и пропускается, если его нет:
 
-    docker run -d --name ferrox-pg -e POSTGRES_PASSWORD=postgres \\
+    docker run -d --name ferronit-pg -e POSTGRES_PASSWORD=postgres \\
         -e POSTGRES_USER=postgres -e POSTGRES_DB=postgres -p 5432:5432 postgres:18
 """
 
@@ -12,8 +12,8 @@ from __future__ import annotations
 
 import pytest
 
-from ferrox.contrib.rawdb import RawUnitOfWork, create_raw_pool
-from ferrox.contrib.rawmodel import (
+from ferronit.contrib.rawdb import RawUnitOfWork, create_raw_pool
+from ferronit.contrib.rawmodel import (
     IdentityMap,
     Model,
     RawModelRepository,

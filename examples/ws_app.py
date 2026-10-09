@@ -8,14 +8,14 @@ Origin-guard задаётся прямо в декораторе: соедине
 Проверка из браузера (консоль на странице того же origin):
     const ws = new WebSocket("ws://localhost:8000/ws/echo");
     ws.onmessage = e => console.log(e.data);
-    ws.onopen = () => ws.send('{"hello": "ferrox"}');
+    ws.onopen = () => ws.send('{"hello": "ferronit"}');
 """
 
 from __future__ import annotations
 
-from ferrox import Ferrox, WebSocket, WebSocketState
+from ferronit import Ferronit, WebSocket, WebSocketState
 
-app = Ferrox()
+app = Ferronit()
 
 # В проде перечисли свои origin: origins=["https://app.example"]
 ALLOWED_ORIGINS = ["http://localhost:8000"]

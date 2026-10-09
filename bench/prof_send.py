@@ -2,7 +2,7 @@
 import asyncio
 import time
 
-from ferrox.core.response import Response
+from ferronit.core.response import Response
 
 N = 100000
 

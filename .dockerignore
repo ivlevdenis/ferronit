@@ -10,7 +10,7 @@ __pycache__
 .benchmarks
 build
 dist
-ferrox-rs/target
+ferronit-rs/target
 graphify-out
 docs
 tests

@@ -1,4 +1,4 @@
-"""Бенч с БД: Ferrox vs FastAPI, HTTP → handler → SQLite → response.
+"""Бенч с БД: Ferronit vs FastAPI, HTTP → handler → SQLite → response.
 
 GET /users — SELECT 100 записей + JSON-ответ (чтение)
 POST /users — INSERT + ответ (запись)
@@ -13,7 +13,7 @@ from pathlib import Path
 import httpx
 
 VENV_PY = Path(__file__).resolve().parents[1] / ".venv" / "bin" / "python"
-PORTS = {"ferrox": 8161, "ferrox-core": 8163, "fastapi": 8162}
+PORTS = {"ferronit": 8161, "ferronit-core": 8163, "fastapi": 8162}
 
 APP_CORE = '''
 from sqlalchemy import Column, Integer, String
@@ -54,11 +54,11 @@ init_db()
 '''
 
 APP_CODE = {
-    "ferrox": """
-from ferrox import Ferrox
+    "ferronit": """
+from ferronit import Ferronit
 """ + APP_CORE + """
 
-app = Ferrox()
+app = Ferronit()
 
 
 @app.route("/users")
@@ -84,8 +84,8 @@ async def create_user(req):
         await session.commit()
     return {"id": user.id, "name": user.name}
 """,
-    "ferrox-core": '''
-from ferrox import Ferrox
+    "ferronit-core": '''
+from ferronit import Ferronit
 from sqlalchemy import Column, Integer, MetaData, String, Table, insert, select
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 
@@ -117,7 +117,7 @@ def init_db():
 
 init_db()
 
-app = Ferrox()
+app = Ferronit()
 
 
 @app.route("/users")
@@ -242,18 +242,18 @@ def bench_pair(server: str) -> dict:
 
 def main() -> None:
     server = sys.argv[1] if len(sys.argv) > 1 else "granian"
-    print(f"=== Бенч с БД (SQLite): Ferrox vs FastAPI на {server} ===")
+    print(f"=== Бенч с БД (SQLite): Ferronit vs FastAPI на {server} ===")
     print("GET /users — SELECT 100 записей, POST /users — INSERT\n")
 
     res = bench_pair(server)
 
-    print(f"{'операция':10s} {'Ferrox-ORM':>10s} {'Ferrox-Core':>10s} {'FastAPI':>10s}")
+    print(f"{'операция':10s} {'Ferronit-ORM':>10s} {'Ferronit-Core':>10s} {'FastAPI':>10s}")
     for method in ("GET", "POST"):
-        v = res[method]["ferrox"]
-        c = res[method]["ferrox-core"]
+        v = res[method]["ferronit"]
+        c = res[method]["ferronit-core"]
         f = res[method]["fastapi"]
         print(f"{method:10s} {v:10,.0f} {c:10,.0f} {f:10,.0f}")
-        print(f"{'':10s} Core vs ORM: {(c/v-1)*100:+6.0f}%   Ferrox-Core vs FastAPI: {(c/f-1)*100:+6.0f}%")
+        print(f"{'':10s} Core vs ORM: {(c/v-1)*100:+6.0f}%   Ferronit-Core vs FastAPI: {(c/f-1)*100:+6.0f}%")
 
 
 if __name__ == "__main__":

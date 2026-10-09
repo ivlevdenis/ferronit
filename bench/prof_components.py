@@ -1,16 +1,16 @@
-"""Разложение горячего пути Ferrox на компоненты (мкс/оп)."""
+"""Разложение горячего пути Ferronit на компоненты (мкс/оп)."""
 import asyncio
 import time
 
-from ferrox import Ferrox
-from ferrox.core.app import _to_response
-from ferrox.core.request import Request
-from ferrox.core.response import Response
-from ferrox.contrib.tracing import current_trace_id
+from ferronit import Ferronit
+from ferronit.core.app import _to_response
+from ferronit.core.request import Request
+from ferronit.core.response import Response
+from ferronit.contrib.tracing import current_trace_id
 
 N = 50000
 
-v = Ferrox()
+v = Ferronit()
 
 for i in range(50):
     exec(f'@v.route("/route{i}")\ndef h{i}(req): return {{"route": {i}}}')

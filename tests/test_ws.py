@@ -5,12 +5,12 @@ import asyncio
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from ferrox import Ferrox
+from ferronit import Ferronit
 
 
 @pytest.fixture
 def app():
-    v = Ferrox(debug=True)
+    v = Ferronit(debug=True)
 
     @v.websocket("/ws/echo")
     async def echo(ws):

@@ -1,4 +1,4 @@
-"""Сравнение режимов uvicorn: asyncio+h11 vs uvloop+httptools (Ferrox, 50 роутов)."""
+"""Сравнение режимов uvicorn: asyncio+h11 vs uvloop+httptools (Ferronit, 50 роутов)."""
 import subprocess
 import time
 from pathlib import Path
@@ -10,8 +10,8 @@ N = 5000
 WARMUP = 200
 
 APP = """
-from ferrox import Ferrox
-app = Ferrox()
+from ferronit import Ferronit
+app = Ferronit()
 for i in range(50):
     def _make(i):
         def h(req, i=i):

@@ -7,7 +7,7 @@ Rust быстрее (один проход по C-данным), на крупн
 import json
 import time
 
-from ferrox._core import Response as RustResp
+from ferronit._core import Response as RustResp
 
 N = 20000
 
@@ -15,7 +15,7 @@ N = 20000
 def make_payload(n_objects: int) -> dict:
     """Полезная нагрузка из `n_objects` вложенных объектов (0 — плоский мелкий ответ)."""
     if n_objects == 0:
-        return {"ok": True, "n": 42, "name": "ferrox"}
+        return {"ok": True, "n": 42, "name": "ferronit"}
     return {
         "users": [
             {

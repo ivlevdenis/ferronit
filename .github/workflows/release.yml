@@ -1,11 +1,11 @@
-# Релиз Ferrox: проверки → колеса под все платформы → GitHub Release → PyPI.
+# Релиз Ferronit: проверки → колеса под все платформы → GitHub Release → PyPI.
 #
-#   git tag -a v0.8.1 -m "Ferrox 0.8.1" && git push origin v0.8.1
+#   git tag -a v0.8.1 -m "Ferronit 0.8.1" && git push origin v0.8.1
 #
 # Триггер — тег вида v*; workflow_dispatch запускает проверки и сборку без публикации.
 # Публикация на PyPI идёт по Trusted Publishing (OIDC), токен не нужен:
 # на pypi.org → Publishing → Add a new pending publisher → owner/ivlevdenis,
-# repo/ferrox, workflow/release.yml, environment/release.
+# repo/ferronit, workflow/release.yml, environment/release.
 #
 # Сборку колеса с Rust-ядром делает maturin (PyO3/maturin-action), окружение — Poetry.
 name: release
@@ -20,7 +20,7 @@ permissions:
   contents: read
 
 jobs:
-  # Версия тега должна совпасть с версией в Cargo.toml и ferrox/__init__.py,
+  # Версия тега должна совпасть с версией в Cargo.toml и ferronit/__init__.py,
   # затем прогоняется штатный scripts/check.sh (ruff → докстринги → mypy → ядро → тесты).
   check:
     name: Проверки и тесты
@@ -31,13 +31,13 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Версия тега = Cargo.toml = ferrox.__version__
+      - name: Версия тега = Cargo.toml = ferronit.__version__
         if: startsWith(github.ref, 'refs/tags/')
         run: |
           tag="${GITHUB_REF_NAME#v}"
-          cargo="$(grep -m1 '^version' ferrox-rs/Cargo.toml | cut -d'"' -f2)"
-          pyver="$(grep -m1 '__version__' ferrox/__init__.py | cut -d'"' -f2)"
-          echo "тег=$tag Cargo.toml=$cargo ferrox/__init__.py=$pyver"
+          cargo="$(grep -m1 '^version' ferronit-rs/Cargo.toml | cut -d'"' -f2)"
+          pyver="$(grep -m1 '__version__' ferronit/__init__.py | cut -d'"' -f2)"
+          echo "тег=$tag Cargo.toml=$cargo ferronit/__init__.py=$pyver"
           if [ "$tag" != "$cargo" ] || [ "$tag" != "$pyver" ]; then
             echo "::error::версия тега ($tag) не совпадает с Cargo.toml ($cargo) / __init__.py ($pyver)"
             exit 1
@@ -203,6 +203,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "$GITHUB_REF_NAME" \
-            --title "Ferrox ${GITHUB_REF_NAME#v}" \
+            --title "Ferronit ${GITHUB_REF_NAME#v}" \
             --generate-notes \
             dist/*

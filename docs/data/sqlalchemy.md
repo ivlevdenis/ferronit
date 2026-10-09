@@ -11,7 +11,7 @@ SQLAlchemy-адаптер. Он работает с любым бэкендом 
 ```python
 from sqlalchemy import Column, Integer, String
 from sqlalchemy.orm import DeclarativeBase
-from ferrox.contrib.db import RelationalUnitOfWork, create_relational_uow
+from ferronit.contrib.db import RelationalUnitOfWork, create_relational_uow
 
 class Base(DeclarativeBase):
     pass

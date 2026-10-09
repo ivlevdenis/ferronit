@@ -1,15 +1,15 @@
-"""Честный async-бенчмарк Ferrox (и FastAPI, если установлен)."""
+"""Честный async-бенчмарк Ferronit (и FastAPI, если установлен)."""
 import asyncio
 import time
 
 import httpx
 from httpx import ASGITransport, AsyncClient
 
-from ferrox import Ferrox
+from ferronit import Ferronit
 
 
-def make_ferrox():
-    v = Ferrox()
+def make_ferronit():
+    v = Ferronit()
 
     @v.route("/")
     def home(req):
@@ -34,12 +34,12 @@ async def bench(client: AsyncClient, path: str, n: int = 5000) -> float:
 
 
 async def main():
-    v = make_ferrox()
+    v = make_ferronit()
 
     async with AsyncClient(transport=ASGITransport(app=v), base_url="http://test") as c:
         for path in ("/", "/reflect"):
             rps = await bench(c, path)
-            print(f"Ferrox  {path:10s} {rps:10,.0f} req/s")
+            print(f"Ferronit  {path:10s} {rps:10,.0f} req/s")
 
     # FastAPI для сравнения (если установлен)
     try:

@@ -1,32 +1,32 @@
-# AGENTS.md — Ferrox
+# AGENTS.md — Ferronit
 
 Инструкция для код-агентов (Claude Code, Codex, Cursor, Copilot, Pi, Gemini CLI и др.).
 Прочитай целиком до первого изменения кода.
 
 ## Что это
 
-Ferrox — высокопроизводительный Python ASGI-фреймворк, у которого инфраструктурный слой
+Ferronit — высокопроизводительный Python ASGI-фреймворк, у которого инфраструктурный слой
 написан на Rust: **роутинг, парсинг запроса, JSON-сериализация, gzip и CORS**. Бизнес-логика
 остаётся обычным Python: DDD / CQRS, hexagonal (порты и адаптеры), DI-контейнер.
 
 Версия 0.8.1, требуется Python ≥ 3.12. Скорость: 88 768 req/s на Granian (×8.0 к FastAPI
 на том же коде и железе), полный hot path ~11 мкс на запрос.
 
-Репозиторий — **один дистрибутив** `ferrox` (maturin mixed):
+Репозиторий — **один дистрибутив** `ferronit` (maturin mixed):
 
 | Каталог | Что это |
 |---|---|
-| `ferrox/` | Python-пакет: ASGI-движок, DDD, DI, contrib + нативное ядро `ferrox._core` |
-| `ferrox-rs/` | Rust-крейт (роутинг/JSON/gzip/CORS + `db`), собирается как `ferrox._core` |
-| `ferrox/db.py` | Слой данных `ferrox.db` (`connect` / `query_json` → `ferrox._core.db`) |
+| `ferronit/` | Python-пакет: ASGI-движок, DDD, DI, contrib + нативное ядро `ferronit._core` |
+| `ferronit-rs/` | Rust-крейт (роутинг/JSON/gzip/CORS + `db`), собирается как `ferronit._core` |
+| `ferronit/db.py` | Слой данных `ferronit.db` (`connect` / `query_json` → `ferronit._core.db`) |
 
-Сборка — maturin (`abi3-py312`), один wheel: `pip install ferrox` ставит сразу Python-слой и ядро.
+Сборка — maturin (`abi3-py312`), один wheel: `pip install ferronit` ставит сразу Python-слой и ядро.
 
 ## Карта репозитория
 
 ```
-ferrox/
-├── __init__.py            # Ferrox, Request, Response, WebSocket, __version__
+ferronit/
+├── __init__.py            # Ferronit, Request, Response, WebSocket, __version__
 ├── core/
 │   ├── app.py             # ASGI-движок: маршруты, middleware, gzip, CORS, lifespan
 │   ├── request.py         # Request (заголовки/query в Rust), PathParamError, BodyTooLarge
@@ -40,7 +40,7 @@ ferrox/
 ├── openapi.py             # генерация OpenAPI из type hints
 ├── websocket.py           # WebSocket-хендлеры, Origin-guard
 ├── config.py              # EnvConfig: типизированные переменные окружения
-├── cli.py                 # ferrox new / dev / run + шаблоны scaffold-проекта
+├── cli.py                 # ferronit new / dev / run + шаблоны scaffold-проекта
 └── contrib/               # инфраструктурные адаптеры (опциональные зависимости)
     ├── db.py              # SQLAlchemy: RelationalRepository/UnitOfWork, CoreRepository
     ├── rawdb.py           # тонкий слой на asyncpg: RawRepository/RawUnitOfWork (без ORM)
@@ -51,11 +51,11 @@ ferrox/
     ├── cors.py, security.py, ratelimit.py, staticfiles.py, tracing.py, health.py
     └── pydantic/          # кодек pydantic v2
 
-ferrox-rs/src/lib.rs        # Rust: Router, parse_headers, Response::json (в т.ч. модели), gzip, CORS
-ferrox-rs/src/db.rs         # Rust: PostgreSQL → JSON (deadpool-postgres + prepare_cached, маппинг типов)
-ferrox/db.py                # слой данных ferrox.db (connect/query_json → ferrox._core.db)
-pyproject.toml              # метаданные, extras, [tool.poetry], [tool.maturin], ruff/mypy
-poetry.toml, poetry.lock    # окружение Poetry (venv в .venv/) и зафиксированные зависимости
+ferronit-rs/src/lib.rs        # Rust: Router, parse_headers, Response::json (в т.ч. модели), gzip, CORS
+ferronit-rs/src/db.rs         # Rust: PostgreSQL → JSON (deadpool-postgres + prepare_cached, маппинг типов)
+ferronit/db.py                # слой данных ferronit.db (connect/query_json → ferronit._core.db)
+pyproject.toml                # метаданные, extras, [tool.poetry], [tool.maturin], ruff/mypy
+poetry.toml, poetry.lock      # окружение Poetry (venv в .venv/) и зафиксированные зависимости
 bench/                     # измерительный стенд (все цифры — docs/benchmarks.md) + README.md внутри
 tests/                     # 263 теста; tests/security/ — 64 (в т.ч. 14 ASVS L1)
 examples/                  # минимальный, DI, LLM+SSE, RAG, WebSocket + README
@@ -85,50 +85,50 @@ PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 poetry run maturin develop --release   # �
 # по отдельности (можно и .venv/bin/... — venv лежит внутри проекта)
 poetry run pytest tests/ -q                    # 263 теста, ~4 с
 poetry run pytest tests/security -q            # security-набор + ASVS L1
-poetry run ruff check ferrox tests             # линт
-poetry run mypy ferrox                         # типы
+poetry run ruff check ferronit tests           # линт
+poetry run mypy ferronit                       # типы
 poetry run python scripts/agent_readiness.py   # покрытие докстрингами (сейчас 100%)
 poetry run python scripts/agent_readiness.py --missing   # что конкретно без докстринга
 
-# только Rust-ядро (после правок в ferrox-rs/)
+# только Rust-ядро (после правок в ferronit-rs/)
 PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 poetry run maturin develop --release
 
 # wheel + sdist в dist/
 ./scripts/build_packages.sh
 
 # прод и dev
-poetry run ferrox dev --server granian   # dev-сервер с reload
-poetry run ferrox run --workers 4        # прод: Granian, fallback uvicorn
+poetry run ferronit dev --server granian   # dev-сервер с reload
+poetry run ferronit run --workers 4        # прод: Granian, fallback uvicorn
 
 # docker
-docker build -t ferrox:0.8.1 . && ./scripts/docker_smoke.sh
+docker build -t ferronit:0.8.1 . && ./scripts/docker_smoke.sh
 ```
 
 Тесты Postgres (`tests/test_postgres_real.py`, 4 шт.) требуют контейнер на :5432:
 
 ```bash
-docker start ferrox-pg   # если контейнера нет:
-docker run -d --name ferrox-pg -e POSTGRES_PASSWORD=postgres -e POSTGRES_USER=postgres \
+docker start ferronit-pg   # если контейнера нет:
+docker run -d --name ferronit-pg -e POSTGRES_PASSWORD=postgres -e POSTGRES_USER=postgres \
   -e POSTGRES_DB=postgres -p 5432:5432 postgres:18
 ```
 
 ## Инварианты — НЕ ломать
 
-1. **Версии синхронизированы**: `ferrox/__init__.py::__version__` == `ferrox-rs/Cargo.toml::version`
-   == метаданные дистрибутива `ferrox`. Ловится `tests/test_packaging.py`; при выпуске править **два** файла.
+1. **Версии синхронизированы**: `ferronit/__init__.py::__version__` == `ferronit-rs/Cargo.toml::version`
+   == метаданные дистрибутива `ferronit`. Ловится `tests/test_packaging.py`; при выпуске править **два** файла.
 2. **`Cargo.lock` в репозитории** — фичи pyo3 менять только через `Cargo.toml` + пересборку.
 3. **`abi3-py312`, не понижать**: `PyString::to_str` требует `PyUnicode_AsUTF8AndSize`, которого
    нет в limited API до 3.10; Python-слой и так требует ≥ 3.12. Один wheel покрывает 3.12+.
-4. **Python-ядро без внешних зависимостей**: только stdlib и `ferrox._core`. Всё остальное —
+4. **Python-ядро без внешних зависимостей**: только stdlib и `ferronit._core`. Всё остальное —
    optional extras (`server`, `db`, `postgres`, `pydantic`).
-5. **`ferrox._core.Response` — не тот же объект, что Python `Response`**: импортировать
-   `from ferrox._core import Response as RustResp`.
+5. **`ferronit._core.Response` — не тот же объект, что Python `Response`**: импортировать
+   `from ferronit._core import Response as RustResp`.
 6. **PyO3 `#[getter]` срезает префикс `get_`**: Rust `fn get_status()` → в Python `.status`.
    Тесты на заголовки нормализуют регистр (`Content-Encoding` с большой буквы).
 7. **Python 3.14+**: сборка ядра только с `PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1`.
 8. **Middleware не должен await'ить синхронные хендлеры**:
    `result = next_handler(req); if hasattr(result, "__await__"): result = await result`.
-9. **`X-Trace-Id` ставить в `Ferrox.__call__` ПОСЛЕ `_to_response`** — иначе заголовок теряется
+9. **`X-Trace-Id` ставить в `Ferronit.__call__` ПОСЛЕ `_to_response`** — иначе заголовок теряется
    на возвратах dict/pydantic.
 10. **Что понимает `_to_response`**: `dict` и `list` (JSON через serde_json),
     кортеж `(payload, status)` — документированный способ задать статус
@@ -160,17 +160,17 @@ docker run -d --name ferrox-pg -e POSTGRES_PASSWORD=postgres -e POSTGRES_USER=po
 
 | Задача | Файл |
 |---|---|
-| Роутинг, JSON, gzip, CORS на уровне ядра | `ferrox-rs/src/lib.rs` (Rust, нужна пересборка) |
-| ASGI-движок, регистрация маршрутов, ошибки | `ferrox/core/app.py` |
-| Заголовки/query/body запроса | `ferrox/core/request.py` |
-| Ответы, стриминг | `ferrox/core/response.py` |
-| Типы параметров в хендлерах | `ferrox/injection.py` |
-| DDD / CQRS | `ferrox/ddd.py` |
-| Порты и адаптеры | `ferrox/hexagonal.py`, `ferrox/contrib/*` |
-| Доступ к БД | `ferrox/contrib/db.py` (CoreRepository — скорость, RelationalRepository — ORM-объекты), `ferrox/contrib/rawdb.py` + `rawmodel.py` (asyncpg без SQLAlchemy; модели сериализуются Rust-ядром напрямую); `ferrox.db` (запрос + JSON целиком в Rust, для больших выборок) |
-| LLM / векторный поиск | `ferrox/contrib/llm.py`, `ferrox/contrib/vectordb.py` |
-| Безопасность (заголовки, лимиты, rate limit) | `ferrox/contrib/security.py`, `ratelimit.py`, `docs/security/ASVS.md` |
-| Scaffold новых проектов | `ferrox/cli.py` (шаблоны в начале файла) |
+| Роутинг, JSON, gzip, CORS на уровне ядра | `ferronit-rs/src/lib.rs` (Rust, нужна пересборка) |
+| ASGI-движок, регистрация маршрутов, ошибки | `ferronit/core/app.py` |
+| Заголовки/query/body запроса | `ferronit/core/request.py` |
+| Ответы, стриминг | `ferronit/core/response.py` |
+| Типы параметров в хендлерах | `ferronit/injection.py` |
+| DDD / CQRS | `ferronit/ddd.py` |
+| Порты и адаптеры | `ferronit/hexagonal.py`, `ferronit/contrib/*` |
+| Доступ к БД | `ferronit/contrib/db.py` (CoreRepository — скорость, RelationalRepository — ORM-объекты), `ferronit/contrib/rawdb.py` + `rawmodel.py` (asyncpg без SQLAlchemy; модели сериализуются Rust-ядром напрямую); `ferronit.db` (запрос + JSON целиком в Rust, для больших выборок) |
+| LLM / векторный поиск | `ferronit/contrib/llm.py`, `ferronit/contrib/vectordb.py` |
+| Безопасность (заголовки, лимиты, rate limit) | `ferronit/contrib/security.py`, `ratelimit.py`, `docs/security/ASVS.md` |
+| Scaffold новых проектов | `ferronit/cli.py` (шаблоны в начале файла) |
 
 ## Экономия контекста
 
@@ -181,9 +181,9 @@ docker run -d --name ferrox-pg -e POSTGRES_PASSWORD=postgres -e POSTGRES_USER=po
 
 ## Границы работ
 
-- Не добавлять внешние зависимости в `ferrox/` (только optional extras в `pyproject.toml`).
+- Не добавлять внешние зависимости в `ferronit/` (только optional extras в `pyproject.toml`).
 - Не трогать `bench/` (стенд замеров) при работе над фреймворком.
-- Не коммитить: `.venv/`, `dist/`, `ferrox-rs/target/`, `*.session`, `.env`.
+- Не коммитить: `.venv/`, `dist/`, `ferronit-rs/target/`, `*.session`, `.env`.
 - Не переписывать числа в README без реального замера (`ab -n 30000 -c 50 -k`, Granian/uvicorn
   1 воркер, медиана прогонов).
 - Не понижать abi3 и не менять фичи pyo3 «на месте» — только через `Cargo.toml` и пересборку.

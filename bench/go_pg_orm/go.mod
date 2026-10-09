@@ -1,4 +1,4 @@
-module ferrox_bench
+module ferronit_bench
 
 go 1.25.0
 

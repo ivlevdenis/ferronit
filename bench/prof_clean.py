@@ -4,13 +4,13 @@ import gc
 import statistics
 import time
 
-from ferrox import Ferrox
+from ferronit import Ferronit
 
 gc.disable()
 
 N = 50000
 
-v = Ferrox()
+v = Ferronit()
 for i in range(50):
     exec(f'@v.route("/route{i}")\ndef h{i}(req): return {{"route": {i}}}')
 

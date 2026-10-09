@@ -8,7 +8,7 @@
     .venv/bin/python -m granian --interface asgi --no-ws examples.llm_sse_app:app
 Проверка:
     curl -X POST localhost:8000/chat -H 'content-type: application/json' \
-         -d '{"prompt": "что такое Ferrox"}'
+         -d '{"prompt": "что такое Ferronit"}'
     curl -N -X POST localhost:8000/chat/stream -H 'content-type: application/json' \
          -d '{"prompt": "стриминг"}'
 """
@@ -19,14 +19,14 @@ import asyncio
 import json
 from collections.abc import AsyncIterator
 
-from ferrox import StreamingResponse, Ferrox
-from ferrox.contrib.llm import ChatMessage, LlmPort, MockLlmAdapter
+from ferronit import StreamingResponse, Ferronit
+from ferronit.contrib.llm import ChatMessage, LlmPort, MockLlmAdapter
 
-app = Ferrox()
+app = Ferronit()
 
 # Порт. В проде здесь OpenAiAdapter()/ClaudeAdapter() — код ниже не меняется.
 llm: LlmPort = MockLlmAdapter(
-    responses={"chat": "Ferrox отдаёт ответ модели по мере генерации, без буферизации."}
+    responses={"chat": "Ferronit отдаёт ответ модели по мере генерации, без буферизации."}
 )
 
 

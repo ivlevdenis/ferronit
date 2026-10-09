@@ -1,4 +1,4 @@
-"""Ferrox E-Commerce API — full DDD + Hexagonal + Postgres.
+"""Ferronit E-Commerce API — full DDD + Hexagonal + Postgres.
 
 Endpoints:
   POST /cart/items      — add item to cart
@@ -20,16 +20,16 @@ except ImportError:
 from pydantic import BaseModel
 from sqlalchemy import Column, Float, Integer, String
 
-from ferrox import JSONResponse, Ferrox
-from ferrox.contrib.cors import cors
-from ferrox.contrib.db import Base, create_relational_uow
-from ferrox.contrib.pydantic.pydantic_codec import install
-from ferrox.contrib.staticfiles import StaticFiles
-from ferrox.ddd import AggregateRoot, Command, CommandBus, Query, QueryBus
-from ferrox.hexagonal import ApplicationService
+from ferronit import JSONResponse, Ferronit
+from ferronit.contrib.cors import cors
+from ferronit.contrib.db import Base, create_relational_uow
+from ferronit.contrib.pydantic.pydantic_codec import install
+from ferronit.contrib.staticfiles import StaticFiles
+from ferronit.ddd import AggregateRoot, Command, CommandBus, Query, QueryBus
+from ferronit.hexagonal import ApplicationService
 
 install()
-app = Ferrox(debug=True)
+app = Ferronit(debug=True)
 app.use(cors())
 app.mount("/static", StaticFiles("./public"))
 

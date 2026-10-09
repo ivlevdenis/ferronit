@@ -2,7 +2,7 @@
 
 import pytest
 
-from ferrox.contrib.vectordb import (
+from ferronit.contrib.vectordb import (
     ChromaAdapter,
     MockVectorDb,
     QdrantAdapter,

@@ -7,7 +7,7 @@
 статусом, заголовками или телом — собирайте ответ явно:
 
 ```python
-from ferrox import Response, TextResponse, JSONResponse, StreamingResponse
+from ferronit import Response, TextResponse, JSONResponse, StreamingResponse
 ```
 
 | Класс | Назначение |
@@ -43,10 +43,10 @@ async def me():
 
 ## Кастомные кодеки
 
-`ferrox.contrib.pydantic` предоставляет подключаемый реестр кодеков:
+`ferronit.contrib.pydantic` предоставляет подключаемый реестр кодеков:
 
 ```python
-from ferrox.contrib.pydantic import register_codec, PydanticCodec
+from ferronit.contrib.pydantic import register_codec, PydanticCodec
 
 register_codec(MyType, MyCodec)   # decode_json / encode_json теперь знают MyType
 ```

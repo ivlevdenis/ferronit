@@ -34,7 +34,7 @@ from sqlalchemy import Column, Integer, String, func, insert, select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
-from ferrox import Ferrox
+from ferronit import Ferronit
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
@@ -63,7 +63,7 @@ users = User.__table__
 _pg_pool: asyncpg.Pool | None = None
 
 # debug=True: исключения пробрасываются наружу, а не превращаются в 500 без следа
-app = Ferrox(debug=True)
+app = Ferronit(debug=True)
 
 timings: dict[str, list[float]] = defaultdict(list)
 
@@ -213,8 +213,8 @@ def bucket_of(file: str, name: str) -> str:
         return "SQLAlchemy"
     if "asyncpg" in file:
         return "asyncpg"
-    if file.endswith("/ferrox/core/app.py") or "/site-packages/ferrox/" in file:
-        return "Ferrox (Python-слой)"
+    if file.endswith("/ferronit/core/app.py") or "/site-packages/ferronit/" in file:
+        return "Ferronit (Python-слой)"
     if "httpx" in file or "httpcore" in file:
         return "httpx (клиент замера, НЕ сервер)"
     if file == "~":

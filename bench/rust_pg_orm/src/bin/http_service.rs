@@ -1,4 +1,4 @@
-//! HTTP-сервис на axum с теми же маршрутами, что у Ferrox в `bench_postgres.py`:
+//! HTTP-сервис на axum с теми же маршрутами, что у Ferronit в `bench_postgres.py`:
 //! `GET /users` (SELECT 100 строк), `POST /users` (INSERT + RETURNING), `GET /ping` (без базы).
 //!
 //! Смысл: сравнить приложения целиком, а не только слои доступа. Python-сторона — granian

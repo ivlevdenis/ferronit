@@ -3,12 +3,12 @@
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from ferrox import Ferrox
-from ferrox.config import EnvConfig
-from ferrox.contrib.llm import ChatMessage, MockLlmAdapter
-from ferrox.contrib.tracing import trace_middleware
-from ferrox.di import Container
-from ferrox.hexagonal import Logger, PrintLogger
+from ferronit import Ferronit
+from ferronit.config import EnvConfig
+from ferronit.contrib.llm import ChatMessage, MockLlmAdapter
+from ferronit.contrib.tracing import trace_middleware
+from ferronit.di import Container
+from ferronit.hexagonal import Logger, PrintLogger
 
 # ── Config ────────────────────────────────────────────────────────────
 
@@ -86,7 +86,7 @@ async def test_mock_llm_embed():
 
 @pytest.mark.asyncio
 async def test_trace_id_generated():
-    v = Ferrox()
+    v = Ferronit()
     v.use(trace_middleware)
 
     @v.route("/")
@@ -103,7 +103,7 @@ async def test_trace_id_generated():
 
 @pytest.mark.asyncio
 async def test_trace_id_propagated():
-    v = Ferrox()
+    v = Ferronit()
     v.use(trace_middleware)
 
     @v.route("/")

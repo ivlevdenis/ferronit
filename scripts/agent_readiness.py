@@ -19,7 +19,7 @@ import pathlib
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-PKG = ROOT / "ferrox"
+PKG = ROOT / "ferronit"
 
 
 def _is_public(name: str) -> bool:

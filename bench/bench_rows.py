@@ -1,13 +1,13 @@
-"""Ferrox-модель vs Litestar vs FastAPI: ответ с 1 / 100 / 1000 строками.
+"""Ferronit-модель vs Litestar vs FastAPI: ответ с 1 / 100 / 1000 строками.
 
 Два быстрых модельных пути на сыром asyncpg и два классических ORM:
-  * ferrox-model      — `ferrox.contrib.rawmodel` (slots-датакласс из строки);
+  * ferronit-model      — `ferronit.contrib.rawmodel` (slots-датакласс из строки);
   * litestar-msgspec — `msgspec.Struct` из строки, Litestar сериализует его сам;
   * fastapi-orm      — SQLAlchemy ORM в FastAPI;
   * litestar-orm     — SQLAlchemy ORM в Litestar.
 Замер только через `ab` (политика стенда), granian, 1 воркер, лучшее из прогонов.
 
-ferrox-msgspec и litestar-msgspec — одинаковый asyncpg-запрос и msgspec-сериализация,
+ferronit-msgspec и litestar-msgspec — одинаковый asyncpg-запрос и msgspec-сериализация,
 поэтому их разница — это чистый фреймворк.
 
 Запуск: .venv/bin/python bench/bench_rows.py
@@ -28,13 +28,13 @@ VENV_PY = HERE.parent / ".venv" / "bin" / "python"
 DSN = "postgresql://postgres:postgres@127.0.0.1:5432/postgres"
 ROWS_LIST = (1, 100, 1000)
 PORTS = {
-    "ferrox-model": 8231,
+    "ferronit-model": 8231,
     "litestar-msgspec": 8232,
     "fastapi-orm": 8233,
     "litestar-orm": 8234,
-    "ferrox-msgspec": 8235,
+    "ferronit-msgspec": 8235,
     "django-orm": 8236,
-    "ferrox-asyncpg": 8237,
+    "ferronit-asyncpg": 8237,
     "litestar-asyncpg": 8238,
 }
 SERVER = os.environ.get("BENCH_SERVER", "granian")
@@ -42,14 +42,14 @@ REQUESTS = 5000
 PING_REQUESTS = 10000
 RUNS = 2
 
-FERROX_APP = '''
+FERRONIT_APP = '''
 import asyncio
 import os
 
 import msgspec
-from ferrox import Response, Ferrox
-from ferrox.contrib.rawdb import RawUnitOfWork, create_raw_pool
-from ferrox.contrib.rawmodel import Model
+from ferronit import Response, Ferronit
+from ferronit.contrib.rawdb import RawUnitOfWork, create_raw_pool
+from ferronit.contrib.rawmodel import Model
 
 DSN = "postgresql://postgres:postgres@127.0.0.1:5432/postgres"
 ROWS = int(os.environ.get("BENCH_ROWS", "100"))
@@ -76,7 +76,7 @@ async def get_pool():
     return _pool
 
 
-app = Ferrox()
+app = Ferronit()
 
 
 @app.route("/rows")
@@ -141,13 +141,13 @@ async def ping() -> dict:
 app = Litestar(route_handlers=[rows, ping])
 '''
 
-FERROX_MSGSEC_APP = '''
+FERRONIT_MSGSEC_APP = '''
 import asyncio
 import os
 
 import asyncpg
 import msgspec
-from ferrox import Response, Ferrox
+from ferronit import Response, Ferronit
 
 DSN = "postgresql://postgres:postgres@127.0.0.1:5432/postgres"
 ROWS = int(os.environ.get("BENCH_ROWS", "100"))
@@ -173,7 +173,7 @@ async def get_pool():
     return _pool
 
 
-app = Ferrox()
+app = Ferronit()
 
 
 @app.route("/rows")
@@ -190,12 +190,12 @@ async def ping(req):
     return {"ok": True}
 '''
 
-FERROX_ASYNCPG_APP = '''
+FERRONIT_ASYNCPG_APP = '''
 import asyncio
 import os
 
 import asyncpg
-from ferrox import Ferrox
+from ferronit import Ferronit
 
 DSN = "postgresql://postgres:postgres@127.0.0.1:5432/postgres"
 ROWS = int(os.environ.get("BENCH_ROWS", "100"))
@@ -214,7 +214,7 @@ async def get_pool():
     return _pool
 
 
-app = Ferrox()
+app = Ferronit()
 
 
 @app.route("/rows")
@@ -356,12 +356,12 @@ app = Litestar(route_handlers=[rows, ping])
 '''
 
 APPS = {
-    "ferrox-model": FERROX_APP,
+    "ferronit-model": FERRONIT_APP,
     "litestar-msgspec": LITESTAR_MSGSEC_APP,
     "fastapi-orm": FASTAPI_ORM_APP,
     "litestar-orm": LITESTAR_ORM_APP,
-    "ferrox-msgspec": FERROX_MSGSEC_APP,
-    "ferrox-asyncpg": FERROX_ASYNCPG_APP,
+    "ferronit-msgspec": FERRONIT_MSGSEC_APP,
+    "ferronit-asyncpg": FERRONIT_ASYNCPG_APP,
     "litestar-asyncpg": LITESTAR_ASYNCPG_APP,
 }
 

@@ -1,4 +1,4 @@
-module ferrox_bench_10col
+module ferronit_bench_10col
 
 go 1.25.0
 

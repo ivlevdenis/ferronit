@@ -6,7 +6,7 @@ import msgspec
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from ferrox import Ferrox
+from ferronit import Ferronit
 
 
 class Item(msgspec.Struct):
@@ -16,7 +16,7 @@ class Item(msgspec.Struct):
 
 @pytest.fixture
 def app():
-    v = Ferrox()
+    v = Ferronit()
 
     @v.route("/item", methods=["POST"])
     async def create(req):

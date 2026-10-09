@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Smoke-тест образа Ferrox: поднять контейнер, проверить живое приложение, погасить.
+# Smoke-тест образа Ferronit: поднять контейнер, проверить живое приложение, погасить.
 #
-#   ./scripts/docker_smoke.sh                 # образ ferrox:0.8.1
-#   IMAGE=ferrox:dev PORT=9001 ./scripts/docker_smoke.sh
+#   ./scripts/docker_smoke.sh                 # образ ferronit:0.8.1
+#   IMAGE=ferronit:dev PORT=9001 ./scripts/docker_smoke.sh
 set -euo pipefail
 
-IMAGE="${IMAGE:-ferrox:0.8.1}"
+IMAGE="${IMAGE:-ferronit:0.8.1}"
 PORT="${PORT:-8931}"
-NAME="ferrox-smoke"
+NAME="ferronit-smoke"
 
 cleanup() { docker rm -f "$NAME" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
@@ -46,13 +46,13 @@ check "GET /health"           '"status":"ok"'      "http://127.0.0.1:$PORT/healt
 echo "==> проверки установленных дистрибутивов в образе"
 docker exec "$NAME" python -c "
 import importlib.metadata as m
-import ferrox, ferrox_core
+import ferronit, ferronit_core
 
-core = m.version('ferrox-core')
-assert ferrox.__version__ == '0.8.1', ferrox.__version__
-assert core == ferrox.__version__, (core, ferrox.__version__)
-assert hasattr(ferrox_core, 'FerroxApp')
-print(f'  ok   ferrox {ferrox.__version__} + ferrox-core {core} (FerroxApp есть)')
+core = m.version('ferronit-core')
+assert ferronit.__version__ == '0.8.1', ferronit.__version__
+assert core == ferronit.__version__, (core, ferronit.__version__)
+assert hasattr(ferronit_core, 'FerronitApp')
+print(f'  ok   ferronit {ferronit.__version__} + ferronit-core {core} (FerronitApp есть)')
 " || fail=1
 
 echo "==> HEALTHCHECK"

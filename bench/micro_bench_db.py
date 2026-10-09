@@ -138,7 +138,7 @@ def main():
 
     asyncio.run(bench_sqlalchemy())
 
-    # ── SQLAlchemy Core (как новый ferrox CoreRepository, без фреймворка) ──
+    # ── SQLAlchemy Core (как новый ferronit CoreRepository, без фреймворка) ──
     async def bench_core():
         from sqlalchemy import Column, Integer, MetaData, String, Table, insert, select
         from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
@@ -187,8 +187,8 @@ def main():
 
     print()
     print("Для сравнения (бенч с БД):")
-    print(f"  Ferrox  GET /users на granian: 1 644 req/s")
-    print(f"  Ferrox  POST /users на granian: 4 064 req/s")
+    print(f"  Ferronit  GET /users на granian: 1 644 req/s")
+    print(f"  Ferronit  POST /users на granian: 4 064 req/s")
 
 
 if __name__ == "__main__":

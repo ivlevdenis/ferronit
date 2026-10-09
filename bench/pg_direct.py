@@ -4,7 +4,7 @@
 доступа к базе, чтобы видеть, сколько даёт сам драйвер, сколько съедает SQLAlchemy
 Core и сколько — ORM-маппинг. Плюс контрольный `SELECT 1` для задержки сети.
 
-Запуск (нужен живой контейнер ferrox-pg и база bench):
+Запуск (нужен живой контейнер ferronit-pg и база bench):
     .venv/bin/python bench/pg_direct.py                      # asyncpg, 50 клиентов
     .venv/bin/python bench/pg_direct.py --mode core
     .venv/bin/python bench/pg_direct.py --mode orm

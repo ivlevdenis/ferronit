@@ -1,8 +1,8 @@
-# Ferrox — документация
+# Ferronit — документация
 
-Ferrox — высокопроизводительный Python ASGI-фреймворк с ядром на Rust.
+Ferronit — высокопроизводительный Python ASGI-фреймворк с ядром на Rust.
 Маршрутизация, разбор запроса, JSON, gzip и CORS работают в нативном коде
-(`ferrox._core`), а ваши хендлеры остаются обычным Python.
+(`ferronit._core`), а ваши хендлеры остаются обычным Python.
 
 Документация на русском. Карта:
 
@@ -20,13 +20,13 @@ Ferrox — высокопроизводительный Python ASGI-фреймв
 
 ## Слой данных
 - [Какой слой выбрать](data/overview.md) — три слоя и таблица «когда что»
-- [Запросы в Rust](data/rust-query.md) — `ferrox.db`: запрос → JSON целиком в Rust
+- [Запросы в Rust](data/rust-query.md) — `ferronit.db`: запрос → JSON целиком в Rust
 - [Сырой asyncpg + модели](data/rawdb.md) — `RawUnitOfWork`, `Model`, query DSL
 - [SQLAlchemy](data/sqlalchemy.md) — ORM и Core-репозитории
 
 ## Архитектура
 - [DDD, DI и гексагональная](architecture.md) — порты/адаптеры, шины, контейнер, конфиг, CLI
-- [Rust-ядро](rust-core.md) — что лежит в `ferrox._core` и зачем
+- [Rust-ядро](rust-core.md) — что лежит в `ferronit._core` и зачем
 
 ## Справочно
 - [Бенчмарки](benchmarks.md) — измеренные цифры и методика

@@ -11,13 +11,13 @@ import pytest
 from sqlalchemy import Column, Integer, MetaData, String, Table
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from ferrox import Ferrox
-from ferrox.contrib.db import RelationalUnitOfWork
-from ferrox.contrib.ratelimit import rate_limit
-from ferrox.contrib.security import security_headers
-from ferrox.contrib.staticfiles import StaticFiles
+from ferronit import Ferronit
+from ferronit.contrib.db import RelationalUnitOfWork
+from ferronit.contrib.ratelimit import rate_limit
+from ferronit.contrib.security import security_headers
+from ferronit.contrib.staticfiles import StaticFiles
 
-FERROX_ROOT = Path(__file__).resolve().parents[2]
+FERRONIT_ROOT = Path(__file__).resolve().parents[2]
 
 
 async def call_app(app, method: str, path: str, headers: list | None = None,
@@ -50,7 +50,7 @@ async def test_asvs_v1_2_1_output_encoding_for_json_context():
     """V1.2.1 (L1): output encoding for an HTTP response is relevant for the
     context. JSON responses must not contain raw HTML-significant characters
     (XSS protection when JSON is embedded in HTML)."""
-    app = Ferrox()
+    app = Ferronit()
 
     @app.route("/xss")
     def xss(req):
@@ -98,12 +98,12 @@ async def test_asvs_v1_3_2_no_dynamic_code_execution():
     import re
 
     offenders = []
-    for path in (FERROX_ROOT / "ferrox").rglob("*.py"):
+    for path in (FERRONIT_ROOT / "ferronit").rglob("*.py"):
         if "cli.py" in str(path):  # CLI-шаблоны — не рантайм
             continue
         for i, line in enumerate(path.read_text().splitlines(), 1):
             if re.search(r"\b(eval|exec)\s*\(", line):
-                offenders.append(f"{path.relative_to(FERROX_ROOT)}:{i}")
+                offenders.append(f"{path.relative_to(FERRONIT_ROOT)}:{i}")
     assert offenders == [], f"eval/exec найден: {offenders}"
 
 
@@ -113,7 +113,7 @@ async def test_asvs_v1_3_2_no_dynamic_code_execution():
 async def test_asvs_v3_2_1_clickjacking_protection():
     """V3.2.1 (L1): security controls prevent browsers from rendering content
     in a frame (X-Frame-Options / frame-ancestors)."""
-    app = Ferrox()
+    app = Ferronit()
     app.use(security_headers())
 
     @app.route("/api")
@@ -127,7 +127,7 @@ async def test_asvs_v3_2_1_clickjacking_protection():
 @pytest.mark.asyncio
 async def test_asvs_v3_4_1_hsts():
     """V3.4.1 (L1): Strict-Transport-Security header is included on all responses."""
-    app = Ferrox()
+    app = Ferronit()
     app.use(security_headers())
 
     @app.route("/api")
@@ -142,8 +142,8 @@ async def test_asvs_v3_4_1_hsts():
 async def test_asvs_v3_4_2_cors_fixed_origin():
     """V3.4.2 (L1): CORS Access-Control-Allow-Origin is a fixed value and does
     not reflect arbitrary attacker-controlled origins."""
-    app = Ferrox()
-    app.use(__import__("ferrox.contrib.cors", fromlist=["cors"]).cors(
+    app = Ferronit()
+    app.use(__import__("ferronit.contrib.cors", fromlist=["cors"]).cors(
         allow_origins=["https://good.example"]
     ))
 
@@ -166,9 +166,9 @@ async def test_asvs_v3_4_2_cors_fixed_origin():
 async def test_asvs_v3_5_2_cors_preflight_origin_check():
     """V3.5.2 (L1): if the application relies on the CORS preflight mechanism,
     disallowed cross-origin requests are rejected (no ACAO for evil origin)."""
-    from ferrox.contrib.cors import cors
+    from ferronit.contrib.cors import cors
 
-    app = Ferrox()
+    app = Ferronit()
     app.use(cors(allow_origins=["https://good.example"]))
 
     @app.route("/api", methods=["POST"])
@@ -189,7 +189,7 @@ async def test_asvs_v3_5_2_cors_preflight_origin_check():
 async def test_asvs_v4_1_1_content_type_matches_content_with_charset():
     """V4.1.1 (L1): every HTTP response with a message body contains a
     Content-Type header matching the content, including charset parameter."""
-    app = Ferrox()
+    app = Ferronit()
 
     @app.route("/json")
     def json_resp(req):
@@ -212,7 +212,7 @@ async def test_asvs_v4_1_1_content_type_matches_content_with_charset():
 async def test_asvs_v5_2_1_file_size_limit():
     """V5.2.1 (L1): the application accepts only files of a size it can process
     (max_body_size → 413)."""
-    app = Ferrox(max_body_size=1024)
+    app = Ferronit(max_body_size=1024)
 
     @app.route("/upload", methods=["POST"])
     async def upload(req):
@@ -234,7 +234,7 @@ async def test_asvs_v5_3_2_safe_file_paths(tmp_path):
     outside.write_text("SECRET")
     os.symlink(outside, tmp_path / "link.txt")
 
-    app = Ferrox()
+    app = Ferronit()
     app.mount("/static", StaticFiles(str(tmp_path)))
 
     for path in ("/static/../../etc/passwd", "/static/link.txt"):
@@ -252,7 +252,7 @@ async def test_asvs_v5_3_2_safe_file_paths(tmp_path):
 async def test_asvs_v6_3_1_brute_force_protection():
     """V6.3.1 (L1): controls prevent credential stuffing and password brute
     force (rate limiting → 429)."""
-    app = Ferrox()
+    app = Ferronit()
     app.use(rate_limit(limit=3, window=60.0))
 
     @app.route("/login", methods=["POST"])
@@ -275,7 +275,7 @@ async def test_asvs_v13_4_1_git_metadata_hidden(tmp_path):
     (tmp_path / ".git").write_text("repo")
     (tmp_path / "index.html").write_text("ok")
 
-    app = Ferrox()
+    app = Ferronit()
     app.mount("/static", StaticFiles(str(tmp_path)))
 
     for dotfile in (".git", ".svn", ".env"):
@@ -291,7 +291,7 @@ async def test_asvs_v5_3_1_static_files_not_executed(tmp_path):
     public folder are not executed — static files are served as content
     (mimetypes), never executed as code."""
     (tmp_path / "malware.py").write_text("print('pwned')")
-    app = Ferrox()
+    app = Ferronit()
     app.mount("/static", StaticFiles(str(tmp_path)))
 
     status, hdrs, body = await call_app(app, "GET", "/static/malware.py")
@@ -304,9 +304,9 @@ async def test_asvs_v5_3_1_static_files_not_executed(tmp_path):
 @pytest.mark.asyncio
 async def test_asvs_v1_2_2_no_untrusted_url_building():
     """V1.2.2 (L1): when dynamically building URLs, untrusted data is encoded
-    per context. Ferrox не строит URL из ввода пользователя — query-параметры
+    per context. Ferronit не строит URL из ввода пользователя — query-параметры
     возвращаются как данные, не как ссылки."""
-    app = Ferrox()
+    app = Ferronit()
 
     @app.route("/redirect")
     def redirect(req):

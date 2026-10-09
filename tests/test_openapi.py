@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 import pytest
 
-from ferrox.openapi import OpenAPI, SchemaBuilder
+from ferronit.openapi import OpenAPI, SchemaBuilder
 
 
 @dataclass

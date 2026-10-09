@@ -9,7 +9,7 @@ import types
 
 import pytest
 
-from ferrox.contrib.kafka import KafkaMessageBus
+from ferronit.contrib.kafka import KafkaMessageBus
 
 
 class FakeProducer:

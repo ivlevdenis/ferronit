@@ -1,4 +1,4 @@
-"""Сетевой бенчмарк: Ferrox vs FastAPI через uvicorn, 1000 маршрутов."""
+"""Сетевой бенчмарк: Ferronit vs FastAPI через uvicorn, 1000 маршрутов."""
 import subprocess
 import sys
 import time
@@ -11,12 +11,12 @@ ROUTES = int(sys.argv[1]) if len(sys.argv) > 1 else 1000
 N_REQUESTS = 5000
 WARMUP = 200
 RUNS = 3  # прогонов, берём медиану
-PORTS = {"ferrox": 8111, "fastapi": 8112}
+PORTS = {"ferronit": 8111, "fastapi": 8112}
 
 APP_CODE = {
-    "ferrox": """
-from ferrox import Ferrox
-app = Ferrox()
+    "ferronit": """
+from ferronit import Ferronit
+app = Ferronit()
 for i in range(%(routes)d):
     exec(f'@app.route("/route{i}")\\ndef h{i}(req): return {{"route": {i}}}')
 """,
@@ -77,8 +77,8 @@ def main() -> None:
         for name, port in PORTS.items():
             results[name] = bench(f"http://127.0.0.1:{port}")
             print(f"{name:8s} {results[name]:10,.0f} req/s", flush=True)
-        gain = results["ferrox"] / results["fastapi"] - 1
-        print(f"\nFerrox быстрее FastAPI на {gain*100:.0f}%  ({ROUTES} маршрутов)")
+        gain = results["ferronit"] / results["fastapi"] - 1
+        print(f"\nFerronit быстрее FastAPI на {gain*100:.0f}%  ({ROUTES} маршрутов)")
     finally:
         for p in procs.values():
             p.terminate()

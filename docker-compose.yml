@@ -1,16 +1,16 @@
-# Ferrox — запуск образа «одной командой».
+# Ferronit — запуск образа «одной командой».
 #
 #   docker compose up --build api           # минимальное приложение (порт 8000)
 #   docker compose up --build ecommerce     # полный DDD-пример на SQLite (порт 8001)
 #   docker compose --profile postgres up -d # Postgres 18 рядом (порт 5432)
 #
 # ecommerce переключается на Postgres так:
-#   DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/ferrox
+#   DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/ferronit
 
 services:
   api:
     build: .
-    image: ferrox:0.8.1
+    image: ferronit:0.8.1
     ports:
       - "8000:8000"
     environment:
@@ -22,7 +22,7 @@ services:
   # examples/app.py — e-commerce с DDD/CQRS (SQLite внутри контейнера)
   ecommerce:
     build: .
-    image: ferrox:0.8.1
+    image: ferronit:0.8.1
     ports:
       - "8001:8000"
     environment:
@@ -36,18 +36,18 @@ services:
       - -c
       - >-
         python -c "import asyncio, examples.app as a; asyncio.run(a.init_db())"
-        && exec ferrox-entrypoint
+        && exec ferronit-entrypoint
 
   postgres:
     image: postgres:18-alpine
     profiles: ["postgres"]
-    # 5433 на хосте: не конфликтует с локальным Postgres/тестовым ferrox-pg на 5432
+    # 5433 на хосте: не конфликтует с локальным Postgres/тестовым ferronit-pg на 5432
     ports:
       - "5433:5432"
     environment:
       POSTGRES_PASSWORD: postgres
       POSTGRES_USER: postgres
-      POSTGRES_DB: ferrox
+      POSTGRES_DB: ferronit
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s

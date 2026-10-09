@@ -3,7 +3,7 @@
 Оба шага происходят на каждый ответ и оба — в Rust:
 
 * `Response.json` (свой writer в буфер, без промежуточного `serde_json::Value`);
-* `FerroxApp.gzip_compress` — сжатие тела, если клиент прислал `Accept-Encoding: gzip`.
+* `FerronitApp.gzip_compress` — сжатие тела, если клиент прислал `Accept-Encoding: gzip`.
 
 Тело — эквивалент ответа из 100 строк (3 поля), как в `bench_postgres.py`.
 Важный контекст: `ab` по умолчанию **не** отправляет `Accept-Encoding`, поэтому в
@@ -11,8 +11,8 @@
 """
 import time
 
-from ferrox._core import Response as RustResp
-from ferrox._core import FerroxApp
+from ferronit._core import Response as RustResp
+from ferronit._core import FerronitApp
 
 PAYLOAD = {
     "users": [
@@ -20,7 +20,7 @@ PAYLOAD = {
     ]
 }
 
-app = FerroxApp()
+app = FerronitApp()
 N = 20_000
 
 

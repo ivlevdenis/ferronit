@@ -7,12 +7,12 @@
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from ferrox import Ferrox
+from ferronit import Ferronit
 
 
 @pytest.fixture
 def client() -> AsyncClient:
-    app = Ferrox(debug=True)
+    app = Ferronit(debug=True)
 
     @app.route("/dict-404")
     def not_found():

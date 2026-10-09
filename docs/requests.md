@@ -7,9 +7,9 @@
 жизни запроса. Хендлеру, которому заголовки не нужны, не платит за их разбор.
 
 ```python
-from ferrox import Ferrox
+from ferronit import Ferronit
 
-app = Ferrox()
+app = Ferronit()
 
 @app.route("/inspect", methods=["GET"])
 async def inspect(req):
@@ -87,5 +87,5 @@ async def upload(req):
 ## Лимит размера тела
 
 ```python
-app = Ferrox(max_body_size=10 * 1024 * 1024)   # 10 MiB → 413 при превышении
+app = Ferronit(max_body_size=10 * 1024 * 1024)   # 10 MiB → 413 при превышении
 ```

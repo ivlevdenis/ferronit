@@ -1,4 +1,4 @@
-# Ferrox — ASVS Level 1 Compliance Map
+# Ferronit — ASVS Level 1 Compliance Map
 
 **Стандарт:** OWASP ASVS 5.0 (2025), требования уровня 1 (L1)
 **Дата:** август 2026
@@ -8,7 +8,7 @@
 
 | Статус | Значение |
 |---|---|
-| ✅ | Реализовано в Ferrox + есть тест |
+| ✅ | Реализовано в Ferronit + есть тест |
 | 🟡 | Частично / паттерн доступен, но требует настройки приложения |
 | 🔴 | App-level — ответственность приложения, не фреймворка |
 | N/A | Не применимо по дизайну (фреймворк не делает этого) |
@@ -20,13 +20,13 @@
 | # | Требование | Статус | Где / тест |
 |---|---|---|---|
 | 1.2.1 | Output encoding для HTTP/HTML/XML | ✅ | JSON-escape HTML (XSS-тест + ASVS V1.2.1) |
-| 1.2.2 | URL-encoding при построении URL | ✅ | Ferrox не строит URL из ввода (ASVS V1.2.2) |
-| 1.2.3 | Escaping JS-контента | N/A | Ferrox не генерирует JS |
+| 1.2.2 | URL-encoding при построении URL | ✅ | Ferronit не строит URL из ввода (ASVS V1.2.2) |
+| 1.2.3 | Escaping JS-контента | N/A | Ferronit не генерирует JS |
 | 1.2.4 | **Параметризованные SQL-запросы** | ✅ | CoreRepository (SQLAlchemy bind params), тесты SQL-инъекций |
-| 1.2.5 | Защита от OS command injection | N/A | Ferrox не исполняет команды из ввода |
+| 1.2.5 | Защита от OS command injection | N/A | Ferronit не исполняет команды из ввода |
 | 1.3.1 | Санитизация HTML (WYSIWYG) | 🔴 | Приложение |
-| 1.3.2 | Без eval()/динамического кода | ✅ | В рантайме Ferrox не использует eval (только в бенч-генераторах) |
-| 1.5.1 | XML-парсеры в restrictive-режиме | N/A | Ferrox парсит только JSON (Rust serde_json) |
+| 1.3.2 | Без eval()/динамического кода | ✅ | В рантайме Ferronit не использует eval (только в бенч-генераторах) |
+| 1.5.1 | XML-парсеры в restrictive-режиме | N/A | Ferronit парсит только JSON (Rust serde_json) |
 
 ## V2 — Validation and Business Logic (4 L1)
 
@@ -42,8 +42,8 @@
 | # | Требование | Статус | Где / тест |
 |---|---|---|---|
 | 3.2.1 | Anti-clickjacking (X-Frame-Options) | ✅ | `security_headers()`, тест |
-| 3.2.2 | Текст не рендерится как HTML | N/A | Ferrox — JSON/plain API, HTML не рендерит (нет шаблонизатора) |
-| 3.3.1 | Cookies: Secure/HttpOnly | 🔴 | Ferrox не управляет cookies (паттерн: заголовки) |
+| 3.2.2 | Текст не рендерится как HTML | N/A | Ferronit — JSON/plain API, HTML не рендерит (нет шаблонизатора) |
+| 3.3.1 | Cookies: Secure/HttpOnly | 🔴 | Ferronit не управляет cookies (паттерн: заголовки) |
 | 3.4.1 | **Strict-Transport-Security** | ✅ | `security_headers()` (max-age 31536000), тест |
 | 3.4.2 | CORS ACAO — фиксированное значение | ✅ | `cors(allow_origins=[...])`, тест denied origin |
 | 3.5.1 | CORS без reliance на preflight | ✅ | ACAO только для разрешённого Origin, тест |
@@ -61,8 +61,8 @@
 
 | # | Требование | Статус | Где / тест |
 |---|---|---|---|
-| 5.2.1 | **Лимит размера файлов** | ✅ | `Ferrox(max_body_size=...)` → 413, тест (в т.ч. mid-chunk) |
-| 5.2.2 | Archive bomb (распаковка) | N/A | Ferrox не распаковывает архивы |
+| 5.2.1 | **Лимит размера файлов** | ✅ | `Ferronit(max_body_size=...)` → 413, тест (в т.ч. mid-chunk) |
+| 5.2.2 | Archive bomb (распаковка) | N/A | Ferronit не распаковывает архивы |
 | 5.3.1 | Загруженные файлы не исполняются | ✅ | Статика отдаёт как контент (mimetypes), не исполняет (ASVS V5.3.1) |
 | 5.3.2 | **Пути из untrusted-ввода** | ✅ | staticfiles: normpath + realpath (symlink) + dotfiles, тесты |
 
@@ -79,7 +79,7 @@
 
 ## V7 — Session Management (6 L1)
 
-Все требования — 🔴 app-level (Ferrox не реализует сессии; паттерн — middleware/приложение).
+Все требования — 🔴 app-level (Ferronit не реализует сессии; паттерн — middleware/приложение).
 
 ## V8 — Authorization (4 L1)
 
@@ -95,7 +95,7 @@
 
 ## V11 — Cryptography (3 L1)
 
-Все — 🔴 app-level (Ferrox не шифрует данные; криптография — приложение).
+Все — 🔴 app-level (Ferronit не шифрует данные; криптография — приложение).
 
 ## V12 — Secure Communication (3 L1)
 
@@ -125,7 +125,7 @@
 
 ---
 
-## Сводка по Ferrox
+## Сводка по Ferronit
 
 | Категория | ✅ | 🟡 | 🔴 | N/A |
 |---|---|---|---|---|

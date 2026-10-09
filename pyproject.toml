@@ -1,12 +1,12 @@
 [project]
-name = "ferrox"
+name = "ferronit"
 dynamic = ["version"]
 description = "High-performance Python ASGI web framework with a Rust core (routing, JSON, PostgreSQL)"
 readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 requires-python = ">=3.12"
-# Единый пакет: нативное ядро (ferrox._core, включая ferrox._core.db) собирается в этот же
+# Единый пакет: нативное ядро (ferronit._core, включая ferronit._core.db) собирается в этот же
 # wheel, поэтому внешних рантайм-зависимостей нет.
 dependencies = []
 classifiers = [
@@ -16,14 +16,14 @@ classifiers = [
 ]
 
 [project.scripts]
-ferrox = "ferrox.cli:main"
+ferronit = "ferronit.cli:main"
 
 [project.optional-dependencies]
 server = ["granian[reload]>=2.8", "uvicorn[standard]>=0.30"]
 db = ["sqlalchemy[asyncio]>=2.0", "aiosqlite>=0.20"]
 postgres = ["asyncpg>=0.29", "msgspec>=0.19"]
 pydantic = ["pydantic>=2.0"]
-# Зеркалит группу Poetry ниже — для установки без Poetry: pip install "ferrox[dev]"
+# Зеркалит группу Poetry ниже — для установки без Poetry: pip install "ferronit[dev]"
 dev = ["pytest>=8", "pytest-asyncio", "pytest-benchmark", "httpx", "maturin>=1.14,<2",
        "ruff>=0.6", "mypy>=1.11"]
 
@@ -48,14 +48,14 @@ requires = ["maturin>=1.14,<2"]
 build-backend = "maturin"
 
 [tool.maturin]
-# Единый пакет: Python `ferrox/` и нативное ядро собираются в один wheel. Rust-крейт лежит
-# в ferrox-rs/ и строится как `ferrox._core`; публичный слой данных — `ferrox.db`.
-# Версия — из ferrox-rs/Cargo.toml.
-manifest-path = "ferrox-rs/Cargo.toml"
-module-name = "ferrox._core"
+# Единый пакет: Python `ferronit/` и нативное ядро собираются в один wheel. Rust-крейт лежит
+# в ferronit-rs/ и строится как `ferronit._core`; публичный слой данных — `ferronit.db`.
+# Версия — из ferronit-rs/Cargo.toml.
+manifest-path = "ferronit-rs/Cargo.toml"
+module-name = "ferronit._core"
 bindings = "pyo3"
 python-source = "."
-python-packages = ["ferrox"]
+python-packages = ["ferronit"]
 features = ["pyo3/extension-module"]
 strip = true
 
@@ -68,7 +68,7 @@ testpaths = ["tests"]
 line-length = 100
 target-version = "py312"
 extend-exclude = [
-    ".venv", "build", "dist", "ferrox-rs/target",
+    ".venv", "build", "dist", "ferronit-rs/target",
     "graphify-out", "infographic",
     "bench",                 # измерительный стенд: черновые скрипты, не часть пакета
     "examples/app1k_raw.py", # генератор 1000 маршрутов для замеров
@@ -93,7 +93,7 @@ ignore = [
 # ── Типы ──────────────────────────────────────────────────────────────
 [tool.mypy]
 python_version = "3.12"
-files = ["ferrox"]
+files = ["ferronit"]
 show_error_codes = true
 show_column_numbers = true
 check_untyped_defs = true

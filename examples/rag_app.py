@@ -22,11 +22,11 @@ from __future__ import annotations
 
 import zlib
 
-from ferrox import Ferrox
-from ferrox.contrib.llm import ChatMessage, ChatResponse, LlmPort, MockLlmAdapter
-from ferrox.contrib.vectordb import MockVectorDb, VectorDbPort
+from ferronit import Ferronit
+from ferronit.contrib.llm import ChatMessage, ChatResponse, LlmPort, MockLlmAdapter
+from ferronit.contrib.vectordb import MockVectorDb, VectorDbPort
 
-app = Ferrox()
+app = Ferronit()
 
 
 class LocalTfVectorizer(LlmPort):
@@ -93,7 +93,7 @@ async def _seed_once() -> None:
 async def ask(req) -> dict:
     """Answer a question using the top-1 retrieved document as context."""
     body = await req.json()
-    question = str(body.get("question") or "о чём Ferrox")
+    question = str(body.get("question") or "о чём Ferronit")
     await _seed_once()
 
     query_vector = await embedder.embed(question)

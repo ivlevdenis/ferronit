@@ -44,7 +44,7 @@ async def report(year: int, tags: list[str], draft: bool = False):
 
 ```python
 from typing import Annotated
-from ferrox import Header
+from ferronit import Header
 
 @app.route("/whoami")
 async def whoami(user_agent: Annotated[str, Header("User-Agent")]):

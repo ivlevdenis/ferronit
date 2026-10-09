@@ -5,12 +5,12 @@ from __future__ import annotations
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from ferrox import Ferrox
+from ferronit import Ferronit
 
 
 @pytest.fixture
 def app():
-    v = Ferrox()
+    v = Ferronit()
 
     @v.route("/cookies")
     async def cookies(req):

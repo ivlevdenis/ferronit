@@ -1,4 +1,4 @@
-# Стенд замеров Ferrox
+# Стенд замеров Ferronit
 
 Здесь лежат скрипты, которыми получены цифры в README. Это **не часть пакета**: черновой
 измерительный код, который не линтуется (`ruff` исключает `bench/`) и не попадает в
@@ -20,21 +20,21 @@ sdist/Docker-образ. Логика фреймворка от него не з
 .venv/bin/python bench/ab_bench.py --server uvicorn --payload big --requests 3000
 ```
 
-`ab_bench.py` сам генерирует два одинаковых приложения (Ferrox и FastAPI) с N маршрутами,
+`ab_bench.py` сам генерирует два одинаковых приложения (Ferronit и FastAPI) с N маршрутами,
 поднимает их одним сервером (uvicorn или granian, 1 воркер), греет и меряет по выборке
 маршрутов **первый / средний / последний** — так видно, что FastAPI деградирует при росте
-таблицы маршрутов, а Ferrox нет. Флаги: `--routes`, `--requests`, `--concurrency`, `--runs`,
+таблицы маршрутов, а Ferronit нет. Флаги: `--routes`, `--requests`, `--concurrency`, `--runs`,
 `--payload {none,small,medium,big}`, `--no-fastapi`.
 
 | Скрипт | Что мерит |
 |---|---|
-| `ab_bench.py` | маршрутизация и размер ответа, Ferrox vs FastAPI, uvicorn/granian — **на `ab`** |
+| `ab_bench.py` | маршрутизация и размер ответа, Ferronit vs FastAPI, uvicorn/granian — **на `ab`** |
 | `bench_db.py [granian\|uvicorn]` | SQLite: GET/POST, ORM vs CoreRepository vs FastAPI — **на `ab`** |
 | `bench_db_variants.py` | где потолок SQLite: sync sqlite3 / aiosqlite / Core — **на `ab`** |
 | `bench_db_pool.py` | пул коннектов против одного: почему пул вредит (GIL) — **на `ab`** |
 | `bench_postgres.py [granian\|uvicorn]` | PostgreSQL 18 в Docker: Core vs ORM vs FastAPI — **на `ab`** |
 | `micro_bench_db.py`, `micro_bench_json.py`, `micro_bench_response.py`, `micro_bench_model.py` | микрозамеры слоёв (драйвер БД, Rust JSON против json.dumps, сборка ответа json+gzip, маппинг строк dict/модель) — без HTTP |
-| `bench_rows.py`, `plot_rows.py` | Ferrox vs Litestar/FastAPI/Django: 1/100/1000 строк из PostgreSQL — **на `ab`**; `plot_rows.py` строит HTML-график |
+| `bench_rows.py`, `plot_rows.py` | Ferronit vs Litestar/FastAPI/Django: 1/100/1000 строк из PostgreSQL — **на `ab`**; `plot_rows.py` строит HTML-график |
 | `pg_direct.py` | прямой замер PostgreSQL без фреймворка (asyncpg, `SELECT ... LIMIT 100`) |
 | `pg_wire.py`, `wire_bench.py` | самодельный клиент по проводу PostgreSQL (SCRAM, простой и расширенный протокол, пайплайн) против asyncpg |
 | `profile_db_path.py` | профиль пути через базу: `/ping`, `/asyncpg`, `/raw`, `/core`, `/orm` + разложение по блокам |
@@ -67,7 +67,7 @@ asyncpg — видно потолок самой базы. Инстанс: `post
 | SQLAlchemy ORM (`select(User)` + объекты) | 2 708 | 2 639 |
 
 Читается это так: **SQLAlchemy срезает скорость драйвера почти в 7 раз** (33 150 → 4 815),
-ORM — ещё в 1,8 раза (4 815 → 2 708), а HTTP-слой Ferrox на одном воркере — ещё в 5 раз
+ORM — ещё в 1,8 раза (4 815 → 2 708), а HTTP-слой Ferronit на одном воркере — ещё в 5 раз
 (4 815 → 932–1 132). Восемь воркеров возвращают ×5,3 (до 4 984).
 
 Потолок одного клиентского процесса проверен параллельным запуском: **4 процесса × 10 клиентов
@@ -76,7 +76,7 @@ ORM — ещё в 1,8 раза (4 815 → 2 708), а HTTP-слой Ferrox на �
 SELECT'ах через pgbench уходит за 360 тыс. tps.
 
 **Вывод:** сама база отдаёт тот же запрос **в ~20 раз быстрее**, чем приложение через HTTP
-(Ferrox-Core GET /users = 1 132 req/s на том же инстансе). На этой нагрузке узкое место —
+(Ferronit-Core GET /users = 1 132 req/s на том же инстансе). На этой нагрузке узкое место —
 Python/HTTP-слой, а не PostgreSQL, и вся разница Core/ORM/FastAPI живёт в нём. Записи в
 дефолтном конфиге упираются в диск: 3 849 tps против 360 730 на чтении.
 
@@ -86,8 +86,8 @@ Python/HTTP-слой, а не PostgreSQL, и вся разница Core/ORM/Fast
 
 | Что меряем | Значение | На запрос |
 |---|---|---|
-| `GET /ping` — тот же сервер, без базы (Ferrox-Core) | 83 966 req/s | 12 мкс |
-| `GET /users` — SELECT 100 строк (Ferrox-Core) | 932 req/s | 1 073 мкс |
+| `GET /ping` — тот же сервер, без базы (Ferronit-Core) | 83 966 req/s | 12 мкс |
+| `GET /users` — SELECT 100 строк (Ferronit-Core) | 932 req/s | 1 073 мкс |
 | прямой asyncpg того же SELECT (1 клиент) | 13 929 запросов/с | 72 мкс |
 | pgbench на том же инстансе (50 клиентов) | 360 730 tps | 139 мкс |
 
@@ -98,7 +98,7 @@ ASGI-путь. Контрольный `/ping` это подтверждает: �
 
 Второе подтверждение — масштабирование воркерами (`BENCH_WORKERS=N`, granian):
 
-| Воркеров | `GET /users` Ferrox-Core | `POST /users` Ferrox-Core | `GET /ping` Ferrox-Core |
+| Воркеров | `GET /users` Ferronit-Core | `POST /users` Ferronit-Core | `GET /ping` Ferronit-Core |
 |---|---|---|---|
 | 1 | 932 | 617 | 83 966 |
 | 4 | 1 560 | 1 805 | 113 568 |
@@ -161,18 +161,18 @@ SQLAlchemy ужимает поток в ~7 раз сильнее. Для при�
 
 Diesel не проверен: ему нужен `libpq-dev` (`pg_config` и заголовки), которых в системе нет.
 
-### Запросы в БД в Rust: `ferrox.db` (окт 2026)
+### Запросы в БД в Rust: `ferronit.db` (окт 2026)
 
-`ferrox.db.query_json(sql, params)` выполняет запрос в Rust (tokio-postgres через пул
+`ferronit.db.query_json(sql, params)` выполняет запрос в Rust (tokio-postgres через пул
 `deadpool-postgres`) и возвращает готовую JSON-строку, поэтому Python не трогает строки —
-ни маппинг, ни сериализация под GIL. API: `ferrox.db.connect(dsn, pool_size)` один раз на
-старте + `await asyncio.to_thread(ferrox.db.query_json, sql, [])`. Живёт в едином пакете
-ferrox как вложенный модуль `ferrox._core.db`.
+ни маппинг, ни сериализация под GIL. API: `ferronit.db.connect(dsn, pool_size)` один раз на
+старте + `await asyncio.to_thread(ferronit.db.query_json, sql, [])`. Живёт в едином пакете
+ferronit как вложенный модуль `ferronit._core.db`.
 
 Замер после перехода на `deadpool` + `prepare_cached` (granian, 1 воркер, `ab -c 50 -k`,
 таблица `bench_rows`):
 
-| операция | Ferrox+asyncpg (Python) | Ferrox+ferrox.db (Rust) |
+| операция | Ferronit+asyncpg (Python) | Ferronit+ferronit.db (Rust) |
 |---|---|---|
 | GET /rows (100 строк) | 8 007 | **14 817** |
 | GET /rows (1000 строк) | 1 398 | **5 761** |
@@ -194,9 +194,9 @@ ferrox как вложенный модуль `ferrox._core.db`.
 * **TLS**: `?sslmode=disable` — без шифрования (`NoTls`), иначе rustls с системными корневыми
   сертификатами (по умолчанию у Postgres `prefer` — TLS попробуется, при отказе сервера
   произойдёт fallback на plaintext).
-* Тесты — `tests/test_ferrox_db.py`, **10 тестов** (пропускаются без доступного PostgreSQL);
+* Тесты — `tests/test_ferronit_db.py`, **10 тестов** (пропускаются без доступного PostgreSQL);
   сюита 207 → 217.
-* `ferrox.db` — часть единого wheel (maturin mixed); собирается тем же `check.sh`/`build_packages.sh`.
+* `ferronit.db` — часть единого wheel (maturin mixed); собирается тем же `check.sh`/`build_packages.sh`.
 
 ### Самодельный клиент по проводу против asyncpg (`bench/pg_wire.py`, `wire_bench.py`)
 
@@ -222,13 +222,13 @@ ferrox как вложенный модуль `ferrox._core.db`.
 * **На записи разницы нет** (4 138 против 4 243): запись упирается в диск, а парсить там нечего.
 * Оговорка: `INSERT` у своего клиента идёт с литералами (простой протокол), у asyncpg — с `$1`.
 
-### Прототип тонкого слоя на asyncpg (`ferrox/contrib/rawdb.py`, окт 2026)
+### Прототип тонкого слоя на asyncpg (`ferronit/contrib/rawdb.py`, окт 2026)
 
 Пятая колонка в `bench_postgres.py` — приложение на `RawRepository`/`RawUnitOfWork` из нового
 модуля: те же 5 маршрутов, тот же протокол (`ab -c 50 -k`, GET 5000 / POST 3000 / ping 10000),
 granian, 1 воркер. Два прогона:
 
-| операция | Ferrox+asyncpg (инлайн) | Ferrox+RawRepo (слой) | Ferrox-Core | Ferrox-ORM | FastAPI |
+| операция | Ferronit+asyncpg (инлайн) | Ferronit+RawRepo (слой) | Ferronit-Core | Ferronit-ORM | FastAPI |
 |---|---|---|---|---|---|
 | GET /users | 3 672 / 3 669 | **3 115 / 3 094** | 1 137 / 1 008 | 776 / 746 | 525 / 533 |
 | POST /users | 8 414 / 8 713 | **5 234 / 5 522** | 599 / 633 | 685 / 656 | 612 / 611 |
@@ -245,7 +245,7 @@ granian, 1 воркер. Два прогона:
 * Тесты сразу поймали реальный дефект: без явного `BEGIN` asyncpg коммитит каждый оператор
   сам, и Unit of Work перестаёт быть единицей работы — `test_unit_of_work_rolls_back_on_error`.
 
-### Декларативные модели поверх rawdb (`ferrox/contrib/rawmodel.py`, окт 2026)
+### Декларативные модели поверх rawdb (`ferronit/contrib/rawmodel.py`, окт 2026)
 
 `RawRepository` отдаёт `dict`, поэтому на каждую строку строится словарь. `RawModelRepository`
 маппит строку в `slots`-датакласс позиционно (`cls(*row)`) — словаря нет. Замер изолирует
@@ -294,16 +294,16 @@ granian, 1 воркер. Два прогона:
 
 | вариант | 1 строка | 100 строк | 1000 строк | /ping |
 |---|---|---|---|---|
-| ferrox-asyncpg (dict) | **15 540** | 7 849 | 1 275 | 91 935 |
-| ferrox-msgspec | 14 611 | **10 664** | **2 279** | 91 642 |
-| ferrox-rawmodel | 13 959 | 9 011 | 2 199 | 91 208 |
+| ferronit-asyncpg (dict) | **15 540** | 7 849 | 1 275 | 91 935 |
+| ferronit-msgspec | 14 611 | **10 664** | **2 279** | 91 642 |
+| ferronit-rawmodel | 13 959 | 9 011 | 2 199 | 91 208 |
 | litestar-asyncpg (dict) | 12 094 | 6 929 | 1 588 | 36 936 |
 | litestar-msgspec | 11 138 | 8 218 | 2 032 | 36 636 |
 | litestar-orm | 2 474 | 1 028 | 283 | 37 503 |
 | fastapi-orm | 2 072 | 680 | 161 | 24 408 |
 | django-orm | 481 | 474 | 417 | 1 784 |
 
-* **Ferrox быстрее Litestar во всём.** `/ping` (чистый фреймворк) — **×2.5**; на строках —
+* **Ferronit быстрее Litestar во всём.** `/ping` (чистый фреймворк) — **×2.5**; на строках —
   ×1.1–1.3, потому что там доминирует общая часть (PostgreSQL + asyncpg + msgspec), а не
   роутер. FastAPI — ×3.8 на `/ping` и ×10–14 на строках (сверху ещё SQLAlchemy ORM).
   Django — sync-view под ASGI, упирается в threadpool-обвязку (1 784 на `/ping`).
@@ -347,8 +347,8 @@ ping 10000). `GOMAXPROCS=1` — аналог одного потока (как a
 | Go + ent, 8 потоков, пул 16 | 12 780 | 6 239 | 201 041 |
 | Rust axum + сырой драйвер (для сравнения) | 14 635 / 38 900 | 6 792 / 14 218 | 176 286 |
 | Rust axum + SeaORM (для сравнения) | 10 388 / 19 567 | 4 583 / 4 725 | 187 290 |
-| Ferrox + asyncpg (для сравнения) | 3 635 | 7 653 | 86 466 |
-| Ferrox + SQLAlchemy ORM (для сравнения) | 874 | 620 | 82 990 |
+| Ferronit + asyncpg (для сравнения) | 3 635 | 7 653 | 86 466 |
+| Ferronit + SQLAlchemy ORM (для сравнения) | 874 | 620 | 82 990 |
 
 * **pgx — самый быстрый сырой драйвер из трёх** и уже в один поток почти упирается в потолок:
   40 500 против 43 460 на восьми (asyncpg 32 869, tokio-postgres 25 500).
@@ -358,8 +358,8 @@ ping 10000). `GOMAXPROCS=1` — аналог одного потока (как a
 * **Три языка сходятся на 42–45 тыс. запросов/с** (Go sqlx 44 890) — это потолок самого запроса
   на этом инстансе с 10 клиентами, а не свойство языка.
 * В приложении Go и Rust близки: ent 8 487 против GORM 7 488 против SeaORM 10 388 против
-  Ferrox+SQLAlchemy ORM 874. Относительно Python разрыв ×9,7 (ent) и ×11,9 (SeaORM).
-* На записи с пулом 64 Go лучший из всех: 19 357 против 14 218 у Rust и 7 653 у Ferrox.
+  Ferronit+SQLAlchemy ORM 874. Относительно Python разрыв ×9,7 (ent) и ×11,9 (SeaORM).
+* На записи с пулом 64 Go лучший из всех: 19 357 против 14 218 у Rust и 7 653 у Ferronit.
 
 **Проверенная и не подтвердившаяся гипотеза.** Я предполагал, что чтение в Go-сервисе упирается
 в reflection стандартного `encoding/json`. Добавил переключаемый быстрый энкодер (`--json sonic`)
@@ -379,12 +379,12 @@ ping 10000). `GOMAXPROCS=1` — аналог одного потока (как a
 | Rust axum, сырой драйвер, 8 потоков, пул 64 | **38 900** | **14 218** | 241 447 |
 | Rust axum + SeaORM, 1 поток, пул 16 | 10 388 | 4 583 | 187 290 |
 | Rust axum + SeaORM, 8 потоков, пул 16 | 19 567 | 4 725 | 228 222 |
-| Ferrox + asyncpg (granian, 1 воркер) | 3 635 | 7 653 | 86 466 |
-| Ferrox + SQLAlchemy Core | 1 205 | 594 | 86 160 |
-| Ferrox + SQLAlchemy ORM | 874 | 620 | 82 990 |
+| Ferronit + asyncpg (granian, 1 воркер) | 3 635 | 7 653 | 86 466 |
+| Ferronit + SQLAlchemy Core | 1 205 | 594 | 86 160 |
+| Ferronit + SQLAlchemy ORM | 874 | 620 | 82 990 |
 | FastAPI + SQLAlchemy ORM | 526 | 576 | 23 566 |
 
-* Rust-приложение на сыром драйвере быстрее Ferrox с сырым драйвером **×4 в один поток** и **×10,7 в восемь**.
+* Rust-приложение на сыром драйвере быстрее Ferronit с сырым драйвером **×4 в один поток** и **×10,7 в восемь**.
 * С ORM разрыв больше: SeaORM против SQLAlchemy ORM — **×11,9** (10 388 против 874) в один поток.
 * **На записи Python не проигрывает** при равном пуле 16 (7 653 против 6 792): запись упирается
   в `fsync`, а не в язык. Rust выходит вперёд только с пулом 64 (14 218).
@@ -428,7 +428,7 @@ ping 10000). `GOMAXPROCS=1` — аналог одного потока (как a
 | asyncio | ~7% | цикл событий |
 | наш код (хендлер) | ~5% | `dict(r)`, сборка ответа |
 | asyncpg | ~2.5% | протокол |
-| Ferrox (Python-слой) | ~1% | сам фреймворк почти бесплатный |
+| Ferronit (Python-слой) | ~1% | сам фреймворк почти бесплатный |
 
 Выводы:
 * База как сервер — примерно **десяток процентов** времени запроса; остальное Python-обвязка.
@@ -447,7 +447,7 @@ ping 10000). `GOMAXPROCS=1` — аналог одного потока (как a
 
 Микро-замер JSON (окт 2026): Rust-писатель быстрее **только** на плоском мелком dict (×1.34),
 на вложенных ответах `json.dumps` выигрывает (×0.45 на 1 объекте, ×0.24 на 200). Поэтому
-скорость Ferrox доказывается сетевыми замерами с `ab`, а не микрозамерами сериализации.
+скорость Ferronit доказывается сетевыми замерами с `ab`, а не микрозамерами сериализации.
 
 ## legacy_httpx/ — что здесь и почему не годится
 
@@ -473,8 +473,8 @@ ping 10000). `GOMAXPROCS=1` — аналог одного потока (как a
 2. Проверить, что машина простаивает: `uptime` (load average) и `ps -eo pcpu,comm --sort=-pcpu | head`.
 3. Только после этого запускать `./bench/run_all_ab.sh` — он пишет дату, число ядер, load и версию
    `ab` в шапку `RESULTS_ab.txt`. Без этих метаданных цифры двух прогонов сравнивать нельзя.
-4. Сравнивать **соотношения** (Ferrox/FastAPI), а не абсолютные req/s из разных сессий: одна и та же
+4. Сравнивать **соотношения** (Ferronit/FastAPI), а не абсолютные req/s из разных сессий: одна и та же
    машина даёт ±2–3% дрейфа от частоты CPU и фона, а на граничных сценариях и больше.
 
 Требования: окружение `.venv` в корне репозитория, `ab` (`apt install apache2-utils`),
-Docker с контейнером `ferrox-pg` на :5432 — только для `bench_postgres.py`.
+Docker с контейнером `ferronit-pg` на :5432 — только для `bench_postgres.py`.

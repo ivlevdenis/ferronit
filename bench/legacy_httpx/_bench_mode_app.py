@@ -1,6 +1,6 @@
 
-from ferrox import Ferrox
-app = Ferrox()
+from ferronit import Ferronit
+app = Ferronit()
 for i in range(50):
     def _make(i):
         def h(req, i=i):

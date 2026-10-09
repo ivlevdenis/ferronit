@@ -1,6 +1,6 @@
 """Модели ``rawmodel`` как ответ JSON: Rust-энкодер пишет их без промежуточного dict.
 
-Проверяет нативный путь ``ferrox._core`` — поля берутся из ``__columns__`` (модель) или
+Проверяет нативный путь ``ferronit._core`` — поля берутся из ``__columns__`` (модель) или
 ``__dataclass_fields__`` (обычный dataclass) и пишутся прямо в JSON. Отдельно фиксируется
 порядок полей и то, что скаляры/строки не сломались после смены диспетчеризации типов.
 """
@@ -12,8 +12,8 @@ from dataclasses import dataclass
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from ferrox import Ferrox
-from ferrox.contrib.rawmodel import Model
+from ferronit import Ferronit
+from ferronit.contrib.rawmodel import Model
 
 
 class User(Model):
@@ -30,7 +30,7 @@ class Plain:
 
 @pytest.fixture
 def app():
-    v = Ferrox()
+    v = Ferronit()
 
     @v.route("/one")
     async def one(req):

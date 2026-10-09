@@ -1,9 +1,9 @@
 # WebSocket
 
 ```python
-from ferrox import Ferrox, WebSocket, WebSocketState
+from ferronit import Ferronit, WebSocket, WebSocketState
 
-app = Ferrox()
+app = Ferronit()
 
 @app.websocket("/ws")
 async def ws(conn: WebSocket):

@@ -4,10 +4,10 @@
 сервера, поэтому httpx-замеры говорят о клиенте, а не о фреймворке. ab написан на C и
 не создаёт это бутылочное горлышко.
 
-Что делает: генерирует два одинаковых приложения (Ferrox и FastAPI) с N маршрутами,
+Что делает: генерирует два одинаковых приложения (Ferronit и FastAPI) с N маршрутами,
 поднимает их одним и тем же сервером (uvicorn или granian, 1 воркер), прогревает и
 мерит ab по выборке маршрутов (первый / средний / последний) — так видно и то, что
-FastAPI деградирует с ростом таблицы маршрутов, и то, что Ferrox остаётся плоским.
+FastAPI деградирует с ростом таблицы маршрутов, и то, что Ferronit остаётся плоским.
 
     python bench/ab_bench.py --server uvicorn --routes 50
     python bench/ab_bench.py --server granian  --routes 1000 --requests 20000
@@ -32,10 +32,10 @@ BENCH_DIR = Path(__file__).resolve().parent
 ROOT = BENCH_DIR.parent
 PY = str(ROOT / ".venv" / "bin" / "python")
 
-FERROX_TEMPLATE = '''
-from ferrox import Ferrox
+FERRONIT_TEMPLATE = '''
+from ferronit import Ferronit
 
-app = Ferrox()
+app = Ferronit()
 
 
 def _make(i):
@@ -129,7 +129,7 @@ def write_apps(routes: int, payload: str) -> dict[str, str]:
     """Generate the two apps on disk; return {module_name: path}."""
     written: dict[str, str] = {}
     for name, template, payloads in (
-        ("ferrox", FERROX_TEMPLATE, PAYLOAD_BODY),
+        ("ferronit", FERRONIT_TEMPLATE, PAYLOAD_BODY),
         ("fastapi", FASTAPI_TEMPLATE, FASTAPI_PAYLOAD_BODY),
     ):
         source = template.replace("__ROUTES__", str(routes)).replace("__PAYLOAD__", payloads[payload])
@@ -213,14 +213,14 @@ def measure(port: int, paths: list[str], requests: int, concurrency: int, runs: 
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Ferrox vs FastAPI — только ApacheBench")
+    ap = argparse.ArgumentParser(description="Ferronit vs FastAPI — только ApacheBench")
     ap.add_argument("--server", choices=["uvicorn", "granian"], default="uvicorn")
     ap.add_argument("--routes", type=int, default=50)
     ap.add_argument("--requests", type=int, default=20000)
     ap.add_argument("--concurrency", type=int, default=50)
     ap.add_argument("--runs", type=int, default=3)
     ap.add_argument("--payload", choices=list(PAYLOAD_BODY), default="none")
-    ap.add_argument("--no-fastapi", action="store_true", help="мерить только Ferrox")
+    ap.add_argument("--no-fastapi", action="store_true", help="мерить только Ferronit")
     a = ap.parse_args()
 
     if subprocess.run(["which", "ab"], capture_output=True).returncode != 0:
@@ -228,7 +228,7 @@ def main() -> int:
         return 1
 
     modules = write_apps(a.routes, a.payload)
-    apps = [("ferrox", modules["ferrox"], 8161)]
+    apps = [("ferronit", modules["ferronit"], 8161)]
     if not a.no_fastapi:
         apps.append(("fastapi", modules["fastapi"], 8162))
 
@@ -266,9 +266,9 @@ def main() -> int:
                   f"p99={data['p99']} мс   failed={data['failed']} non2xx={data['non2xx']}")
         print(f"  медиана: {res['median_rps']:,.0f} req/s")
 
-    if "ferrox" in results and "fastapi" in results:
-        v, f = results["ferrox"]["median_rps"], results["fastapi"]["median_rps"]
-        print(f"\nИтого: Ferrox {v:,.0f} vs FastAPI {f:,.0f} req/s → ×{v / f:.2f}")
+    if "ferronit" in results and "fastapi" in results:
+        v, f = results["ferronit"]["median_rps"], results["fastapi"]["median_rps"]
+        print(f"\nИтого: Ferronit {v:,.0f} vs FastAPI {f:,.0f} req/s → ×{v / f:.2f}")
     return 0
 
 

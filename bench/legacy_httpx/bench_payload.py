@@ -1,4 +1,4 @@
-"""Сетевой бенч: Ferrox vs FastAPI с разным размером ответа (small/medium/big)."""
+"""Сетевой бенч: Ferronit vs FastAPI с разным размером ответа (small/medium/big)."""
 import subprocess
 import sys
 import time
@@ -8,7 +8,7 @@ import httpx
 
 VENV_PY = Path(__file__).resolve().parents[2] / ".venv" / "bin" / "python"
 RUNS = 3
-PORTS = {"ferrox": 8121, "fastapi": 8122}
+PORTS = {"ferronit": 8121, "fastapi": 8122}
 
 # N запросов на каждый размер ответа
 N_PER_SIZE = {"small": 5000, "medium": 2000, "big": 1000}
@@ -41,9 +41,9 @@ BIG = [
 """
 
 APP_CODE = {
-    "ferrox": """
-from ferrox import Ferrox
-app = Ferrox()
+    "ferronit": """
+from ferronit import Ferronit
+app = Ferronit()
 """ + PAYLOADS + """
 
 @app.route("/small")
@@ -127,9 +127,9 @@ def main() -> None:
             for name, port in PORTS.items():
                 results[size][name] = bench(f"http://127.0.0.1:{port}", f"/{size}", N_PER_SIZE[size])
 
-        print(f"{'size':8s} {'ferrox':>10s} {'fastapi':>10s} {'gain':>8s}")
+        print(f"{'size':8s} {'ferronit':>10s} {'fastapi':>10s} {'gain':>8s}")
         for size in ("small", "medium", "big"):
-            v, f = results[size]["ferrox"], results[size]["fastapi"]
+            v, f = results[size]["ferronit"], results[size]["fastapi"]
             gain = (v / f - 1) * 100
             print(f"{size:8s} {v:10,.0f} {f:10,.0f} {gain:+7.0f}%")
     finally:

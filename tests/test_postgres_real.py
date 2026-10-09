@@ -1,6 +1,6 @@
-"""E2E: Ferrox HTTP → CoreRepository → реальный PostgreSQL (Docker, дефолтные настройки).
+"""E2E: Ferronit HTTP → CoreRepository → реальный PostgreSQL (Docker, дефолтные настройки).
 
-Требует: docker run -d --name ferrox-pg -e POSTGRES_PASSWORD=postgres \
+Требует: docker run -d --name ferronit-pg -e POSTGRES_PASSWORD=postgres \
     -e POSTGRES_USER=postgres -e POSTGRES_DB=postgres -p 5432:5432 postgres:latest
 """
 import pytest
@@ -8,8 +8,8 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import Column, Integer, MetaData, String, Table, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from ferrox import Ferrox
-from ferrox.contrib.db import RelationalUnitOfWork
+from ferronit import Ferronit
+from ferronit.contrib.db import RelationalUnitOfWork
 
 DATABASE_URL = "postgresql+asyncpg://postgres:postgres@localhost:5432/postgres"
 
@@ -36,8 +36,8 @@ async def uow():
     await engine.dispose()
 
 
-def make_app(uow: RelationalUnitOfWork) -> Ferrox:
-    app = Ferrox()
+def make_app(uow: RelationalUnitOfWork) -> Ferronit:
+    app = Ferronit()
 
     @app.route("/orders", methods=["POST"])
     async def create_order(req):

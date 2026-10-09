@@ -1,5 +1,5 @@
-from ferrox import Ferrox
-app=Ferrox()
+from ferronit import Ferronit
+app=Ferronit()
 app._app.add_route("GET","/api/user0",lambda req,id=0:{"id":id})
 app._app.add_route("GET","/api/user1",lambda req,id=1:{"id":id})
 app._app.add_route("GET","/api/user2",lambda req,id=2:{"id":id})

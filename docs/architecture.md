@@ -2,7 +2,7 @@
 
 ## Зачем
 
-Ferrox — не только быстрый ASGI-движок. Он поставляет строительные блоки
+Ferronit — не только быстрый ASGI-движок. Он поставляет строительные блоки
 DDD/CQRS/гексагональной архитектуры, чтобы доменная логика жила отдельно от
 HTTP и БД. Это осознанный выбор: фреймворк рассчитан на сервисы, где бизнес-
 логика растёт, а не на прототипы из одного файла.
@@ -10,7 +10,7 @@ HTTP и БД. Это осознанный выбор: фреймворк рас�
 ## Гексагональные порты и адаптеры
 
 ```python
-from ferrox.hexagonal import (
+from ferronit.hexagonal import (
     Port, Adapter, Logger, Cache, MessageBus, EventBus, UnitOfWork, ApplicationService,
 )
 ```
@@ -39,7 +39,7 @@ class PaymentService(ApplicationService):
 ## Блоки DDD
 
 ```python
-from ferrox.ddd import (
+from ferronit.ddd import (
     Command, Query, CommandBus, QueryBus, AggregateRoot, DomainEvent, Repository,
 )
 ```
@@ -83,7 +83,7 @@ order = await qb.ask(GetOrder("1"))
 ## DI-контейнер
 
 ```python
-from ferrox.di import Container
+from ferronit.di import Container
 
 c = Container()
 c.singleton(Config, EnvConfig())
@@ -99,7 +99,7 @@ svc = c.get("CartService")
 ## Конфигурация
 
 ```python
-from ferrox.config import EnvConfig
+from ferronit.config import EnvConfig
 
 config = EnvConfig(prefix="APP_")
 db    = config.get("DATABASE_URL")
@@ -111,11 +111,11 @@ hosts = config.list("ALLOWED_HOSTS")       # через запятую
 ## CLI
 
 ```bash
-ferrox new my_service        # сгенерировать DDD-проект
-ferrox dev                    # dev-сервер (uvicorn, reload)
-ferrox dev --server granian   # granian, reload
-ferrox run                    # продакшен (granian, fallback на uvicorn)
-ferrox run --workers 4
+ferronit new my_service         # сгенерировать DDD-проект
+ferronit dev                    # dev-сервер (uvicorn, reload)
+ferronit dev --server granian   # granian, reload
+ferronit run                    # продакшен (granian, fallback на uvicorn)
+ferronit run --workers 4
 ```
 
 ## Всё вместе
@@ -123,7 +123,7 @@ ferrox run --workers 4
 `app.py` остаётся тонким адаптером над доменным и прикладным слоями:
 
 ```python
-app = Ferrox()
+app = Ferronit()
 
 @app.route("/orders", methods=["POST"])
 async def create_order(req):

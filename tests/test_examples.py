@@ -61,7 +61,7 @@ async def test_di_app_wires_ports_by_annotation():
 async def test_llm_app_returns_whole_answer():
     app = load_app("llm_sse_app")
     async with client_for(app) as client:
-        response = await client.post("/chat", json={"prompt": "что такое Ferrox"})
+        response = await client.post("/chat", json={"prompt": "что такое Ferronit"})
 
     body = response.json()
     assert body["model"] == "mock/v1"
@@ -120,14 +120,14 @@ async def test_ws_app_echoes_json_for_allowed_origin():
     sent = await drive_websocket(
         app,
         "/ws/echo",
-        [{"type": "websocket.receive", "text": json.dumps({"hello": "ferrox"})},
+        [{"type": "websocket.receive", "text": json.dumps({"hello": "ferronit"})},
          {"type": "websocket.disconnect", "code": 1000}],
         origin="http://localhost:8000",
     )
 
     assert sent[0]["type"] == "websocket.accept"
     echoed = json.loads(sent[1]["text"])
-    assert echoed == {"echo": {"hello": "ferrox"}, "path": "/ws/echo"}
+    assert echoed == {"echo": {"hello": "ferronit"}, "path": "/ws/echo"}
     # клиент отключился сам — лишних кадров нет, close() после разрыва ничего не шлёт
     assert len(sent) == 2
 

@@ -1,8 +1,8 @@
-# Ferrox
+# Ferronit
 
-> Ferrox — высокопроизводительный Python ASGI-фреймворк с Rust-ядром: роутинг, парсинг
-> запроса, JSON, gzip и CORS реализованы на Rust (`ferrox._core`), а бизнес-логика остаётся
-> обычным Python с DDD/CQRS, hexagonal-портами и DI. В том же ядре — слой данных `ferrox.db`
+> Ferronit — высокопроизводительный Python ASGI-фреймворк с Rust-ядром: роутинг, парсинг
+> запроса, JSON, gzip и CORS реализованы на Rust (`ferronit._core`), а бизнес-логика остаётся
+> обычным Python с DDD/CQRS, hexagonal-портами и DI. В том же ядре — слой данных `ferronit.db`
 > (PostgreSQL → JSON целиком в Rust). Python ≥ 3.12, abi3-py312 (один wheel на 3.12+).
 > Замеры: 88 768 req/s на Granian против 11 082 у FastAPI (×8.0), hot path ~11 мкс на запрос.
 
@@ -18,24 +18,24 @@
 
 ## Публичный API
 
-- Приложение: `ferrox.Ferrox` (`@app.route`, `@app.websocket`, `app.use`, `app.mount`)
-- Запрос/ответ: `ferrox.Request`, `ferrox.Response`, `ferrox.JSONResponse`, `ferrox.StreamingResponse`, `ferrox.TextResponse`
-- DDD: `ferrox.ddd` — `AggregateRoot`, `Command`, `Query`, `CommandBus`, `QueryBus`, `Repository`
-- Порты и адаптеры: `ferrox.hexagonal` — `Port`, `Adapter`, `UnitOfWork`, `ApplicationService`, `Logger`, `Cache`, `MessageBus`, `EventBus`
-- DI: `ferrox.di.Container`; конфиг: `ferrox.config.EnvConfig`
-- БД: `ferrox.contrib.db` — `CoreRepository`, `RelationalRepository`, `create_relational_uow`; `ferrox.contrib.rawdb` + `rawmodel` (asyncpg без SQLAlchemy); `ferrox.db` (PostgreSQL → JSON в Rust)
-- LLM: `ferrox.contrib.llm` — `LlmPort`, `OpenAiAdapter`, `ClaudeAdapter`, `MockLlmAdapter`
-- Векторный поиск: `ferrox.contrib.vectordb` — `VectorDbPort`, `QdrantAdapter`, `ChromaAdapter`, `MockVectorDb`
-- Прочее: `ferrox.contrib.cors`, `security`, `ratelimit`, `staticfiles`, `tracing`, `health`, `kafka`, `pydantic`
+- Приложение: `ferronit.Ferronit` (`@app.route`, `@app.websocket`, `app.use`, `app.mount`)
+- Запрос/ответ: `ferronit.Request`, `ferronit.Response`, `ferronit.JSONResponse`, `ferronit.StreamingResponse`, `ferronit.TextResponse`
+- DDD: `ferronit.ddd` — `AggregateRoot`, `Command`, `Query`, `CommandBus`, `QueryBus`, `Repository`
+- Порты и адаптеры: `ferronit.hexagonal` — `Port`, `Adapter`, `UnitOfWork`, `ApplicationService`, `Logger`, `Cache`, `MessageBus`, `EventBus`
+- DI: `ferronit.di.Container`; конфиг: `ferronit.config.EnvConfig`
+- БД: `ferronit.contrib.db` — `CoreRepository`, `RelationalRepository`, `create_relational_uow`; `ferronit.contrib.rawdb` + `rawmodel` (asyncpg без SQLAlchemy); `ferronit.db` (PostgreSQL → JSON в Rust)
+- LLM: `ferronit.contrib.llm` — `LlmPort`, `OpenAiAdapter`, `ClaudeAdapter`, `MockLlmAdapter`
+- Векторный поиск: `ferronit.contrib.vectordb` — `VectorDbPort`, `QdrantAdapter`, `ChromaAdapter`, `MockVectorDb`
+- Прочее: `ferronit.contrib.cors`, `security`, `ratelimit`, `staticfiles`, `tracing`, `health`, `kafka`, `pydantic`
 
 ## Команды
 
 ```bash
 ./scripts/check.sh        # линт → типы → сборка Rust-ядра → тесты
 poetry run pytest tests/ -q
-poetry run ferrox dev --server granian
-poetry run ferrox run --workers 4
-docker build -t ferrox:0.8.1 . && ./scripts/docker_smoke.sh
+poetry run ferronit dev --server granian
+poetry run ferronit run --workers 4
+docker build -t ferronit:0.8.1 . && ./scripts/docker_smoke.sh
 ```
 
 ## Optional

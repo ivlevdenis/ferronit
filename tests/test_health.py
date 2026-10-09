@@ -7,8 +7,8 @@
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from ferrox import Ferrox
-from ferrox.contrib.health import HealthCheck, HealthStatus
+from ferronit import Ferronit
+from ferronit.contrib.health import HealthCheck, HealthStatus
 
 
 async def _ok() -> bool:
@@ -18,7 +18,7 @@ async def _ok() -> bool:
 @pytest.fixture
 def client_factory():
     def make(hc: HealthCheck):
-        app = Ferrox(debug=True)
+        app = Ferronit(debug=True)
         app.route("/health")(hc)
         return AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
     return make

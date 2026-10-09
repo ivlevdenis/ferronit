@@ -9,7 +9,7 @@
 `SchemaBuilder` выводит типы из сигнатур и моделей.
 
 ```python
-app = Ferrox()
+app = Ferronit()
 
 @app.route("/users/{user_id}", summary="Получить пользователя", tags=["users"])
 async def get_user(user_id: int):
@@ -31,7 +31,7 @@ schema = app.openapi   # экземпляр OpenAPI (SchemaBuilder)
 - **msgspec / rawmodel** → объект, чьи `__columns__` становятся string-свойствами.
 
 ```python
-from ferrox.openapi import SchemaBuilder
+from ferronit.openapi import SchemaBuilder
 
 fragment = SchemaBuilder.from_model(NewUser)
 ```

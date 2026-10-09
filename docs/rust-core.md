@@ -1,9 +1,9 @@
-# Rust-ядро — `ferrox._core`
+# Rust-ядро — `ferronit._core`
 
 ## Зачем
 
-Горячие пути живут в Rust (`ferrox-rs/`, собирается maturin-ом как расширение
-`ferrox._core`). Всё в нём доступно из Python, но большая часть используется
+Горячие пути живут в Rust (`ferronit-rs/`, собирается maturin-ом как расширение
+`ferronit._core`). Всё в нём доступно из Python, но большая часть используется
 фреймворком внутри — вам редко приходится трогать это напрямую.
 
 | Задача | Реализация |
@@ -19,14 +19,14 @@
 ## Публичная поверхность
 
 ```python
-from ferrox._core import FerroxApp, Request, Response, Router
-from ferrox._core import db          # ferrox.db реэкспортирует connect/query_json
+from ferronit._core import FerronitApp, Request, Response, Router
+from ferronit._core import db          # ferronit.db реэкспортирует connect/query_json
 ```
 
-### `FerroxApp`
+### `FerronitApp`
 
 ```python
-app = FerroxApp()
+app = FerronitApp()
 app.add_route(method, path, handler)
 handler, params = app.resolve(method, path)     # None, если роута нет
 app.set_cors(origins, methods, headers, max_age)
@@ -63,7 +63,7 @@ handler, params = router.lookup("GET", "/users/7")   # (handler, {"id": "7"}) | 
 
 ## `.pyi`
 
-Стабы типов лежат в `ferrox/_core.pyi` и попадают в wheel, поэтому mypy и IDE
+Стабы типов лежат в `ferronit/_core.pyi` и попадают в wheel, поэтому mypy и IDE
 видят типы нативного ядра, хотя само расширение аннотаций не несёт.
 
 ## Сборка

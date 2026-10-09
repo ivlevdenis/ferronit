@@ -7,7 +7,7 @@
 
 import pytest
 
-from ferrox import Ferrox
+from ferronit import Ferronit
 
 
 def make_scope(query_string: bytes) -> dict:
@@ -47,7 +47,7 @@ async def query_of(app, query_string: bytes) -> dict:
 @pytest.mark.asyncio
 async def test_raw_utf8_bytes_are_decoded():
     """curl шлёт сырые UTF-8 байты — раньше получалось двойное кодирование."""
-    app = Ferrox()
+    app = Ferronit()
     query = await query_of(app, "name=Денис".encode())
 
     assert query["name"] == ["Денис"]
@@ -55,7 +55,7 @@ async def test_raw_utf8_bytes_are_decoded():
 
 @pytest.mark.asyncio
 async def test_percent_encoded_utf8_is_decoded():
-    app = Ferrox()
+    app = Ferronit()
     query = await query_of(app, b"name=%D0%94%D0%B5%D0%BD%D0%B8%D1%81")
 
     assert query["name"] == ["Денис"]
@@ -64,7 +64,7 @@ async def test_percent_encoded_utf8_is_decoded():
 @pytest.mark.asyncio
 async def test_latin1_bytes_still_work():
     """Настоящая latin-1-строка (é = 0xE9) не должна ломаться."""
-    app = Ferrox()
+    app = Ferronit()
     query = await query_of(app, b"city=caf\xe9")
 
     assert query["city"] == ["café"]
@@ -72,7 +72,7 @@ async def test_latin1_bytes_still_work():
 
 @pytest.mark.asyncio
 async def test_plus_becomes_space_and_broken_percent_is_preserved():
-    app = Ferrox()
+    app = Ferronit()
     query = await query_of(app, b"q=a+b&broken=%zz")
 
     assert query["q"] == ["a b"]
@@ -81,7 +81,7 @@ async def test_plus_becomes_space_and_broken_percent_is_preserved():
 
 @pytest.mark.asyncio
 async def test_repeated_keys_accumulate_into_list():
-    app = Ferrox()
+    app = Ferronit()
     query = await query_of(app, b"tag=one&tag=two")
 
     assert query["tag"] == ["one", "two"]

@@ -1,6 +1,6 @@
-"""Бенч с реальным PostgreSQL (Docker): Ferrox (Core/ORM) vs FastAPI.
+"""Бенч с реальным PostgreSQL (Docker): Ferronit (Core/ORM) vs FastAPI.
 
-Требует: docker run -d --name ferrox-pg -e POSTGRES_PASSWORD=postgres \
+Требует: docker run -d --name ferronit-pg -e POSTGRES_PASSWORD=postgres \
     -e POSTGRES_USER=postgres -e POSTGRES_DB=postgres -p 5432:5432 postgres:latest
 """
 import asyncio
@@ -15,7 +15,7 @@ import httpx
 
 VENV_PY = Path(__file__).resolve().parents[1] / ".venv" / "bin" / "python"
 DB_URL = "postgresql+asyncpg://postgres:postgres@localhost:5432/postgres"
-PORTS = {"ferrox-asyncpg": 8194, "ferrox-rawrepo": 8195, "ferrox-core": 8191, "ferrox-orm": 8192, "fastapi": 8193}
+PORTS = {"ferronit-asyncpg": 8194, "ferronit-rawrepo": 8195, "ferronit-core": 8191, "ferronit-orm": 8192, "fastapi": 8193}
 # Воркеров на приложение: 1 по умолчанию. BENCH_WORKERS=4 проверяет, упирается ли
 # результат в Python-слой приложения (тогда масштабируется) или в базу (тогда нет).
 WORKERS = int(os.environ.get("BENCH_WORKERS", "1"))
@@ -64,11 +64,11 @@ init_db()
 '''
 
 APPS = {
-    "ferrox-rawrepo": '''
+    "ferronit-rawrepo": '''
 import asyncio
 
-from ferrox import Ferrox
-from ferrox.contrib.rawdb import RawUnitOfWork, create_raw_pool
+from ferronit import Ferronit
+from ferronit.contrib.rawdb import RawUnitOfWork, create_raw_pool
 
 DSN = "__DB_URL__".replace("postgresql+asyncpg://", "postgresql://")
 TABLE = "users"
@@ -102,7 +102,7 @@ def init_db() -> None:
 
 init_db()
 
-app = Ferrox()
+app = Ferronit()
 
 
 @app.route("/users")
@@ -125,11 +125,11 @@ async def ping(req):
     """Тот же сервер и тот же путь обработки, но без обращения к базе."""
     return {"ok": True}
 ''',
-    "ferrox-asyncpg": '''
+    "ferronit-asyncpg": '''
 import asyncio
 
 import asyncpg
-from ferrox import Ferrox
+from ferronit import Ferronit
 
 DSN = "__DB_URL__".replace("postgresql+asyncpg://", "postgresql://")
 
@@ -156,7 +156,7 @@ def init_db() -> None:
 
 init_db()
 
-app = Ferrox()
+app = Ferronit()
 _pool = None
 _lock = asyncio.Lock()
 
@@ -197,8 +197,8 @@ async def ping(req):
     """Тот же сервер и тот же путь обработки, но без обращения к базе."""
     return {"ok": True}
 ''',
-    "ferrox-core": '''
-from ferrox import Ferrox
+    "ferronit-core": '''
+from ferronit import Ferronit
 from sqlalchemy import Column, Integer, MetaData, String, Table, insert, select
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 
@@ -235,7 +235,7 @@ def init_db():
 
 init_db()
 
-app = Ferrox()
+app = Ferronit()
 
 
 @app.route("/users")
@@ -263,11 +263,11 @@ async def ping(req):
     """Тот же сервер и тот же путь обработки, но без обращения к базе."""
     return {"ok": True}
 ''',
-    "ferrox-orm": '''
-from ferrox import Ferrox
+    "ferronit-orm": '''
+from ferronit import Ferronit
 ''' + APP_CORE + '''
 
-app = Ferrox()
+app = Ferronit()
 
 
 @app.route("/users")
@@ -423,20 +423,20 @@ def db_version() -> str:
 
 def main() -> None:
     server = sys.argv[1] if len(sys.argv) > 1 else "granian"
-    print(f"=== Бенч с PostgreSQL {db_version()} (Docker): Ferrox vs FastAPI на {server}, воркеров: {WORKERS} ===")
+    print(f"=== Бенч с PostgreSQL {db_version()} (Docker): Ferronit vs FastAPI на {server}, воркеров: {WORKERS} ===")
     print("GET /users — SELECT 100 записей, POST /users — INSERT, GET /ping — без базы\n")
 
     res = bench_pair(server)
 
     print(
-        f"{'операция':14s} {'Ferrox+asyncpg':>13s} {'Ferrox+RawRepo':>13s} {'Ferrox-Core':>11s}"
-        f" {'Ferrox-ORM':>10s} {'FastAPI':>9s}"
+        f"{'операция':14s} {'Ferronit+asyncpg':>13s} {'Ferronit+RawRepo':>13s} {'Ferronit-Core':>11s}"
+        f" {'Ferronit-ORM':>10s} {'FastAPI':>9s}"
     )
     for label, key in (("GET /users", "GET"), ("POST /users", "POST"), ("GET /ping", "ping")):
-        a = res[key]["ferrox-asyncpg"]
-        r = res[key]["ferrox-rawrepo"]
-        c = res[key]["ferrox-core"]
-        o = res[key]["ferrox-orm"]
+        a = res[key]["ferronit-asyncpg"]
+        r = res[key]["ferronit-rawrepo"]
+        c = res[key]["ferronit-core"]
+        o = res[key]["ferronit-orm"]
         f = res[key]["fastapi"]
         print(f"{label:14s} {a:13,.0f} {r:13,.0f} {c:11,.0f} {o:10,.0f} {f:9,.0f}")
         print(

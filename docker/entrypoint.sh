@@ -1,8 +1,8 @@
 #!/usr/bin/env sh
-# Запуск ASGI-приложения Ferrox в контейнере.
+# Запуск ASGI-приложения Ferronit в контейнере.
 #
 #   APP=demo_app:app        модуль:атрибут (по умолчанию)
-#   SERVER=granian|uvicorn  бэкенд (granian по умолчанию, как `ferrox run`)
+#   SERVER=granian|uvicorn  бэкенд (granian по умолчанию, как `ferronit run`)
 #   HOST=0.0.0.0
 #   PORT=8000
 #   WORKERS=1               число воркеров (granian/uvicorn)
@@ -17,11 +17,11 @@ WORKERS="${WORKERS:-1}"
 RELOAD="${RELOAD:-0}"
 
 if [ "$#" -gt 0 ]; then
-    # Явная команда имеет приоритет: docker run ferrox:0.8.1 <cmd>
+    # Явная команда имеет приоритет: docker run ferronit:0.8.1 <cmd>
     exec "$@"
 fi
 
-echo "ferrox: server=${SERVER} app=${APP} host=${HOST} port=${PORT} workers=${WORKERS}"
+echo "ferronit: server=${SERVER} app=${APP} host=${HOST} port=${PORT} workers=${WORKERS}"
 
 if [ "$SERVER" = "uvicorn" ]; then
     if [ "$RELOAD" = "1" ]; then

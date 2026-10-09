@@ -1,4 +1,4 @@
-"""Полный бенчмарк: Ferrox vs FastAPI — все сценарии в одном прогоне.
+"""Полный бенчмарк: Ferronit vs FastAPI — все сценарии в одном прогоне.
 
 1. ASGI in-process (2 маршрута)
 2. uvicorn 50 маршрутов
@@ -14,12 +14,12 @@ from pathlib import Path
 import httpx
 from httpx import ASGITransport, AsyncClient
 
-from ferrox import Ferrox
+from ferronit import Ferronit
 
 VENV_PY = Path(__file__).resolve().parents[2] / ".venv" / "bin" / "python"
 RUNS = 3
 WARMUP = 200
-PORTS = {"ferrox": 8131, "fastapi": 8132}
+PORTS = {"ferronit": 8131, "fastapi": 8132}
 
 N_ROUTES = {"50": 5000, "1000": 5000}
 N_PAYLOAD = {"small": 5000, "medium": 2000, "big": 1000}
@@ -53,8 +53,8 @@ BIG = [
 
 # ── 1. ASGI in-process ────────────────────────────────────────────────
 
-def make_ferrox():
-    v = Ferrox()
+def make_ferronit():
+    v = Ferronit()
 
     @v.route("/")
     def home(req):
@@ -82,10 +82,10 @@ async def bench_asgi(client: AsyncClient, path: str, n: int) -> float:
 
 async def asgi_bench() -> dict:
     out = {}
-    v = make_ferrox()
+    v = make_ferronit()
     async with AsyncClient(transport=ASGITransport(app=v), base_url="http://test") as c:
-        out["ferrox /"] = await bench_asgi(c, "/", 5000)
-        out["ferrox /reflect"] = await bench_asgi(c, "/reflect", 5000)
+        out["ferronit /"] = await bench_asgi(c, "/", 5000)
+        out["ferronit /reflect"] = await bench_asgi(c, "/reflect", 5000)
 
     from fastapi import FastAPI
 
@@ -110,9 +110,9 @@ async def asgi_bench() -> dict:
 def make_app_code(kind: str, routes: int) -> str:
     if kind == "routes_big":
         return {
-            "ferrox": """
-from ferrox import Ferrox
-app = Ferrox()
+            "ferronit": """
+from ferronit import Ferronit
+app = Ferronit()
 """ + PAYLOADS + """
 for i in range(1000):
     def _make(i):
@@ -135,9 +135,9 @@ for i in range(1000):
         }
     if kind == "routes":
         return {
-            "ferrox": f"""
-from ferrox import Ferrox
-app = Ferrox()
+            "ferronit": f"""
+from ferronit import Ferronit
+app = Ferronit()
 for i in range({routes}):
     def _make(i):
         def h(req, i=i):
@@ -157,9 +157,9 @@ for i in range({routes}):
 """,
         }
     return {
-        "ferrox": """
-from ferrox import Ferrox
-app = Ferrox()
+        "ferronit": """
+from ferronit import Ferronit
+app = Ferronit()
 """ + PAYLOADS + """
 
 @app.route("/small")
@@ -302,35 +302,35 @@ def fmt_gain(v: float, f: float) -> str:
 
 
 def main() -> None:
-    print("=== Полный бенчмарк Ferrox vs FastAPI ===")
+    print("=== Полный бенчмарк Ferronit vs FastAPI ===")
     print(f"Python: {sys.version.split()[0]}, uvicorn, 1 worker, медиана из {RUNS} прогонов\n")
 
     # 1. ASGI in-process
     print("--- 1. ASGI in-process (2 маршрута) ---")
     asgi = asyncio.run(asgi_bench())
-    print(f"  {'/':14s} Ferrox {asgi['ferrox /']:9,.0f}  FastAPI {asgi['fastapi /']:9,.0f}  {fmt_gain(asgi['ferrox /'], asgi['fastapi /'])}")
-    print(f"  {'/reflect':14s} Ferrox {asgi['ferrox /reflect']:9,.0f}  FastAPI {asgi['fastapi /reflect']:9,.0f}  {fmt_gain(asgi['ferrox /reflect'], asgi['fastapi /reflect'])}")
+    print(f"  {'/':14s} Ferronit {asgi['ferronit /']:9,.0f}  FastAPI {asgi['fastapi /']:9,.0f}  {fmt_gain(asgi['ferronit /'], asgi['fastapi /'])}")
+    print(f"  {'/reflect':14s} Ferronit {asgi['ferronit /reflect']:9,.0f}  FastAPI {asgi['fastapi /reflect']:9,.0f}  {fmt_gain(asgi['ferronit /reflect'], asgi['fastapi /reflect'])}")
     print()
 
     # 2-3. Network routes
     for routes in (50, 1000):
         print(f"--- 2. uvicorn {routes} маршрутов ---")
         res = network_bench(routes)
-        print(f"  Ferrox {res['ferrox']:9,.0f}  FastAPI {res['fastapi']:9,.0f}  {fmt_gain(res['ferrox'], res['fastapi'])}")
+        print(f"  Ferronit {res['ferronit']:9,.0f}  FastAPI {res['fastapi']:9,.0f}  {fmt_gain(res['ferronit'], res['fastapi'])}")
         print()
 
     # 4. 1000 routes × big payload
     print("--- 4. uvicorn 1000 маршрутов × big payload (500 объектов) ---")
     rb = routes_big_bench()
-    print(f"  Ferrox {rb['ferrox']:9,.0f}  FastAPI {rb['fastapi']:9,.0f}  {fmt_gain(rb['ferrox'], rb['fastapi'])}")
+    print(f"  Ferronit {rb['ferronit']:9,.0f}  FastAPI {rb['fastapi']:9,.0f}  {fmt_gain(rb['ferronit'], rb['fastapi'])}")
     print()
 
     # 5. Payload
     print("--- 5. uvicorn, размер ответа ---")
     pay = payload_bench()
     for size in ("small", "medium", "big"):
-        v, f = pay[size]["ferrox"], pay[size]["fastapi"]
-        print(f"  {size:8s} Ferrox {v:9,.0f}  FastAPI {f:9,.0f}  {fmt_gain(v, f)}")
+        v, f = pay[size]["ferronit"], pay[size]["fastapi"]
+        print(f"  {size:8s} Ferronit {v:9,.0f}  FastAPI {f:9,.0f}  {fmt_gain(v, f)}")
     print()
 
     print("Готово.")

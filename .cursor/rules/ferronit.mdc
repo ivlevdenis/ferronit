@@ -1,0 +1,23 @@
+---
+description: Ferronit — конвенции работы с ASGI-фреймворком (Python + Rust-ядро)
+globs: ["ferronit/**/*.py", "tests/**/*.py", "examples/**/*.py", "ferronit-rs/src/**/*.rs"]
+alwaysApply: true
+---
+
+Полная инструкция: `AGENTS.md` в корне репозитория. Кратко:
+
+- **Два дистрибутива**: `ferronit/` (Python, ноль внешних зависимостей) и `ferronit-rs/`
+  (Rust-крейт `ferronit-core`, импорт как `ferronit_core`, abi3-py312). Правки Rust требуют
+  пересборки: `cd ferronit-rs && PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 ../.venv/bin/maturin develop --release`.
+- **Проверка перед коммитом — одна команда**: `./scripts/check.sh` (ruff → mypy → ядро → pytest).
+  Отдельно: `.venv/bin/pytest tests/ -q`, `.venv/bin/ruff check ferronit tests`, `.venv/bin/mypy ferronit`.
+- **Стиль**: полные type hints на публичных функциях; докстринги на английском (Google-style);
+  публичный API в `__all__`; приватное — с `_`. Пакет помечен `py.typed`.
+- **Не ломать**: версии `ferronit/__init__.py` == `ferronit-rs/Cargo.toml` (ловится тестом);
+  `Cargo.lock` в репо; `abi3-py312` не понижать; `ferronit_core.Response` импортировать как `RustResp`;
+  PyO3 `#[getter]` срезает `get_` (в Python `.status`); `X-Trace-Id` ставить в `__call__` после
+  `_to_response`; middleware не await'ит синхронные хендлеры.
+- **Порядок работ**: сначала падающий тест, потом код. Публичное поведение без теста не менять.
+- **Контекст**: `graphify query "<вопрос>"` дешевле grep; после правок — `graphify update .`.
+- Стенд замеров вынесен в `bench/` (`bench_*.py`, `_bench_*.py`, `prof_*.py`): не линтуется, исключён
+  из Docker, не переносить в корень. Helper-приложения внутри запускаются динамически — не удалять.

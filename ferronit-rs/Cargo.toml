@@ -1,0 +1,31 @@
+[package]
+name = "ferronit-core"
+version = "0.8.1"
+edition = "2021"
+license = "Apache-2.0"
+
+[lib]
+name = "ferronit_core"
+crate-type = ["cdylib"]
+
+[dependencies]
+# abi3-py312: стабильный ABI CPython — один wheel работает на 3.12+ (включая 3.14),
+# не нужна отдельная сборка под каждую версию Python. Ниже 3.10 недоступен
+# PyUnicode_AsUTF8AndSize (нужен для PyString::to_str), а Python-слой Ferronit и так
+# требует >=3.12 — тег cp312-abi3 покрывает весь поддерживаемый диапазон.
+# extension-module обязателен для сборки .so без линковки с libpython.
+pyo3 = { version = "0.24", features = ["extension-module", "abi3-py312"] }
+matchit = "0.8"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+flate2 = "1"
+
+# ── ferronit_core.db: PostgreSQL → JSON в Rust ──────────────────────────
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync"] }
+tokio-postgres = { version = "0.7", features = ["with-chrono-0_4", "with-uuid-1", "with-serde_json-1"] }
+deadpool-postgres = "0.14"
+chrono = "0.4"
+uuid = "1"
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+tokio-postgres-rustls = "0.13"
+rustls-native-certs = "0.8"

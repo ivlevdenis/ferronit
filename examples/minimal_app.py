@@ -14,9 +14,9 @@
 
 from __future__ import annotations
 
-from ferrox import Ferrox
+from ferronit import Ferronit
 
-app = Ferrox()
+app = Ferronit()
 
 
 @app.route("/")

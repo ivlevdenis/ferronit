@@ -1,4 +1,4 @@
-"""Benchmark: Ferrox vs FastAPI vs raw ASGI.
+"""Benchmark: Ferronit vs FastAPI vs raw ASGI.
 
 Важно: pytest-benchmark НЕ умеет await'ить корутины, поэтому async-клиент
 оборачивается в синхронную функцию с собственным event loop, а каждая
@@ -10,12 +10,12 @@ import asyncio
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from ferrox import Ferrox
+from ferronit import Ferronit
 
 
 @pytest.fixture(scope="module")
 def app():
-    v = Ferrox()
+    v = Ferronit()
 
     @v.route("/")
     def home(req):

@@ -12,7 +12,7 @@ PY=".venv/bin/python"
 OUT="bench/RESULTS_ab.txt"
 
 {
-    echo "# Ferrox — замеры ab, $(date '+%Y-%m-%d %H:%M %Z')"
+    echo "# Ferronit — замеры ab, $(date '+%Y-%m-%d %H:%M %Z')"
     echo "# машина: $(nproc) ядер, load $(cut -d' ' -f1-3 /proc/loadavg), $(uname -sr)"
     echo "# ab: $(ab -V | head -1)"
 } > "$OUT"

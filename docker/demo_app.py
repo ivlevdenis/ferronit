@@ -1,27 +1,27 @@
-"""Минимальное приложение для проверки образа Ferrox.
+"""Минимальное приложение для проверки образа Ferronit.
 
 Запускается в контейнере по умолчанию (APP=demo_app:app): без БД и внешних
 зависимостей, поэтому годится и для smoke-теста образа, и как отправная точка.
 
 Свой проект подключается через монтирование и APP:
-    docker run --rm -p 8000:8000 -v "$PWD:/app" -e APP=app:app ferrox:0.8.1
+    docker run --rm -p 8000:8000 -v "$PWD:/app" -e APP=app:app ferronit:0.8.1
 """
 
 from __future__ import annotations
 
 import platform
 
-import ferrox
+import ferronit
 
-app = ferrox.Ferrox()
+app = ferronit.Ferronit()
 
 
 @app.route("/")
 def index() -> dict:
     return {
-        "service": "ferrox",
+        "service": "ferronit",
         "status": "ok",
-        "version": ferrox.__version__,
+        "version": ferronit.__version__,
         "python": platform.python_version(),
     }
 
@@ -38,6 +38,6 @@ def payload(n: int = 10) -> dict:
 
 
 @app.route("/echo", methods=["POST"])
-async def echo(req: ferrox.Request) -> dict:
+async def echo(req: ferronit.Request) -> dict:
     body = await req.json()
     return {"received": body}

@@ -3,9 +3,9 @@
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from ferrox import Ferrox
-from ferrox.ddd import AggregateRoot, Command, CommandBus
-from ferrox.hexagonal import ApplicationService, Port, UnitOfWork
+from ferronit import Ferronit
+from ferronit.ddd import AggregateRoot, Command, CommandBus
+from ferronit.hexagonal import ApplicationService, Port, UnitOfWork
 
 # ── Domain ─────────────────────────────────────────────────────────────
 
@@ -87,7 +87,7 @@ async def test_hexagonal_full():
     bus = CommandBus()
     bus.register(CreateOrderCmd, service.create)
 
-    v = Ferrox()
+    v = Ferronit()
 
     @v.route("/orders", methods=["POST"])
     async def create_order(req):

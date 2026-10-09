@@ -4,7 +4,7 @@ import pytest
 from sqlalchemy import Column, Integer, String
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from ferrox.contrib.db import Base, RelationalUnitOfWork
+from ferronit.contrib.db import Base, RelationalUnitOfWork
 
 
 class _UserModel(Base):

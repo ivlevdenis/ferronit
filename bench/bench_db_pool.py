@@ -13,11 +13,11 @@ import httpx
 
 VENV_PY = Path(__file__).resolve().parents[1] / ".venv" / "bin" / "python"
 PORTS = {"aiosqlite-1": 8181, "aiosqlite-8": 8182, "sqlite3-8": 8183}
-DB_FILE = "/tmp/ferrox_bench_pool.db"
+DB_FILE = "/tmp/ferronit_bench_pool.db"
 
 APPS = {
     "aiosqlite-1": f'''
-from ferrox import Ferrox
+from ferronit import Ferronit
 import asyncio
 import aiosqlite
 
@@ -37,7 +37,7 @@ async def init_db():
 
 
 asyncio.run(init_db())
-app = Ferrox()
+app = Ferronit()
 
 
 @app.route("/users")
@@ -47,7 +47,7 @@ async def list_users(req):
     return {{"users": [{{"id": r[0], "name": r[1], "email": r[2]}} for r in rows]}}
 ''',
     "aiosqlite-8": f'''
-from ferrox import Ferrox
+from ferronit import Ferronit
 import asyncio
 import aiosqlite
 from itertools import cycle
@@ -71,7 +71,7 @@ async def init_db():
 
 
 asyncio.run(init_db())
-app = Ferrox()
+app = Ferronit()
 
 
 @app.route("/users")
@@ -84,7 +84,7 @@ async def list_users(req):
     return {{"users": [{{"id": r[0], "name": r[1], "email": r[2]}} for r in rows]}}
 ''',
     "sqlite3-8": f'''
-from ferrox import Ferrox
+from ferronit import Ferronit
 import asyncio
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor
@@ -108,7 +108,7 @@ def init_db():
 
 
 init_db()
-app = Ferrox()
+app = Ferronit()
 
 
 @app.route("/users")

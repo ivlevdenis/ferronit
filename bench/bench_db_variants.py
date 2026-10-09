@@ -16,7 +16,7 @@ PORTS = {"core": 8171, "aiosqlite": 8172, "sqlite3": 8173}
 
 APPS = {
     "core": '''
-from ferrox import Ferrox
+from ferronit import Ferronit
 from sqlalchemy import Column, Integer, MetaData, String, Table, insert, select
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 
@@ -44,7 +44,7 @@ def init_db():
 
 
 init_db()
-app = Ferrox()
+app = Ferronit()
 
 
 @app.route("/users")
@@ -55,7 +55,7 @@ async def list_users(req):
     return {"users": rows}
 ''',
     "aiosqlite": '''
-from ferrox import Ferrox
+from ferronit import Ferronit
 import asyncio
 import aiosqlite
 
@@ -74,7 +74,7 @@ async def init_db():
 
 
 asyncio.run(init_db())
-app = Ferrox()
+app = Ferronit()
 
 
 @app.route("/users")
@@ -84,7 +84,7 @@ async def list_users(req):
     return {"users": [{"id": r[0], "name": r[1], "email": r[2]} for r in rows]}
 ''',
     "sqlite3": '''
-from ferrox import Ferrox
+from ferronit import Ferronit
 import asyncio
 import sqlite3
 
@@ -96,7 +96,7 @@ CONN.executemany(
 )
 CONN.commit()
 
-app = Ferrox()
+app = Ferronit()
 
 
 @app.route("/users")

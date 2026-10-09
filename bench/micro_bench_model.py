@@ -17,8 +17,8 @@ import time
 
 import asyncpg
 
-from ferrox.contrib.rawdb import RawRepository
-from ferrox.contrib.rawmodel import IdentityMap, Model, RawModelRepository
+from ferronit.contrib.rawdb import RawRepository
+from ferronit.contrib.rawmodel import IdentityMap, Model, RawModelRepository
 
 DSN = "postgresql://postgres:postgres@localhost:5432/postgres"
 ROWS = 1000

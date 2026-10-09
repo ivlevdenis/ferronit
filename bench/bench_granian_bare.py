@@ -1,7 +1,7 @@
 """Чистый granian без фреймворка: пустой ответ и маленький JSON.
 
-Потолок сервера — верхняя граница для всех бенчей (ferrox/litestar/fastapi
-работают поверх granian). ``/ping`` у ferrox возвращает ``{"ok": true}``,
+Потолок сервера — верхняя граница для всех бенчей (ferronit/litestar/fastapi
+работают поверх granian). ``/ping`` у ferronit возвращает ``{"ok": true}``,
 поэтому ``granian-json`` — прямой ориентир для него.
 
 Запуск: .venv/bin/python bench/bench_granian_bare.py

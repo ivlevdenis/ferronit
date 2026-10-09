@@ -5,12 +5,12 @@ from __future__ import annotations
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from ferrox import Ferrox
+from ferronit import Ferronit
 
 
 @pytest.fixture
 def app():
-    v = Ferrox()
+    v = Ferronit()
 
     @v.route("/upload", methods=["POST"])
     async def upload(req):
@@ -116,7 +116,7 @@ async def test_uploaded_file_size(client) -> None:
 
 
 def test_uploaded_file_save(tmp_path) -> None:
-    from ferrox import UploadedFile
+    from ferronit import UploadedFile
 
     upload = UploadedFile(filename="a.txt", content=b"hello", content_type="text/plain")
     destination = tmp_path / "out.txt"

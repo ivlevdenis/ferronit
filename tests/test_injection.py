@@ -6,7 +6,7 @@ import msgspec
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from ferrox import Ferrox, Header
+from ferronit import Ferronit, Header
 
 
 class Item(msgspec.Struct):
@@ -16,7 +16,7 @@ class Item(msgspec.Struct):
 
 @pytest.fixture
 def app():
-    v = Ferrox(debug=True)
+    v = Ferronit(debug=True)
 
     @v.route("/users/{user_id}")
     def get_user(user_id: int, format: str = "json"):
@@ -84,8 +84,8 @@ async def test_path_param_injection(client):
 
 @pytest.mark.asyncio
 async def test_query_param_injection(client):
-    r = await client.get("/search?q=ferrox&limit=25")
-    assert r.json() == {"q": "ferrox", "limit": 25}
+    r = await client.get("/search?q=ferronit&limit=25")
+    assert r.json() == {"q": "ferronit", "limit": 25}
 
 
 @pytest.mark.asyncio
@@ -96,8 +96,8 @@ async def test_default_query_param(client):
 
 @pytest.mark.asyncio
 async def test_echo_default(client):
-    r = await client.get("/echo?name=Ferrox")
-    assert r.json() == {"hello": "Ferrox"}
+    r = await client.get("/echo?name=Ferronit")
+    assert r.json() == {"hello": "Ferronit"}
 
 
 @pytest.mark.asyncio

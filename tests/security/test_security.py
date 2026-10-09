@@ -1,16 +1,16 @@
 """Security tests — first 10: injection, traversal, header injection, CORS, error handling.
 
-Проверяют реальное поведение Ferrox; тесты, падающие из-за отсутствия
+Проверяют реальное поведение Ferronit; тесты, падающие из-за отсутствия
 защиты, фиксируются вместе с фиксом (тест — регрессионный страж).
 """
 import pytest
 from sqlalchemy import Column, Integer, MetaData, String, Table
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from ferrox import Ferrox
-from ferrox.contrib.cors import cors
-from ferrox.contrib.db import RelationalUnitOfWork
-from ferrox.contrib.staticfiles import StaticFiles
+from ferronit import Ferronit
+from ferronit.contrib.cors import cors
+from ferronit.contrib.db import RelationalUnitOfWork
+from ferronit.contrib.staticfiles import StaticFiles
 
 # ── helpers ───────────────────────────────────────────────────────────
 
@@ -95,7 +95,7 @@ async def test_sql_injection_in_filter():
 async def test_static_path_traversal(tmp_path):
     """../../etc/passwd не отдаётся из статики."""
     (tmp_path / "public.txt").write_text("hello")
-    app = Ferrox()
+    app = Ferronit()
     app.mount("/static", StaticFiles(str(tmp_path)))
 
     status, _, body = await call_app(app, "GET", "/static/../../etc/passwd")
@@ -117,11 +117,11 @@ async def test_static_path_traversal(tmp_path):
 @pytest.mark.asyncio
 async def test_crlf_header_injection():
     """Заголовок с CRLF из пользовательского ввода не создаёт новые заголовки."""
-    app = Ferrox()
+    app = Ferronit()
 
     @app.route("/echo")
     def echo(req):
-        resp = __import__("ferrox").Response(body=b"ok")
+        resp = __import__("ferronit").Response(body=b"ok")
         resp._headers["X-User"] = req.query.get("v", [""])[0]
         return resp
 
@@ -136,7 +136,7 @@ async def test_crlf_header_injection():
 @pytest.mark.asyncio
 async def test_xss_json_html_escaping():
     """JSON-ответ не должен содержать сырой <script> (XSS при <script>JSON</script>)."""
-    app = Ferrox()
+    app = Ferronit()
 
     @app.route("/xss")
     def xss(req):
@@ -153,7 +153,7 @@ async def test_xss_json_html_escaping():
 @pytest.mark.asyncio
 async def test_deep_nested_json_no_crash():
     """Глубокая вложенность JSON не роняет процесс — валидный HTTP-ответ."""
-    app = Ferrox()
+    app = Ferronit()
 
     @app.route("/echo", methods=["POST"])
     async def echo(req):
@@ -172,7 +172,7 @@ async def test_deep_nested_json_no_crash():
 @pytest.mark.asyncio
 async def test_cors_denied_origin():
     """Origin вне списка не получает Access-Control-Allow-Origin."""
-    app = Ferrox()
+    app = Ferronit()
     app.use(cors(allow_origins=["https://good.example"]))
 
     @app.route("/api")
@@ -205,7 +205,7 @@ async def test_cors_denied_origin():
 @pytest.mark.asyncio
 async def test_debug_off_hides_error_details():
     """debug=False: 500 без деталей исключения."""
-    app = Ferrox(debug=False)
+    app = Ferronit(debug=False)
 
     @app.route("/boom")
     def boom(req):
@@ -222,7 +222,7 @@ async def test_debug_off_hides_error_details():
 @pytest.mark.asyncio
 async def test_invalid_json_returns_400():
     """Битый JSON от клиента — 400, не 500."""
-    app = Ferrox()
+    app = Ferronit()
 
     @app.route("/echo", methods=["POST"])
     async def echo(req):
@@ -239,7 +239,7 @@ async def test_invalid_json_returns_400():
 @pytest.mark.asyncio
 async def test_malformed_path_no_crash():
     """Мусорные/битые пути не роняют роутер."""
-    app = Ferrox()
+    app = Ferronit()
 
     @app.route("/users/{user_id}")
     def get_user(req):

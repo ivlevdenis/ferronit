@@ -1,4 +1,4 @@
-"""Замер Ferrox + ferrox.db (запросы в Rust, JSON на выходе) против Ferrox + asyncpg.
+"""Замер Ferronit + ferronit.db (запросы в Rust, JSON на выходе) против Ferronit + asyncpg.
 
 Протокол тот же, что у bench_postgres.py: `ab -c 50 -k`, GET /users 5000,
 POST /users 3000, GET /ping 10000, granian, 1 и 8 воркеров.

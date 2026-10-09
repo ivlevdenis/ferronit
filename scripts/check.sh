@@ -22,18 +22,18 @@ fi
 step() { printf '\n==> %s\n' "$*"; }
 
 step "ruff (линт)"
-"$PY" -m ruff check ferrox tests
+"$PY" -m ruff check ferronit tests
 
 step "докстринги публичного API (порог 90%)"
 "$PY" scripts/agent_readiness.py --min-coverage "${MIN_DOCS_COVERAGE:-90}"
 
 step "mypy (типы)"
-"$PY" -m mypy ferrox
+"$PY" -m mypy ferronit
 
 if [ "${SKIP_CORE:-0}" = "1" ]; then
     step "Rust-ядро: пропущено (SKIP_CORE=1)"
 elif [ -x "$MATURIN" ]; then
-    step "Rust-ядро (maturin, abi3) — ferrox_core + ferrox_core.db"
+    step "Rust-ядро (maturin, abi3) — ferronit_core + ferronit_core.db"
     (PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 "$MATURIN" develop --release 2>&1 | tail -3)
 else
     step "Rust-ядро: maturin не найден, пропускаю"

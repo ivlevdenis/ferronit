@@ -1,12 +1,12 @@
-"""Чистый профиль Ferrox: прямой вызов ASGI, без httpx-шума."""
+"""Чистый профиль Ferronit: прямой вызов ASGI, без httpx-шума."""
 import asyncio
 import cProfile
 import io
 import pstats
 
-from ferrox import Ferrox
+from ferronit import Ferronit
 
-v = Ferrox()
+v = Ferronit()
 
 for i in range(50):
     exec(f'@v.route("/route{i}")\ndef h{i}(req): return {{"route": {i}}}')
@@ -44,7 +44,7 @@ pr.disable()
 s = io.StringIO()
 pstats.Stats(pr, stream=s).sort_stats("tottime").print_stats(25)
 out = s.getvalue()
-# только ferrox + stdlib-внутренности, без профилировщика
+# только ferronit + stdlib-внутренности, без профилировщика
 for line in out.splitlines():
-    if "ferrox" in line or "tottime" in line or line.startswith("ncalls") or "function calls" in line or line.startswith("---"):
+    if "ferronit" in line or "tottime" in line or line.startswith("ncalls") or "function calls" in line or line.startswith("---"):
         print(line)

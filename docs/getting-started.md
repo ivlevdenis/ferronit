@@ -2,7 +2,7 @@
 
 ## Что это
 
-Ferrox — ASGI-фреймворк, у которого «дорогие» части запроса вынесены в Rust.
+Ferronit — ASGI-фреймворк, у которого «дорогие» части запроса вынесены в Rust.
 Python остаётся только там, где он нужен — в ваших хендлерах и бизнес-логике.
 За счёт этого на пустых маршрутах он держит ~96 000 req/s (Granian) и не
 деградирует с ростом числа маршрутов — см. [бенчмарки](benchmarks.md).
@@ -10,15 +10,15 @@ Python остаётся только там, где он нужен — в ва�
 ## Установка
 
 ```bash
-pip install ferrox
+pip install ferronit
 ```
 
-Ferrox — **один пакет**, собранный [maturin](https://www.maturin.rs)-ом как
+Ferronit — **один пакет**, собранный [maturin](https://www.maturin.rs)-ом как
 смешанный Rust/Python-проект. Одна установка даёт:
 
-- Python-слой (`ferrox`) — ASGI-движок, DDD/CQRS, DI, contrib;
-- нативное ядро (`ferrox._core`) — маршрутизация, разбор запроса, JSON, gzip, CORS;
-- слой данных (`ferrox.db`) — запросы PostgreSQL → JSON целиком в Rust.
+- Python-слой (`ferronit`) — ASGI-движок, DDD/CQRS, DI, contrib;
+- нативное ядро (`ferronit._core`) — маршрутизация, разбор запроса, JSON, gzip, CORS;
+- слой данных (`ferronit.db`) — запросы PostgreSQL → JSON целиком в Rust.
 
 Ядро собрано с фичей `abi3-py312`, поэтому один wheel работает на любом
 CPython 3.12+ — матрица версий Python не нужна. Внешних runtime-зависимостей
@@ -27,23 +27,23 @@ CPython 3.12+ — матрица версий Python не нужна. Внешн
 Опциональные extras (только то, что реально используете):
 
 ```bash
-pip install "ferrox[server]"     # granian, uvicorn — для запуска
-pip install "ferrox[postgres]"   # asyncpg, msgspec — сырой слой данных
-pip install "ferrox[db]"         # SQLAlchemy 2.0 + aiosqlite (асинхронный SQLite)
-pip install "ferrox[pydantic]"   # pydantic v2
+pip install "ferronit[server]"     # granian, uvicorn — для запуска
+pip install "ferronit[postgres]"   # asyncpg, msgspec — сырой слой данных
+pip install "ferronit[db]"         # SQLAlchemy 2.0 + aiosqlite (асинхронный SQLite)
+pip install "ferronit[pydantic]"   # pydantic v2
 ```
 
 ## Первое приложение
 
 ```python
 # app.py
-from ferrox import Ferrox
+from ferronit import Ferronit
 
-app = Ferrox()
+app = Ferronit()
 
 @app.route("/")
 async def index():
-    return {"service": "ferrox", "ok": True}
+    return {"service": "ferronit", "ok": True}
 
 @app.route("/hello/{name}")
 async def hello(name: str):
@@ -60,16 +60,16 @@ uvicorn --port 8000 app:app
 или используйте встроенный CLI:
 
 ```bash
-ferrox dev                       # uvicorn с авто-перезагрузкой
-ferrox dev --server granian      # granian с авто-перезагрузкой
-ferrox run                       # granian (fallback на uvicorn)
-ferrox run --workers 4           # масштабирование по процессам
+ferronit dev                       # uvicorn с авто-перезагрузкой
+ferronit dev --server granian      # granian с авто-перезагрузкой
+ferronit run                       # granian (fallback на uvicorn)
+ferronit run --workers 4           # масштабирование по процессам
 ```
 
 ## Генерация проекта
 
 ```bash
-ferrox new my_service
+ferronit new my_service
 ```
 
 Создаёт DDD-проект: `domain/` (агрегаты), `application/` (сервисы и CQRS),
@@ -83,11 +83,11 @@ cd my_service && pip install -e . && python main.py
 ## Структура проекта
 
 Обязательной структуры нет. Фреймворк поощряет DDD-раскладку, но не навязывает —
-`app = Ferrox()` в одном файле работает так же хорошо:
+`app = Ferronit()` в одном файле работает так же хорошо:
 
 ```
 my_service/
-  app.py              # экземпляр Ferrox + HTTP-роуты (тонкие адаптеры)
+  app.py              # экземпляр Ferronit + HTTP-роуты (тонкие адаптеры)
   domain/             # агрегаты, сущности, доменные события (без зависимостей)
   application/        # команды, запросы, сервисы приложения
   infrastructure/     # репозитории, шины (Postgres, Kafka, ...)
@@ -102,11 +102,11 @@ my_service/
 ABI, ни Rust на машине для запуска не нужны.
 
 ```bash
-docker build -t ferrox:0.8.1 .
-docker run --rm -p 8000:8000 ferrox:0.8.1
+docker build -t ferronit:0.8.1 .
+docker run --rm -p 8000:8000 ferronit:0.8.1
 
 # своё приложение
-docker run --rm -p 8000:8000 -v "$PWD:/app" -e APP=app:app ferrox:0.8.1
+docker run --rm -p 8000:8000 -v "$PWD:/app" -e APP=app:app ferronit:0.8.1
 ```
 
 Переменные контейнера: `APP` (`module:attr`, по умолчанию `demo_app:app`),

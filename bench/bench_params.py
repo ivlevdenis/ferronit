@@ -1,4 +1,4 @@
-"""Ferrox vs FastAPI vs Litestar: обработка входных параметров.
+"""Ferronit vs FastAPI vs Litestar: обработка входных параметров.
 
 Три одинаковых эндпоинта — `/ping` (без параметров), `/search` (три типизированных
 query-параметра), `/users/{id}` (типизированный path-параметр) — на одном сервере
@@ -24,9 +24,9 @@ sys.path.insert(0, str(HERE))
 from bench_rows import VENV_PY, ab_reqs, wait_ready  # noqa: E402
 
 APPS = {
-    "ferrox": '''
-from ferrox import Ferrox
-app = Ferrox()
+    "ferronit": '''
+from ferronit import Ferronit
+app = Ferronit()
 
 @app.route("/ping")
 async def ping(req):
@@ -75,7 +75,7 @@ app = Litestar(route_handlers=[ping, search, get_user])
 ''',
 }
 
-PORTS = {"ferrox": 8281, "fastapi": 8282, "litestar": 8283}
+PORTS = {"ferronit": 8281, "fastapi": 8282, "litestar": 8283}
 ROUTES = [
     ("/ping", 20000),
     ("/search?q=hello&limit=25&page=2", 20000),
@@ -90,7 +90,7 @@ ROUTE_LABELS = {
     "/search?q=hello&limit=25&page=2": "/search (3 query-параметра)",
     "/users/42": "/users/42 (path-параметр)",
 }
-COLORS = {"ferrox": "#6ea8fe", "fastapi": "#ff7b72", "litestar": "#5ee0d0"}
+COLORS = {"ferronit": "#6ea8fe", "fastapi": "#ff7b72", "litestar": "#5ee0d0"}
 
 
 def start(name: str, port: int) -> subprocess.Popen:
@@ -121,7 +121,7 @@ def render_svg(results: dict[str, dict[str, float]]) -> str:
     """Сгруппированные горизонтальные полосы: 3 фреймворка × 3 маршрута."""
     width, label_x, x0, x1 = 900, 170, 190, 880
     group_h, bar_h, top = 52, 13, 20
-    order = ["ferrox", "litestar", "fastapi"]
+    order = ["ferronit", "litestar", "fastapi"]
     height = top + len(order) * group_h + 30
 
     parts = [f'<rect width="{width}" height="{height}" rx="12" fill="#0f141c"/>']
@@ -173,11 +173,11 @@ def main() -> None:
                 cells.append(f"{median:>9,.0f}")
             print(f"{ROUTE_LABELS[path]:34s} " + " ".join(cells))
 
-        html = f"""<!doctype html><html lang="ru"><head><meta charset="utf-8"><title>Ferrox — параметры</title>
+        html = f"""<!doctype html><html lang="ru"><head><meta charset="utf-8"><title>Ferronit — параметры</title>
 <style>body{{margin:0;padding:30px 40px;background:#0b0e14;color:#dfe7f0;font-family:Segoe UI,system-ui,sans-serif}}
 h1{{font-size:20px;color:#eaf1f9;margin:0 0 4px}}.sub{{color:#8ea0b5;font-size:13px;margin:0 0 20px}}
 .card{{background:#0f141c;border:1px solid #1e2836;border-radius:14px;padding:16px 20px;max-width:980px}}</style></head>
-<body><h1>Ferrox vs FastAPI vs Litestar — обработка параметров</h1>
+<body><h1>Ferronit vs FastAPI vs Litestar — обработка параметров</h1>
 <p class="sub">granian · 1 воркер · ab -c 50 -k · req/s (логарифмическая шкала)</p>
 <div class="card">{render_svg(results)}</div></body></html>"""
         (HERE / "bench_params.html").write_text(html, encoding="utf-8")

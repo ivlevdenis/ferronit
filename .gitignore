@@ -11,7 +11,7 @@ venv/
 dist/
 
 # ── Rust ─────────────────────────────────────────────────
-ferrox-rs/target/
+ferronit-rs/target/
 build/
 Cargo.lock.bak
 
@@ -45,7 +45,7 @@ graphify-out/cache/
 graphify-out/20*/
 
 # собранное ядро: maturin кладёт .so внутрь пакета при develop/build
-ferrox/_core*.so
+ferronit/_core*.so
 
 # генерируемые графики стендов
 bench/bench_params.html

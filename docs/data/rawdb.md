@@ -10,7 +10,7 @@
 ## `rawdb` — сырой слой
 
 ```python
-from ferrox.contrib.rawdb import RawUnitOfWork, Condition, create_raw_pool
+from ferronit.contrib.rawdb import RawUnitOfWork, Condition, create_raw_pool
 
 pool = await create_raw_pool("postgresql://user:***@host/db", min_size=1, max_size=16)
 
@@ -45,7 +45,7 @@ c = ~Condition("email IS NULL")          # NOT (...)
 рефлексии, с C-уровневым JSON «из коробки».
 
 ```python
-from ferrox.contrib.rawmodel import Model, select
+from ferronit.contrib.rawmodel import Model, select
 
 class User(Model):
     __table__ = "users"        # опционально; по умолчанию — плюрализованное имя класса
@@ -114,7 +114,7 @@ select(User).where("age > 18 and (name ilike '%a%' or id in (1, 2, 3))")
 ### Репозитории
 
 ```python
-from ferrox.contrib.rawmodel import RawModelRepository
+from ferronit.contrib.rawmodel import RawModelRepository
 
 repo = RawModelRepository(conn, User)              # или uow.model(User)
 

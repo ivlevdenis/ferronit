@@ -23,9 +23,9 @@ sys.path.insert(0, str(HERE))
 import bench_rows as bench  # noqa: E402
 
 LABELS = {
-    "ferrox-msgspec": "Ferrox + msgspec",
-    "ferrox-model": "Ferrox + rawmodel",
-    "ferrox-asyncpg": "Ferrox + asyncpg (dict)",
+    "ferronit-msgspec": "Ferronit + msgspec",
+    "ferronit-model": "Ferronit + rawmodel",
+    "ferronit-asyncpg": "Ferronit + asyncpg (dict)",
     "litestar-msgspec": "Litestar + msgspec",
     "litestar-asyncpg": "Litestar + asyncpg (dict)",
     "litestar-orm": "Litestar + ORM",
@@ -33,9 +33,9 @@ LABELS = {
     "django-orm": "Django + ORM",
 }
 COLORS = {
-    "ferrox-msgspec": "#7ee787",
-    "ferrox-model": "#6ea8fe",
-    "ferrox-asyncpg": "#79c0ff",
+    "ferronit-msgspec": "#7ee787",
+    "ferronit-model": "#6ea8fe",
+    "ferronit-asyncpg": "#79c0ff",
     "litestar-msgspec": "#5ee0d0",
     "litestar-asyncpg": "#a5d6ff",
     "litestar-orm": "#d2a8ff",
@@ -161,7 +161,7 @@ def render(results: dict, out: Path) -> None:
 
     html = """<!doctype html>
 <html lang="ru"><head><meta charset="utf-8">
-<title>Ferrox — бенчмарк 1/100/1000 строк</title>
+<title>Ferronit — бенчмарк 1/100/1000 строк</title>
 <style>
   :root { --bg:#0b0e14; --text:#dfe7f0; --muted:#8ea0b5; }
   * { box-sizing:border-box; }
@@ -175,7 +175,7 @@ def render(results: dict, out: Path) -> None:
           border:1px solid #1e2836; border-radius:14px; padding:18px 22px;
           box-shadow:0 16px 40px rgba(0,0,0,.4); max-width:1460px; }
 </style></head><body>
-  <h1>Ferrox против Litestar и FastAPI — 1 / 100 / 1000 строк из PostgreSQL</h1>
+  <h1>Ferronit против Litestar и FastAPI — 1 / 100 / 1000 строк из PostgreSQL</h1>
   <p class="sub">ab -c 50 -k · granian · 1 воркер · лучший из 2 · таблица bench_rows (1000 строк) · логарифмическая шкала</p>
   <div class="card">__SVG__</div>
 </body></html>"""

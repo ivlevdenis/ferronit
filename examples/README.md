@@ -1,4 +1,4 @@
-# Примеры Ferrox
+# Примеры Ferronit
 
 Каждый файл — самостоятельное приложение (`app`) без внешних сервисов: запускается
 одной командой и проверяется `curl`. Это «живые» примеры под конкретные кейсы;
@@ -38,7 +38,7 @@ curl -X POST localhost:8000/echo -H 'content-type: application/json' -d '{"a": 1
 curl localhost:8000/greet/Денис                 # di_app
 
 curl -X POST localhost:8000/chat -H 'content-type: application/json' \
-     -d '{"prompt": "что такое Ferrox"}'          # llm_sse_app
+     -d '{"prompt": "что такое Ferronit"}'          # llm_sse_app
 curl -N -X POST localhost:8000/chat/stream -H 'content-type: application/json' \
      -d '{"prompt": "стриминг"}'
 

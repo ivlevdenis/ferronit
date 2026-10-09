@@ -12,9 +12,9 @@
 
 from __future__ import annotations
 
-from ferrox import Ferrox
-from ferrox.di import Container
-from ferrox.hexagonal import Cache, InMemoryCache, Logger, PrintLogger
+from ferronit import Ferronit
+from ferronit.di import Container
+from ferronit.hexagonal import Cache, InMemoryCache, Logger, PrintLogger
 
 
 class Greeter:
@@ -49,7 +49,7 @@ container.factory(Greeter)  # Logger и Cache подставятся по анн
 
 greeter = container.get(Greeter)  # автосборка графа происходит здесь, один раз
 
-app = Ferrox()
+app = Ferronit()
 
 
 @app.route("/greet/{name}")

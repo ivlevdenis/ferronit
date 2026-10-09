@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from ferrox import Ferrox, Response
+from ferronit import Ferronit, Response
 
 
 async def call_app(app, method: str, path: str, headers: list | None = None,
@@ -48,7 +48,7 @@ async def call_app(app, method: str, path: str, headers: list | None = None,
 @pytest.mark.asyncio
 async def test_gzip_q0_disables_compression():
     """accept-encoding: gzip;q=0 — клиент не хочет gzip, не сжимаем."""
-    app = Ferrox()
+    app = Ferronit()
 
     @app.route("/data")
     def data(req):
@@ -78,7 +78,7 @@ async def test_gzip_q0_disables_compression():
 @pytest.mark.asyncio
 async def test_trace_id_not_reflected_without_middleware():
     """Пользовательский X-Trace-Id не попадает в ответ без trace middleware."""
-    app = Ferrox()
+    app = Ferronit()
 
     @app.route("/api")
     def api(req):
@@ -95,7 +95,7 @@ async def test_trace_id_not_reflected_without_middleware():
 
 @pytest.mark.asyncio
 async def test_header_flood_no_crash():
-    app = Ferrox()
+    app = Ferronit()
 
     @app.route("/api")
     def api(req):
@@ -112,7 +112,7 @@ async def test_header_flood_no_crash():
 
 @pytest.mark.asyncio
 async def test_huge_header_no_crash():
-    app = Ferrox()
+    app = Ferronit()
 
     @app.route("/api")
     def api(req):
@@ -129,7 +129,7 @@ async def test_huge_header_no_crash():
 
 @pytest.mark.asyncio
 async def test_chunked_body_assembled():
-    app = Ferrox()
+    app = Ferronit()
 
     @app.route("/echo", methods=["POST"])
     async def echo(req):
@@ -147,7 +147,7 @@ async def test_chunked_body_assembled():
 
 @pytest.mark.asyncio
 async def test_json_top_level_values():
-    app = Ferrox()
+    app = Ferronit()
 
     @app.route("/echo", methods=["POST"])
     async def echo(req):
@@ -167,7 +167,7 @@ async def test_json_top_level_values():
 
 @pytest.mark.asyncio
 async def test_broken_query_pairs_no_crash():
-    app = Ferrox()
+    app = Ferronit()
 
     @app.route("/q")
     def q(req):
@@ -183,7 +183,7 @@ async def test_broken_query_pairs_no_crash():
 @pytest.mark.asyncio
 async def test_utf8_query_decoding():
     """Percent-encoded UTF-8 декодируется в нормальную строку, не в кракозябры."""
-    app = Ferrox()
+    app = Ferronit()
 
     @app.route("/search")
     def search(req):
@@ -205,7 +205,7 @@ async def test_utf8_query_decoding():
 
 @pytest.mark.asyncio
 async def test_very_long_path_no_crash():
-    app = Ferrox()
+    app = Ferronit()
 
     @app.route("/")
     def home(req):
@@ -222,7 +222,7 @@ async def test_very_long_path_no_crash():
 @pytest.mark.asyncio
 async def test_auth_middleware_short_circuit():
     """Middleware-паттерн авторизации: без токена — 401, хендлер не вызывается."""
-    app = Ferrox()
+    app = Ferronit()
 
     async def auth(req, next_handler):
         token = req.get_header("authorization")

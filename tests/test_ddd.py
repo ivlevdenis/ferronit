@@ -3,8 +3,8 @@
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from ferrox import Ferrox
-from ferrox.ddd import (
+from ferronit import Ferronit
+from ferronit.ddd import (
     AggregateRoot,
     Command,
     CommandBus,
@@ -107,7 +107,7 @@ async def test_ddd_http_integration():
     cmd_bus.register(CreateUser, CreateUserHandler(repo))
     query_bus.register(GetUser, GetUserHandler(repo))
 
-    v = Ferrox(debug=True)
+    v = Ferronit(debug=True)
 
     @v.route("/users", methods=["POST"])
     async def create(req):

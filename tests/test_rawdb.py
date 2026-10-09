@@ -1,9 +1,9 @@
-"""Тесты тонкого адаптера на asyncpg (``ferrox.contrib.rawdb``).
+"""Тесты тонкого адаптера на asyncpg (``ferronit.contrib.rawdb``).
 
 Юнит-часть (переиндексация плейсхолдеров) работает без базы. Интеграционная часть
 требует контейнер PostgreSQL на :5432 и пропускается, если его нет:
 
-    docker run -d --name ferrox-pg -e POSTGRES_PASSWORD=postgres \\
+    docker run -d --name ferronit-pg -e POSTGRES_PASSWORD=postgres \\
         -e POSTGRES_USER=postgres -e POSTGRES_DB=postgres -p 5432:5432 postgres:18
 """
 
@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-from ferrox.contrib.rawdb import Condition, RawRepository, RawUnitOfWork, create_raw_pool
+from ferronit.contrib.rawdb import Condition, RawRepository, RawUnitOfWork, create_raw_pool
 
 try:  # asyncpg живёт в extra "postgres"
     import asyncpg
@@ -43,7 +43,7 @@ def test_condition_without_params() -> None:
 
 
 def test_merge_filters_renumbers_placeholders() -> None:
-    from ferrox.contrib.rawdb import _merge_filters
+    from ferronit.contrib.rawdb import _merge_filters
 
     where, params = _merge_filters(
         [Condition("age > $1", [18]), Condition("name <> $1 AND age < $2", ["x", 99])]
@@ -54,7 +54,7 @@ def test_merge_filters_renumbers_placeholders() -> None:
 
 def test_merge_filters_keeps_two_digit_placeholders() -> None:
     """$1 не должен затирать начало $10 — иначе параметры уезжают."""
-    from ferrox.contrib.rawdb import _merge_filters
+    from ferronit.contrib.rawdb import _merge_filters
 
     where, params = _merge_filters(
         [Condition("a = $1", [1]), Condition("b = $10", list(range(10)))]
@@ -64,7 +64,7 @@ def test_merge_filters_keeps_two_digit_placeholders() -> None:
 
 
 def test_merge_filters_empty() -> None:
-    from ferrox.contrib.rawdb import _merge_filters
+    from ferronit.contrib.rawdb import _merge_filters
 
     assert _merge_filters([]) == ("", [])
 
@@ -190,7 +190,7 @@ async def test_same_rows_as_core_repository(pool) -> None:
     from sqlalchemy import Column, Integer, MetaData, String, Table
     from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-    from ferrox.contrib.db import RelationalUnitOfWork
+    from ferronit.contrib.db import RelationalUnitOfWork
 
     metadata = MetaData()
     table = Table(

@@ -1,23 +1,23 @@
-# Запросы в Rust — `ferrox.db`
+# Запросы в Rust — `ferronit.db`
 
 ## Зачем
 
 Для read-heavy хендлеров, отдающих большие выборки, Python-драйвер становится
-узким местом: каждая строка проходит маппинг и сериализацию под GIL. `ferrox.db`
+узким местом: каждая строка проходит маппинг и сериализацию под GIL. `ferronit.db`
 выполняет запрос и JSON-кодирование целиком в Rust (фоновый tokio-рантайм) —
 Python не трогает строки вообще. На чтении 100 строк это **×2.4–2.5** к
-Ferrox+asyncpg на одном воркере.
+Ferronit+asyncpg на одном воркере.
 
 ```python
 import asyncio
-import ferrox
+import ferronit
 
-ferrox.db.connect("postgresql://user:***@host/db", 16)   # один раз на старте
+ferronit.db.connect("postgresql://user:***@host/db", 16)   # один раз на старте
 
 @app.route("/report")
 async def report():
     body = await asyncio.to_thread(
-        ferrox.db.query_json,
+        ferronit.db.query_json,
         "SELECT id, name FROM users ORDER BY id LIMIT 1000",
         [],
     )

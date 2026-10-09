@@ -54,6 +54,8 @@ ferrox/
 ferrox-rs/src/lib.rs        # Rust: Router, parse_headers, Response::json (в т.ч. модели), gzip, CORS
 ferrox-rs/src/db.rs         # Rust: PostgreSQL → JSON (deadpool-postgres + prepare_cached, маппинг типов)
 ferrox/db.py                # слой данных ferrox.db (connect/query_json → ferrox._core.db)
+pyproject.toml              # метаданные, extras, [tool.poetry], [tool.maturin], ruff/mypy
+poetry.toml, poetry.lock    # окружение Poetry (venv в .venv/) и зафиксированные зависимости
 bench/                     # измерительный стенд (все цифры — docs/benchmarks.md) + README.md внутри
 tests/                     # 263 теста; tests/security/ — 64 (в т.ч. 14 ASVS L1)
 examples/                  # минимальный, DI, LLM+SSE, RAG, WebSocket + README

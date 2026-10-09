@@ -70,3 +70,9 @@ uv pip install -e .                     # maturin соберёт ferrox + ferrox
 docker build -t ferrox:0.8.1 .
 docker run --rm -p 8000:8000 ferrox:0.8.1
 ```
+
+## Лицензия
+
+Apache License 2.0 — см. [LICENSE](LICENSE). Использование, изменение и распространение
+разрешены, включая коммерческое; сохраняются уведомления об авторстве и патентная оговорка.
+

@@ -3,6 +3,8 @@ name = "ferrox"
 dynamic = ["version"]
 description = "High-performance Python ASGI web framework with a Rust core (routing, JSON, PostgreSQL)"
 readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
 requires-python = ">=3.12"
 # Единый пакет: нативное ядро (ferrox._core, включая ferrox._core.db) собирается в этот же
 # wheel, поэтому внешних рантайм-зависимостей нет.

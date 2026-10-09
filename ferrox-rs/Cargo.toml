@@ -2,6 +2,7 @@
 name = "ferrox-core"
 version = "0.8.1"
 edition = "2021"
+license = "Apache-2.0"
 
 [lib]
 name = "ferrox_core"

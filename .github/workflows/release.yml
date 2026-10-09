@@ -3,9 +3,10 @@
 #   git tag -a v0.9.0 -m "Ferronit 0.9.0" && git push origin v0.9.0
 #
 # Триггер — тег вида v*; workflow_dispatch запускает проверки и сборку без публикации.
-# Публикация на PyPI идёт по Trusted Publishing (OIDC), токен не нужен:
-# на pypi.org → Publishing → Add a new pending publisher → owner/ivlevdenis,
-# repo/ferronit, workflow/release.yml, environment/release.
+# Публикация на PyPI — по API-токену из секрета репозитория PYPI_API_TOKEN.
+# Альтернатива — Trusted Publishing (OIDC, без секрета): тогда здесь нужен password: ''
+# и на pypi.org pending publisher: project ferronit, owner ivlevdenis, repo ferronit,
+# workflow release.yml, environment release.
 #
 # Сборку колеса с Rust-ядром делает maturin (PyO3/maturin-action), окружение — Poetry.
 name: release
@@ -210,12 +211,11 @@ jobs:
         with:
           subject-path: "dist/*"
 
-      - name: Публикация на PyPI (Trusted Publishing)
+      - name: Публикация на PyPI (API-токен)
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist/
-          # Если вместо OIDC используешь токен — убери environment и добавь:
-          #   password: ${{ secrets.PYPI_API_TOKEN }}
+          password: ${{ secrets.PYPI_API_TOKEN }}
 
       - name: GitHub Release с артефактами
         env:

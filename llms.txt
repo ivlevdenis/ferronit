@@ -40,5 +40,4 @@ docker build -t ferrox:0.8.1 . && ./scripts/docker_smoke.sh
 
 ## Optional
 
-- [infographic/](infographic/ferrox-why/): материалы для презентации (вёрстка + рендер через CDP)
 - Бенчмарк-скрипты в `bench/` (`bench_*.py`, `micro_bench_*.py`, `prof_*.py`): измерительный стенд, не часть пакета

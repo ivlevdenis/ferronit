@@ -60,7 +60,6 @@ examples/                  # минимальный, DI, LLM+SSE, RAG, WebSocket
 docker/                    # Dockerfile-обвязка: demo_app.py, entrypoint.sh
 docs/                      # документация: README.md (хаб), data/ (слой данных), benchmarks.md,
                            #   security/ASVS.md (OWASP ASVS 5.0 L1)
-infographic/               # материалы для презентации (вёрстка + рендер-скрипты)
 ```
 
 Бенчмарк-скрипты лежат в `bench/` (см. `bench/README.md`) — **измерительный стенд, а не часть
@@ -178,7 +177,7 @@ docker run -d --name ferrox-pg -e POSTGRES_PASSWORD=postgres -e POSTGRES_USER=po
 ## Границы работ
 
 - Не добавлять внешние зависимости в `ferrox/` (только optional extras в `pyproject.toml`).
-- Не трогать `bench/` (стенд замеров) и `infographic/` при работе над фреймворком.
+- Не трогать `bench/` (стенд замеров) при работе над фреймворком.
 - Не коммитить: `.venv/`, `dist/`, `ferrox-rs/target/`, `*.session`, `.env`.
 - Не переписывать числа в README без реального замера (`ab -n 30000 -c 50 -k`, Granian/uvicorn
   1 воркер, медиана прогонов).

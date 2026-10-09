@@ -1,7 +1,7 @@
 # Ferronit
 
 [![PyPI](https://img.shields.io/pypi/v/ferronit)](https://pypi.org/project/ferronit/)
-[![Python](https://img.shields.io/pypi/pyversions/ferronit)](https://pypi.org/project/ferronit/)
+[![Python](https://img.shields.io/badge/python-3.12%2B-blue)](https://pypi.org/project/ferronit/)
 [![License](https://img.shields.io/pypi/l/ferronit)](LICENSE)
 [![GitHub stars](https://img.shields.io/github/stars/ivlevdenis/ferronit)](https://github.com/ivlevdenis/ferronit/stargazers)
 

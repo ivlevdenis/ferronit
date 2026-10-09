@@ -102,11 +102,11 @@ my_service/
 ABI, ни Rust на машине для запуска не нужны.
 
 ```bash
-docker build -t ferronit:0.9.0 .
-docker run --rm -p 8000:8000 ferronit:0.9.0
+docker build -t ferronit:0.9.1 .
+docker run --rm -p 8000:8000 ferronit:0.9.1
 
 # своё приложение
-docker run --rm -p 8000:8000 -v "$PWD:/app" -e APP=app:app ferronit:0.9.0
+docker run --rm -p 8000:8000 -v "$PWD:/app" -e APP=app:app ferronit:0.9.1
 ```
 
 Переменные контейнера: `APP` (`module:attr`, по умолчанию `demo_app:app`),

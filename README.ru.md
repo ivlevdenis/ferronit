@@ -89,8 +89,8 @@ macOS, Windows) и sdist → GitHub Release с артефактами → пуб
 ## Docker
 
 ```bash
-docker build -t ferronit:0.9.0 .
-docker run --rm -p 8000:8000 ferronit:0.9.0
+docker build -t ferronit:0.9.1 .
+docker run --rm -p 8000:8000 ferronit:0.9.1
 ```
 
 ## Лицензия

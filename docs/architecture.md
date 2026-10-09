@@ -1,7 +1,11 @@
 # Архитектура: DDD, DI и гексагональная
 
-Ferrox поставляет строительные блоки DDD/CQRS/гексагональной архитектуры, чтобы
-сервисы могли держать доменную логику свободной от HTTP и кода БД.
+## Зачем
+
+Ferrox — не только быстрый ASGI-движок. Он поставляет строительные блоки
+DDD/CQRS/гексагональной архитектуры, чтобы доменная логика жила отдельно от
+HTTP и БД. Это осознанный выбор: фреймворк рассчитан на сервисы, где бизнес-
+логика растёт, а не на прототипы из одного файла.
 
 ## Гексагональные порты и адаптеры
 
@@ -59,11 +63,6 @@ class Order(AggregateRoot):
 
     def place(self):
         self.record(OrderPlaced(self.order_id))
-
-class GetOrder(Query):
-    __slots__ = ("order_id",)
-    def __init__(self, order_id):
-        self.order_id = order_id
 ```
 
 Шины диспетчеризуют по конкретному типу сообщения:
@@ -112,9 +111,7 @@ hosts = config.list("ALLOWED_HOSTS")       # через запятую
 ## CLI
 
 ```bash
-ferrox new my_service        # сгенерировать проект
-ferrox new my_service --ddd  # с DDD-примером
-
+ferrox new my_service        # сгенерировать DDD-проект
 ferrox dev                    # dev-сервер (uvicorn, reload)
 ferrox dev --server granian   # granian, reload
 ferrox run                    # продакшен (granian, fallback на uvicorn)

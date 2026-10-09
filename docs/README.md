@@ -1,26 +1,33 @@
-# Ferrox — Documentation
+# Ferrox — документация
 
-Full documentation for the Ferrox framework, in two languages:
+Ferrox — высокопроизводительный Python ASGI-фреймворк с ядром на Rust.
+Маршрутизация, разбор запроса, JSON, gzip и CORS работают в нативном коде
+(`ferrox._core`), а ваши хендлеры остаются обычным Python.
 
-- **[English](en/index.md)**
-- **[Русский](ru/index.md)**
+Документация на русском. Карта:
 
-## Structure
+## Начало работы
+- [Быстрый старт](getting-started.md) — установка, первое приложение, CLI, Docker, структура проекта
 
-Each language mirrors the same set of pages:
+## Основы
+- [Маршрутизация и хендлеры](routing.md) — роуты, path-параметры, возвращаемые значения, ответы, ошибки
+- [Запросы](requests.md) — `Request`: query, заголовки, cookies, тело, JSON, формы, файлы
+- [Внедрение зависимостей](injection.md) — типизированные параметры, `Header`, body-модели
+- [Ответы и сериализация](responses.md) — `Response`/`JSONResponse`/стриминг, модели, кодеки
+- [Middleware и contrib](middleware.md) — CORS, security-заголовки, rate limiting, трассировка, health, статика
+- [WebSocket](websocket.md) — текстовые, бинарные и JSON-сообщения, Origin-защита
+- [OpenAPI](openapi.md) — автоматическая генерация схемы
 
-| Topic | Page |
-|---|---|
-| Getting started | `getting-started.md` |
-| Routing & handlers | `routing.md` |
-| Requests | `requests.md` |
-| Dependency injection | `injection.md` |
-| Models & serialisation | `models.md` |
-| OpenAPI | `openapi.md` |
-| WebSocket | `websocket.md` |
-| Middleware & contrib | `middleware.md` |
-| Database | `database.md` |
-| Models & query DSL | `rawmodel.md` |
-| DDD, DI & hexagonal | `architecture.md` |
-| Rust core | `rust-core.md` |
-| Benchmarks | `benchmarks.md` |
+## Слой данных
+- [Какой слой выбрать](data/overview.md) — три слоя и таблица «когда что»
+- [Запросы в Rust](data/rust-query.md) — `ferrox.db`: запрос → JSON целиком в Rust
+- [Сырой asyncpg + модели](data/rawdb.md) — `RawUnitOfWork`, `Model`, query DSL
+- [SQLAlchemy](data/sqlalchemy.md) — ORM и Core-репозитории
+
+## Архитектура
+- [DDD, DI и гексагональная](architecture.md) — порты/адаптеры, шины, контейнер, конфиг, CLI
+- [Rust-ядро](rust-core.md) — что лежит в `ferrox._core` и зачем
+
+## Справочно
+- [Бенчмарки](benchmarks.md) — измеренные цифры и методика
+- [ASVS Level 1](security/ASVS.md) — карта соответствия OWASP ASVS 5.0

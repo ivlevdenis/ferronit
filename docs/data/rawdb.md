@@ -1,9 +1,48 @@
-# Модели и query DSL — `ferrox.contrib.rawmodel`
+# Сырой asyncpg + модели — `rawdb` и `rawmodel`
 
-Типизированные модели строк поверх сырого asyncpg-слоя. Модель — неизменяемый
-`msgspec.Struct`, чьи поля — колонки таблицы в порядке `SELECT *`, поэтому
-строка → экземпляр это позиционный `cls(*row)` — без dict, без рефлексии, с
-C-уровневым JSON «из коробки».
+## Зачем
+
+Самый быстрый способ ходить в PostgreSQL из Python — без ORM. `rawdb` — тонкий,
+явный слой на asyncpg (dict-строки, фильтры — SQL-фрагменты с bound-параметрами),
+примерно **×2.7–3.1** к SQLAlchemy Core на чтении. Поверх него `rawmodel` даёт
+типизированные модели строк и query DSL, почти не теряя в скорости.
+
+## `rawdb` — сырой слой
+
+```python
+from ferrox.contrib.rawdb import RawUnitOfWork, Condition, create_raw_pool
+
+pool = await create_raw_pool("postgresql://user:***@host/db", min_size=1, max_size=16)
+
+async with RawUnitOfWork(pool) as uow:            # BEGIN / COMMIT (или rollback)
+    repo = uow["users"]                           # имя таблицы → RawRepository
+    row = await repo.save({"name": "Ada"})        # → {"name": "Ada", "id": 1}
+    await repo.update(1, {"name": "Grace"})
+    users = await repo.list(Condition("age > $1", [18]), limit=50)
+    await repo.delete(1)
+```
+
+- `RawUnitOfWork(pool, readonly=False)` — одно соединение, одна транзакция.
+  `readonly=True` пропускает `BEGIN` (экономия одного round-trip) для read-only.
+- `Condition(sql, params)` — фрагмент с PostgreSQL-плейсхолдерами (`$1`…).
+  Комбинируется операторами:
+
+```python
+c = Condition("age > $1", [18]) & Condition("name ILIKE $1", ["%a%"])
+c = Condition("status = $1", ["a"]) | Condition("status = $1", ["b"])
+c = ~Condition("email IS NULL")          # NOT (...)
+```
+
+Плейсхолдеры перенумеровываются автоматически при комбинировании.
+
+Жизненный цикл: создавайте пул **внутри** event loop сервера; используйте
+**один** `RawUnitOfWork` на запрос.
+
+## `rawmodel` — типизированные модели и query DSL
+
+Модель — неизменяемый `msgspec.Struct`, чьи поля — колонки таблицы в порядке
+`SELECT *`. Строка → экземпляр это позиционный `cls(*row)` — без dict, без
+рефлексии, с C-уровневым JSON «из коробки».
 
 ```python
 from ferrox.contrib.rawmodel import Model, select
@@ -18,7 +57,7 @@ class User(Model):
 Имя таблицы по умолчанию — имя класса в нижнем регистре во множественном числе
 (`User` → `users`, `Category` → `categories`, `Person` → `people`).
 
-## Запросы
+### Запросы
 
 ```python
 q = select(User).where(User.c.age > 18).order_by(User.c.name).limit(50)
@@ -37,11 +76,9 @@ sql, params = q.compile()
 | `aggregate(expr)` | `SELECT sum(col)` и т.п. (через `fetch_value`) |
 | `compile()` | → `(sql, params)` с непрерывными `$N` |
 
-## Условия
+### Условия — три равноправных стиля
 
-Три равноправных стиля — смешивайте свободно в одном `where`:
-
-### 1. Column DSL
+**1. Column DSL**
 
 ```python
 User.c.age > 18            # > >= < <=
@@ -54,7 +91,7 @@ User.c.email.is_null() / .is_not_null()
 User.c.age.between(18, 65)
 ```
 
-### 2. Операторы `|` `&` `~`
+**2. Операторы `|` `&` `~`**
 
 ```python
 select(User).where((User.c.age < 18) | (User.c.age > 65))       # OR
@@ -62,20 +99,19 @@ select(User).where((User.c.age > 0) & User.c.email.is_null())   # AND
 select(User).where(~User.c.id.in_([1, 2]))                      # NOT
 ```
 
-### 3. Мини-DSL строкой
+**3. Мини-DSL строкой**
 
 ```python
 select(User).where("age > 18 and (name ilike '%a%' or id in (1, 2, 3))")
-select(User).where("email is not null and id not in (1, 2) and age between 18 and 65")
 ```
 
 Парсер поддерживает `and/or/not`, скобки, `= != < <= > >=`, `in (...)` /
 `not in (...)`, `like` / `ilike`, `is [not] null`, `between ... and ...`.
-Имена колонок **сверяются с моделью** (опечатка → `ValueError`), каждое значение
-уходит bound-параметром — SQL-инъекция невозможна. `= null` / `!= null`
+Имена колонок **сверяются с моделью** (опечатка → `ValueError`), каждое
+значение уходит bound-параметром — SQL-инъекция невозможна. `= null` / `!= null`
 превращаются в `IS [NOT] NULL`.
 
-## Репозитории
+### Репозитории
 
 ```python
 from ferrox.contrib.rawmodel import RawModelRepository
@@ -92,7 +128,7 @@ fresh = await repo.update(1, {"name": "Grace"})
 await repo.delete(1)
 ```
 
-## Unit of work и identity map
+### Unit of work и identity map
 
 ```python
 async with RawUnitOfWork(pool, readonly=True) as uow:
@@ -103,4 +139,4 @@ async with RawUnitOfWork(pool, readonly=True) as uow:
 ```
 
 `get()` наполняет identity map; `list()`/`fetch()` намеренно нет (избегаем
-~50 µs на 1000 строк). Карта живёт в рамках одного unit of work.
+лишних ~50 µs на 1000 строк). Карта живёт в рамках одного unit of work.

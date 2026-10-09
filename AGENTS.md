@@ -54,12 +54,12 @@ ferrox/
 ferrox-rs/src/lib.rs        # Rust: Router, parse_headers, Response::json (в т.ч. модели), gzip, CORS
 ferrox-rs/src/db.rs         # Rust: PostgreSQL → JSON (deadpool-postgres + prepare_cached, маппинг типов)
 ferrox/db.py                # слой данных ferrox.db (connect/query_json → ferrox._core.db)
-bench/                     # измерительный стенд (все цифры README) + README.md внутри
-tests/                     # 217 тестов; tests/security/ — 64 (в т.ч. 14 ASVS L1)
+bench/                     # измерительный стенд (все цифры — docs/benchmarks.md) + README.md внутри
+tests/                     # 263 теста; tests/security/ — 64 (в т.ч. 14 ASVS L1)
 examples/                  # минимальный, DI, LLM+SSE, RAG, WebSocket + README
 docker/                    # Dockerfile-обвязка: demo_app.py, entrypoint.sh
-docs/security/ASVS.md      # карта OWASP ASVS 5.0 L1 (17/70 закрыто)
-docs/design/*.md           # заметки по стратегии применения
+docs/                      # документация: README.md (хаб), data/ (слой данных), benchmarks.md,
+                           #   security/ASVS.md (OWASP ASVS 5.0 L1)
 infographic/               # материалы для презентации (вёрстка + рендер-скрипты)
 ```
 
@@ -83,7 +83,7 @@ uv pip install --python .venv/bin/python -e ".[dev]"     # pytest, ruff, mypy, m
 ./scripts/check.sh
 
 # по отдельности
-.venv/bin/pytest tests/ -q                     # 217 тестов, ~4 с
+.venv/bin/pytest tests/ -q                     # 263 теста, ~4 с
 .venv/bin/pytest tests/security -q             # security-набор + ASVS L1
 .venv/bin/ruff check ferrox tests               # линт
 .venv/bin/mypy ferrox                           # типы

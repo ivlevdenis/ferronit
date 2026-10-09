@@ -198,6 +198,9 @@ jobs:
       contents: write        # создание релиза
       attestations: write
     steps:
+      # checkout нужен, чтобы gh мог определить репозиторий (иначе «not a git repository»)
+      - uses: actions/checkout@v6
+
       - uses: actions/download-artifact@v7
         with:
           path: dist
@@ -216,12 +219,17 @@ jobs:
         with:
           packages-dir: dist/
           password: ${{ secrets.PYPI_API_TOKEN }}
+          # повторный прогон релиза не должен падать на «файл уже существует»
+          skip-existing: true
 
       - name: GitHub Release с артефактами
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          gh --version
+          echo "repo=$GITHUB_REPOSITORY tag=$GITHUB_REF_NAME"
           gh release create "$GITHUB_REF_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
             --title "Ferronit ${GITHUB_REF_NAME#v}" \
             --generate-notes \
             dist/*

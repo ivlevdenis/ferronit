@@ -11,7 +11,8 @@
 ## Основное
 
 - [AGENTS.md](AGENTS.md): инструкция для код-агентов — структура, команды, инварианты, стиль, границы работ
-- [README.md](README.md): обзор, установка, бенчмарки, безопасность, Docker, запуск
+- [README.md](README.md): обзор, установка, бенчмарки, Docker, релиз — основной README (на английском)
+- [README.ru.md](README.ru.md): то же на русском
 - [LICENSE](LICENSE): Apache License 2.0
 - [docs/security/ASVS.md](docs/security/ASVS.md): карта соответствия OWASP ASVS 5.0 Level 1 (17/70)
 - [examples/app.py](examples/app.py): полный пример — DDD + CQRS + hexagonal + SQLAlchemy

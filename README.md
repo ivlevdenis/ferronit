@@ -1,5 +1,10 @@
 # Ferronit
 
+[![PyPI](https://img.shields.io/pypi/v/ferronit)](https://pypi.org/project/ferronit/)
+[![Python](https://img.shields.io/pypi/pyversions/ferronit)](https://pypi.org/project/ferronit/)
+[![License](https://img.shields.io/pypi/l/ferronit)](LICENSE)
+[![GitHub stars](https://img.shields.io/github/stars/ivlevdenis/ferronit)](https://github.com/ivlevdenis/ferronit/stargazers)
+
 Высокопроизводительный Python ASGI-фреймворк с ядром на Rust. Маршрутизация,
 разбор запроса, JSON, gzip и CORS работают в нативном коде; ваши хендлеры —
 обычный Python.

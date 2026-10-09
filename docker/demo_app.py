@@ -4,7 +4,7 @@
 зависимостей, поэтому годится и для smoke-теста образа, и как отправная точка.
 
 Свой проект подключается через монтирование и APP:
-    docker run --rm -p 8000:8000 -v "$PWD:/app" -e APP=app:app ferrox:0.8.0
+    docker run --rm -p 8000:8000 -v "$PWD:/app" -e APP=app:app ferrox:0.8.1
 """
 
 from __future__ import annotations

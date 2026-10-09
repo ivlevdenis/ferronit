@@ -17,7 +17,7 @@ WORKERS="${WORKERS:-1}"
 RELOAD="${RELOAD:-0}"
 
 if [ "$#" -gt 0 ]; then
-    # Явная команда имеет приоритет: docker run ferrox:0.8.0 <cmd>
+    # Явная команда имеет приоритет: docker run ferrox:0.8.1 <cmd>
     exec "$@"
 fi
 

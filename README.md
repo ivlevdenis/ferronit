@@ -67,6 +67,6 @@ uv pip install -e .                     # maturin соберёт ferrox + ferrox
 ## Docker
 
 ```bash
-docker build -t ferrox:0.8.0 .
-docker run --rm -p 8000:8000 ferrox:0.8.0
+docker build -t ferrox:0.8.1 .
+docker run --rm -p 8000:8000 ferrox:0.8.1
 ```

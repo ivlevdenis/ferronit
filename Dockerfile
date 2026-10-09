@@ -4,8 +4,8 @@
 # собираются maturin-ом в один wheel (abi3-py312) прямо в билд-стейдже. Наружу нужна только
 # сеть до PyPI/crates.io. Итоговый образ содержит один wheel и прод-сервер Granian.
 #
-#   docker build -t ferrox:0.8.0 .
-#   docker run --rm -p 8000:8000 ferrox:0.8.0
+#   docker build -t ferrox:0.8.1 .
+#   docker run --rm -p 8000:8000 ferrox:0.8.1
 #
 # ─────────────────────────── Stage 1: wheel ───────────────────────────
 FROM python:3.12-slim-bookworm AS builder

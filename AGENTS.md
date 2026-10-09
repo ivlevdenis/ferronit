@@ -9,7 +9,7 @@ Ferrox — высокопроизводительный Python ASGI-фреймв
 написан на Rust: **роутинг, парсинг запроса, JSON-сериализация, gzip и CORS**. Бизнес-логика
 остаётся обычным Python: DDD / CQRS, hexagonal (порты и адаптеры), DI-контейнер.
 
-Версия 0.8.0, требуется Python ≥ 3.12. Скорость: 88 768 req/s на Granian (×8.0 к FastAPI
+Версия 0.8.1, требуется Python ≥ 3.12. Скорость: 88 768 req/s на Granian (×8.0 к FastAPI
 на том же коде и железе), полный hot path ~11 мкс на запрос.
 
 Репозиторий — **один дистрибутив** `ferrox` (maturin mixed):
@@ -101,7 +101,7 @@ ferrox dev --server granian        # dev-сервер с reload
 ferrox run --workers 4             # прод: Granian, fallback uvicorn
 
 # docker
-docker build -t ferrox:0.8.0 . && ./scripts/docker_smoke.sh
+docker build -t ferrox:0.8.1 . && ./scripts/docker_smoke.sh
 ```
 
 Тесты Postgres (`tests/test_postgres_real.py`, 4 шт.) требуют контейнер на :5432:

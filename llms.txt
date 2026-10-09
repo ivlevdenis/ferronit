@@ -35,7 +35,7 @@
 .venv/bin/pytest tests/ -q
 ferrox dev --server granian
 ferrox run --workers 4
-docker build -t ferrox:0.8.0 . && ./scripts/docker_smoke.sh
+docker build -t ferrox:0.8.1 . && ./scripts/docker_smoke.sh
 ```
 
 ## Optional

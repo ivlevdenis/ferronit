@@ -10,7 +10,7 @@
 services:
   api:
     build: .
-    image: ferrox:0.8.0
+    image: ferrox:0.8.1
     ports:
       - "8000:8000"
     environment:
@@ -22,7 +22,7 @@ services:
   # examples/app.py — e-commerce с DDD/CQRS (SQLite внутри контейнера)
   ecommerce:
     build: .
-    image: ferrox:0.8.0
+    image: ferrox:0.8.1
     ports:
       - "8001:8000"
     environment:

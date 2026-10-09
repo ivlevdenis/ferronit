@@ -102,11 +102,11 @@ my_service/
 ABI, ни Rust на машине для запуска не нужны.
 
 ```bash
-docker build -t ferrox:0.8.0 .
-docker run --rm -p 8000:8000 ferrox:0.8.0
+docker build -t ferrox:0.8.1 .
+docker run --rm -p 8000:8000 ferrox:0.8.1
 
 # своё приложение
-docker run --rm -p 8000:8000 -v "$PWD:/app" -e APP=app:app ferrox:0.8.0
+docker run --rm -p 8000:8000 -v "$PWD:/app" -e APP=app:app ferrox:0.8.1
 ```
 
 Переменные контейнера: `APP` (`module:attr`, по умолчанию `demo_app:app`),

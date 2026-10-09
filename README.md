@@ -67,6 +67,17 @@ maturin (см. `[tool.maturin]` в `pyproject.toml`), поэтому сам пр
 - Пакет помечен `py.typed`; для Rust-ядра лежит `ferrox/_core.pyi`.
 - `bench/` — измерительный стенд (все цифры выше), не входит в пакет.
 
+## Релиз
+
+```bash
+# версия правится в двух файлах: ferrox/__init__.py и ferrox-rs/Cargo.toml
+git tag -a v0.8.2 -m "Ferrox 0.8.2" && git push origin v0.8.2
+```
+
+Тег `v*` запускает `.github/workflows/release.yml`: проверки и тесты → колёса (Linux glibc/musl,
+macOS, Windows) и sdist → GitHub Release с артефактами → публикация на PyPI (Trusted Publishing).
+Если версия тега не совпадает с `Cargo.toml`/`__init__.py`, workflow падает до публикации.
+
 ## Docker
 
 ```bash

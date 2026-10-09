@@ -2,6 +2,9 @@
 
 High-performance Python ASGI web framework with a Rust core.
 
+**Documentation** (EN / RU): [`docs/`](docs/README.md) — полный справочник по
+фреймворку: роутинг, запросы, инъекция, БД-слои, DDD/DI, Rust-ядро, бенчи.
+
 ## Installation
 
 ```bash

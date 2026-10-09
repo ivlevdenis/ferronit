@@ -73,31 +73,30 @@ httpx-скрипты убраны в `bench/legacy_httpx/`, потому что 
 ## Команды
 
 ```bash
-# установка для разработки (ядро собирается из ferrox-rs/ через [tool.uv.sources])
-uv venv .venv
-uv pip install --python .venv/bin/python -e .
-uv pip install --python .venv/bin/python -e ".[dev]"     # pytest, ruff, mypy, maturin
+# установка для разработки (Poetry ведёт окружение, maturin собирает Rust-ядро)
+poetry install --all-extras                              # venv в .venv/ + зависимости
+PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 poetry run maturin develop --release   # ядро
 
 # всё сразу: линт → типы → докстринги → сборка ядра → тесты
 ./scripts/check.sh
 
-# по отдельности
-.venv/bin/pytest tests/ -q                     # 263 теста, ~4 с
-.venv/bin/pytest tests/security -q             # security-набор + ASVS L1
-.venv/bin/ruff check ferrox tests               # линт
-.venv/bin/mypy ferrox                           # типы
-.venv/bin/python scripts/agent_readiness.py    # покрытие докстрингами (сейчас 100%)
-.venv/bin/python scripts/agent_readiness.py --missing   # что конкретно без докстринга
+# по отдельности (можно и .venv/bin/... — venv лежит внутри проекта)
+poetry run pytest tests/ -q                    # 263 теста, ~4 с
+poetry run pytest tests/security -q            # security-набор + ASVS L1
+poetry run ruff check ferrox tests             # линт
+poetry run mypy ferrox                         # типы
+poetry run python scripts/agent_readiness.py   # покрытие докстрингами (сейчас 100%)
+poetry run python scripts/agent_readiness.py --missing   # что конкретно без докстринга
 
 # только Rust-ядро (после правок в ferrox-rs/)
-cd ferrox-rs && PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 ../.venv/bin/maturin develop --release
+PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 poetry run maturin develop --release
 
-# оба wheel-а в dist/
+# wheel + sdist в dist/
 ./scripts/build_packages.sh
 
 # прод и dev
-ferrox dev --server granian        # dev-сервер с reload
-ferrox run --workers 4             # прод: Granian, fallback uvicorn
+poetry run ferrox dev --server granian   # dev-сервер с reload
+poetry run ferrox run --workers 4        # прод: Granian, fallback uvicorn
 
 # docker
 docker build -t ferrox:0.8.1 . && ./scripts/docker_smoke.sh
@@ -137,6 +136,10 @@ docker run -d --name ferrox-pg -e POSTGRES_PASSWORD=postgres -e POSTGRES_USER=po
 11. **Публичное поведение меняется только вместе с тестом.** Сначала падающий тест, потом код.
 12. **Новые публичные сущности — с докстрингом** (проверяется `scripts/agent_readiness.py`,
     порог 90% в `scripts/check.sh`).
+13. **Окружение ведёт Poetry, wheel собирает maturin**: `poetry install --all-extras` +
+    `poetry run maturin develop --release`. `poetry.lock` в репозитории — при правке
+    зависимостей обновляй `poetry lock`, не удаляй файл. Проект Poetry не ставит
+    (`package-mode = false`), потому что сборка нативная.
 
 ## Стиль кода
 

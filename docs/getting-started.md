@@ -29,7 +29,7 @@ CPython 3.12+ — матрица версий Python не нужна. Внешн
 ```bash
 pip install "ferrox[server]"     # granian, uvicorn — для запуска
 pip install "ferrox[postgres]"   # asyncpg, msgspec — сырой слой данных
-pip install "ferrox[db]"         # SQLAlchemy 2.0 — ORM/Core
+pip install "ferrox[db]"         # SQLAlchemy 2.0 + aiosqlite (асинхронный SQLite)
 pip install "ferrox[pydantic]"   # pydantic v2
 ```
 
@@ -115,15 +115,15 @@ docker run --rm -p 8000:8000 -v "$PWD:/app" -e APP=app:app ferrox:0.8.1
 ## Сборка из исходников
 
 ```bash
-uv venv .venv
-uv pip install -e .                     # maturin соберёт ferrox + ferrox._core
-./scripts/build_packages.sh             # wheel в dist/
+poetry install --all-extras             # окружение + зависимости
+PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 poetry run maturin develop --release   # Rust-ядро
+./scripts/build_packages.sh             # wheel + sdist в dist/
 ```
 
 Пересобрать только Rust-ядро во время разработки:
 
 ```bash
-PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 .venv/bin/maturin develop --release
+PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 poetry run maturin develop --release
 ```
 
 ## Что дальше

@@ -10,11 +10,14 @@ Ferrox — Python ASGI-фреймворк с Rust-ядром: `ferrox/` (Python-
 
 ```bash
 ./scripts/check.sh                                  # ruff → mypy → сборка ядра → pytest
-.venv/bin/pytest tests/ -q                          # 120 тестов
-.venv/bin/ruff check ferrox tests
-.venv/bin/mypy ferrox
-cd ferrox-rs && PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 ../.venv/bin/maturin develop --release
+poetry run pytest tests/ -q                         # 263 теста
+poetry run ruff check ferrox tests
+poetry run mypy ferrox
+PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 poetry run maturin develop --release
 ```
+
+Окружение ведёт Poetry (`poetry.toml` — venv в `.venv/`): `poetry install --all-extras`.
+Проект Poetry не устанавливает (package-mode = false) — wheel собирает maturin.
 
 ## Правила
 

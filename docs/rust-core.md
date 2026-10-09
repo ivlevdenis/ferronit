@@ -69,7 +69,7 @@ handler, params = router.lookup("GET", "/users/7")   # (handler, {"id": "7"}) | 
 ## Сборка
 
 ```bash
-PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 .venv/bin/maturin develop --release
+PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 poetry run maturin develop --release
 ```
 
 Крейт собран с фичей `abi3-py312`: один wheel `cp312-abi3` работает на любом

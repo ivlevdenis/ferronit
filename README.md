@@ -53,11 +53,14 @@ ferrox run --workers 4              # прод: granian, fallback uvicorn
 ## Разработка
 
 ```bash
-uv venv .venv
-uv pip install -e .                     # maturin соберёт ferrox + ferrox._core
+poetry install --all-extras             # окружение в .venv + все зависимости
+PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 poetry run maturin develop --release   # Rust-ядро
 ./scripts/check.sh                      # линт → типы → докстринги → сборка ядра → тесты
-.venv/bin/pytest tests/ -q              # 263 теста
+poetry run pytest tests/ -q             # 263 теста
 ```
+
+Окружение ведёт Poetry (`poetry.toml` — venv внутри проекта), wheel с Rust-ядром собирает
+maturin (см. `[tool.maturin]` в `pyproject.toml`), поэтому сам проект Poetry не ставит.
 
 - **AGENTS.md** — инструкция для код-агентов (Claude Code, Codex, Cursor, ...).
 - **`examples/`** — minimal, DI, LLM + SSE, RAG, WebSocket; `examples/app.py` — DDD-пример.

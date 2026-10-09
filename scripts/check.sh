@@ -15,7 +15,7 @@ MATURIN="$ROOT/.venv/bin/maturin"
 
 if [ ! -x "$PY" ]; then
     echo "нет интерпретатора $PY" >&2
-    echo "создай окружение: uv venv .venv && uv pip install --python .venv/bin/python -e '.[dev]'" >&2
+    echo "создай окружение: poetry install --all-extras (+ poetry run maturin develop --release)" >&2
     exit 1
 fi
 

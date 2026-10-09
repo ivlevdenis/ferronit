@@ -48,7 +48,8 @@ jobs:
           python -m venv /tmp/poetry-venv
           /tmp/poetry-venv/bin/pip install --quiet poetry
           echo "/tmp/poetry-venv/bin" >> "$GITHUB_PATH"
-          poetry install --all-extras
+          # в этом же шаге poetry ещё нет в PATH (GITHUB_PATH влияет на следующие шаги) — путь явный
+          /tmp/poetry-venv/bin/poetry install --all-extras
 
       - name: Линт, типы, ядро и тесты
         run: ./scripts/check.sh
@@ -71,7 +72,10 @@ jobs:
           target: ${{ matrix.target }}
           args: --release --out dist
           sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
-          manylinux: auto
+          # 2_28, а не auto: для target=aarch64 auto выбирает manylinux2014-cross, где старый
+          # ассемблер не собирает ring (chacha-armv8-linux64.S) — джоба падала на cc-rs.
+          # Проверено пробником: 2_28 собирает и aarch64, и x86_64; теги колёс согласованы.
+          manylinux: 2_28
       - uses: actions/upload-artifact@v6
         with:
           name: wheels-linux-${{ matrix.target }}

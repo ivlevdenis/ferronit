@@ -7,9 +7,9 @@
 [![License](https://img.shields.io/pypi/l/ferronit)](LICENSE)
 [![GitHub stars](https://img.shields.io/github/stars/ivlevdenis/ferronit)](https://github.com/ivlevdenis/ferronit/stargazers)
 
-Высокопроизводительный Python ASGI-фреймворк с ядром на Rust. Маршрутизация,
-разбор запроса, JSON, gzip и CORS работают в нативном коде; ваши хендлеры —
-обычный Python.
+Быстрая замена легаси-кода, который не тянет нагрузку: маршрутизация, разбор запроса,
+JSON, gzip, CORS и PostgreSQL уходят в Rust-ядро, а ваши хендлеры остаются обычным Python.
+Миграция, а не переписывание.
 
 **Документация:** [`docs/`](docs/README.md) — быстрый старт, роутинг, запросы,
 инъекция, слой данных (три варианта), DDD/DI, Rust-ядро, бенчмарки, ASVS.

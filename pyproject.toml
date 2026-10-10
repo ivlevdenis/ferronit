@@ -1,7 +1,7 @@
 [project]
 name = "ferronit"
 dynamic = ["version"]
-description = "High-performance Python ASGI web framework with a Rust core (routing, JSON, PostgreSQL)"
+description = "Fast replacement for legacy Python web services that can't handle the load — routing, JSON and PostgreSQL in Rust, handlers stay plain Python"
 readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE"]

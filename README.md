@@ -7,8 +7,9 @@
 [![License](https://img.shields.io/pypi/l/ferronit)](LICENSE)
 [![GitHub stars](https://img.shields.io/github/stars/ivlevdenis/ferronit)](https://github.com/ivlevdenis/ferronit/stargazers)
 
-A high-performance Python ASGI framework with a Rust core. Routing, request parsing,
-JSON, gzip and CORS run in native code; your handlers stay plain Python.
+Your legacy Python service is hitting its performance ceiling. Ferronit moves the hot path —
+routing, request parsing, JSON, gzip, CORS, PostgreSQL — into a Rust core, while your handlers
+stay plain Python. A migration, not a rewrite.
 
 **Documentation:** [`docs/`](docs/README.md) — quick start, routing, requests,
 dependency injection, the data layer (three options), DDD/DI, the Rust core,

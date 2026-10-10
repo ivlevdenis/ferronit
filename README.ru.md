@@ -22,7 +22,7 @@ pip install ferronit        # ставит сразу Python-слой и нат�
 
 Ferronit — **один пакет**, собранный [maturin](https://www.maturin.rs)-ом как
 mixed-проект. Ядро (`ferronit._core`) собирается с фичей `abi3-py312` — один wheel
-работает на всех CPython от 3.12 до 3.14+. Внешних runtime-зависимостей нет.
+работает на всех CPython от 3.12 до 3.15+. Внешних runtime-зависимостей нет.
 
 ```python
 # app.py

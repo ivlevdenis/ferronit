@@ -23,7 +23,7 @@ pip install ferronit        # installs the Python layer and the native core toge
 
 Ferronit is a **single package** built with [maturin](https://www.maturin.rs) as a
 mixed project. The core (`ferronit._core`) is compiled with the `abi3-py312` feature, so
-one wheel works on every CPython from 3.12 to 3.14+. It has no runtime dependencies.
+one wheel works on every CPython from 3.12 to 3.15+. It has no runtime dependencies.
 
 ```python
 # app.py

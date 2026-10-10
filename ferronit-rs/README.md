@@ -24,4 +24,4 @@ cd ferronit-rs && PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 maturin develop --releas
 ```
 
 Сборка идёт с `abi3-py312`: один wheel (`cp312-abi3`) работает на всех CPython от 3.12,
-включая 3.14 — матрица версий Python не нужна.
+включая 3.15 — матрица версий Python не нужна.

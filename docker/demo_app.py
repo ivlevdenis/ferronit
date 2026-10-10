@@ -4,7 +4,7 @@
 зависимостей, поэтому годится и для smoke-теста образа, и как отправная точка.
 
 Свой проект подключается через монтирование и APP:
-    docker run --rm -p 8000:8000 -v "$PWD:/app" -e APP=app:app ferronit:0.9.1
+    docker run --rm -p 8000:8000 -v "$PWD:/app" -e APP=app:app ferronit:0.10.0
 """
 
 from __future__ import annotations

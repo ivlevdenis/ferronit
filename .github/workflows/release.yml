@@ -1,6 +1,6 @@
 # Релиз Ferronit: проверки → колеса под все платформы → GitHub Release → PyPI.
 #
-#   git tag -a v0.9.1 -m "Ferronit 0.9.1" && git push origin v0.9.1
+#   git tag -a v0.10.0 -m "Ferronit 0.10.0" && git push origin v0.10.0
 #
 # Триггер — тег вида v*; workflow_dispatch запускает проверки и сборку без публикации.
 # Публикация на PyPI — по API-токену из секрета репозитория PYPI_API_TOKEN.

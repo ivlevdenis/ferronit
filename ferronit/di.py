@@ -83,7 +83,9 @@ class Container:
             # строковые аннотации (PEP 563 / `from __future__ import annotations`)
             sig = inspect.signature(concrete, eval_str=True)
         except (ValueError, TypeError):
-            return concrete()
+            instance = concrete()
+            self._instances[concrete] = instance
+            return instance
 
         kwargs = {}
         for name, param in sig.parameters.items():
@@ -105,4 +107,7 @@ class Container:
                         f"{concrete.__name__} — зарегистрируй её в контейнере"
                     ) from None
 
-        return concrete(**kwargs)
+        # Ленивый синглтон: первый get() строит и кэширует, дальше отдаёт кэш.
+        instance = concrete(**kwargs)
+        self._instances[concrete] = instance
+        return instance

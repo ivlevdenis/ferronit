@@ -42,6 +42,7 @@ class Ferronit:
         "_app",
         "_container",
         "_debug",
+        "_deferred_routes",
         "_lifespan_fn",
         "_max_body_size",
         "_middleware",
@@ -67,6 +68,7 @@ class Ferronit:
         self._max_body_size = max_body_size
         self._container = container if container is not None else Container()
         self._lifespan_fn = lifespan
+        self._deferred_routes: list = []
 
     @property
     def openapi(self) -> OpenAPI:
@@ -130,12 +132,18 @@ class Ferronit:
         _methods = [m.upper() for m in (methods or ["GET"])]
 
         def decorator(handler):
-            # Auto-bind if handler has type hints beyond just `req`
-            from ferronit.binding import bind as _bind
-            wrapped = _bind(handler, container=self._container)
+            # Auto-bind: request-параметры резолвим сразу, DI — на старте (pre-bind)
+            from ferronit.binding import build, plan
+
+            p = plan(handler, container=self._container)
+            if p.di_keys:
+                self._deferred_routes.append((_methods, path, handler, p))
+            else:
+                wrapped = build(handler, p, container=self._container)
+                for m in _methods:
+                    self._app.add_route(m, path, wrapped)
 
             for m in _methods:
-                self._app.add_route(m, path, wrapped)
                 self._openapi.add_route(m, path, handler, **meta)
             return handler
 
@@ -170,6 +178,24 @@ class Ferronit:
         """
         static.mount(self, prefix)
 
+    def _flush_deferred(self) -> None:
+        """Resolve DI deps for deferred routes and register them in the router.
+
+        Called after lifespan startup (and lazily before the first HTTP request
+        when no lifespan runs), so DI params are pre-bound once rather than
+        resolved on every request.
+        """
+        if not self._deferred_routes:
+            return
+        from ferronit.binding import build
+
+        deferred, self._deferred_routes = self._deferred_routes, []
+        for methods, path, handler, p in deferred:
+            resolved = {name: self._container.get(key) for name, key in p.di_keys}
+            wrapped = build(handler, p, container=self._container, resolved=resolved)
+            for m in methods:
+                self._app.add_route(m, path, wrapped)
+
     async def _run_lifespan(self, scope: dict, receive, send) -> None:
         """Serve ASGI lifespan, running the registered lifespan function around it.
 
@@ -188,6 +214,7 @@ class Ferronit:
                     return
         cm = asynccontextmanager(fn) if inspect.isasyncgenfunction(fn) else fn
         async with cm():
+            self._flush_deferred()
             while True:
                 message = await receive()
                 if message["type"] == "lifespan.startup":
@@ -239,6 +266,8 @@ class Ferronit:
                 if ws.state.value < 2:
                     await ws.close(1011)
             return
+
+        self._flush_deferred()
 
         method = scope.get("method", "GET")
         path = scope.get("path", "/")

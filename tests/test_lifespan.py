@@ -64,6 +64,17 @@ async def test_di_injects_repo_from_container():
     assert json.loads(body) == {"token": "plain"}
 
 
+async def test_factory_is_cached_lazy_singleton():
+    container = Container()
+    container.singleton(Annotated[str, "secret"], "x")
+    container.factory(Repo)
+
+    a = container.get(Repo)
+    b = container.get(Repo)
+    assert a is b            # фабрика кэшируется — один экземпляр на контейнер
+    assert a.token == b.token == "x"
+
+
 async def test_lifespan_registers_resource_and_runs_teardown():
     container = Container()
     app = _make_app(container)

@@ -8,7 +8,7 @@ from typing import Annotated, Any, Union, get_args, get_origin, get_type_hints
 
 from ferronit.core.request import PathParamError, Request, RequestError
 
-__all__ = ["Header", "bind"]
+__all__ = ["Header", "bind", "build", "plan"]
 
 _TRUE = frozenset({"true", "1", "yes", "on"})
 _FALSE = frozenset({"false", "0", "no", "off"})
@@ -28,21 +28,34 @@ class Header:
         self.name = name
 
 
-def bind(handler, container=None):
-    """Bind a handler's arguments from the request and the DI container.
+class _Plan:
+    """Pre-computed handler binding plan (classification, no wrapper yet)."""
 
-    Fast paths (chosen at registration time, zero per-request overhead):
-        1. pass_through — handler expects Request directly;
-        2. bind_params — handler has typed path/query/header/body params;
-        3. default — fallback.
+    __slots__ = ("body_resolvers", "di_keys", "is_async", "pass_through", "resolvers")
 
-    ``container`` (optional) adds DI resolution: a parameter whose type or
-    ``Annotated[...]`` key is registered in the container is resolved from it
-    at request time, instead of being treated as a request parameter.
+    def __init__(self, resolvers, body_resolvers, is_async, pass_through, di_keys) -> None:
+        self.resolvers = resolvers
+        self.body_resolvers = body_resolvers
+        self.is_async = is_async
+        self.pass_through = pass_through
+        self.di_keys = di_keys
 
-    Для каждого параметра на регистрации собирается коэрсер-замыкание и источник
-    (path/query/header/body) — на каждый запрос остаётся только вызов готовой
-    функции, без ``get_origin``/``isinstance`` в рантайме.
+
+def plan(handler, container=None) -> _Plan:
+    """Classify a handler's parameters into a bind plan.
+
+    The plan records, for each parameter, where its value comes from
+    (request / header / body / DI container / path-query). DI parameters are
+    resolved later — at startup — so the same plan can be built into a wrapper
+    with pre-bound dependencies.
+
+    Args:
+        handler: The route handler function.
+        container: Optional DI container; DI params are those whose type or
+            ``Annotated[...]`` key is registered in it.
+
+    Returns:
+        A :class:`_Plan` ready for :func:`build`.
     """
     sig = inspect.signature(handler)
     try:
@@ -55,24 +68,23 @@ def bind(handler, container=None):
     defaults = {n: p.default for n, p in sig.parameters.items()
                 if p.default is not inspect.Parameter.empty}
 
-    # Fast path 1: single Request parameter with no hints → pass through
-    if len(param_names) == 1 and not hints and next(iter(sig.parameters.values())).annotation is inspect.Parameter.empty:
-        if is_async:
-            async def pass_through_async(req):
-                return await handler(req)
-            pass_through_async.__name__ = handler.__name__
-            return pass_through_async
-        else:
-            return handler  # no wrapping needed
+    # Fast path: single Request parameter with no hints → pass through
+    if (
+        len(param_names) == 1
+        and not hints
+        and next(iter(sig.parameters.values())).annotation is inspect.Parameter.empty
+    ):
+        return _Plan([], [], is_async, True, [])
 
-    # Fast path 2: build a specialised resolver.
     # Резолвер — (kind, name, coercer, default, is_list, element_coercer, extra):
     #   kind="req"    → сам Request;
     #   kind="header" → extra = имя заголовка;
     #   kind="body"   → extra = класс модели (await req.model);
+    #   kind="di"     → extra = ключ контейнера;
     #   kind="auto"   → path/query.
     resolvers: list[tuple[str, str, Any, Any, bool, Any, Any]] = []
     body_resolvers: list[tuple[str, type]] = []
+    di_keys: list[tuple[str, Any]] = []
     for name in param_names:
         if name == "req" or hints.get(name) is Request:
             resolvers.append(("req", name, None, None, False, None, None))
@@ -92,6 +104,7 @@ def bind(handler, container=None):
         # DI-зависимость: тип/Annotated-ключ зарегистрирован в контейнере
         if container is not None and hint is not None and container.has(hint):
             resolvers.append(("di", name, None, default, False, None, hint))
+            di_keys.append((name, hint))
             continue
         element = _element_type(base)
         resolvers.append((
@@ -104,14 +117,63 @@ def bind(handler, container=None):
             None,
         ))
 
-    if is_async:
+    return _Plan(resolvers, body_resolvers, is_async, False, di_keys)
+
+
+def build(handler, plan: _Plan, container=None, resolved: dict | None = None):
+    """Build the handler wrapper from a :func:`plan`.
+
+    ``resolved`` maps DI parameter names to already-resolved instances; those
+    parameters become constants ("value" resolvers), so the wrapper does no
+    per-request ``container.get`` for them.
+
+    Args:
+        handler: The route handler function.
+        plan: The :class:`_Plan` produced by :func:`plan`.
+        container: DI container used for any unresolved DI parameters.
+        resolved: Optional ``{param_name: instance}`` for pre-bound DI deps.
+
+    Returns:
+        A wrapper callable ready to be registered as a route handler.
+    """
+    if plan.pass_through:
+        if plan.is_async:
+            async def pass_through_async(req):
+                return await handler(req)
+            pass_through_async.__name__ = handler.__name__
+            return pass_through_async
+        return handler  # no wrapping needed
+
+    resolvers = plan.resolvers
+    if resolved:
+        resolvers = [
+            ("value", r[1], None, r[3], False, None, resolved[r[1]])
+            if r[0] == "di" and r[1] in resolved
+            else r
+            for r in plan.resolvers
+        ]
+
+    # Все параметры — заранее подставленные константы → прямой вызов без резолвера.
+    if resolvers and all(r[0] == "value" for r in resolvers):
+        values = tuple(r[6] for r in resolvers)
+        if plan.is_async:
+            async def direct_async(req):
+                return await handler(*values)
+            direct_async.__name__ = handler.__name__
+            return direct_async
+        def direct_sync(req):
+            return handler(*values)
+        direct_sync.__name__ = handler.__name__
+        return direct_sync
+
+    if plan.is_async:
         async def bind_async(req):
-            body = {n: await req.model(m) for n, m in body_resolvers} if body_resolvers else {}
+            body = {n: await req.model(m) for n, m in plan.body_resolvers} if plan.body_resolvers else {}
             return await handler(*_bind_values(req, resolvers, body, container))
         bind_async.__name__ = handler.__name__
         return bind_async
 
-    if body_resolvers:
+    if plan.body_resolvers:
         raise TypeError(
             f"{handler.__name__}: body-параметры требуют async-хендлер "
             f"(нельзя await в sync-функции)"
@@ -121,6 +183,11 @@ def bind(handler, container=None):
         return handler(*_bind_values(req, resolvers, {}, container))
     bind_sync.__name__ = handler.__name__
     return bind_sync
+
+
+def bind(handler, container=None):
+    """Convenience wrapper: :func:`plan` + :func:`build` with lazy DI resolution."""
+    return build(handler, plan(handler, container), container=container)
 
 
 def _unwrap_annotated(hint: Any) -> tuple[Any, Header | None]:
@@ -214,6 +281,9 @@ def _bind_values(req: Request, resolvers: list, body_values: dict, container=Non
             continue
         if kind == "di":
             values.append(container.get(r[6]))
+            continue
+        if kind == "value":
+            values.append(r[6])
             continue
         _, name, coercer, default, is_list, element_coercer, extra = r
         if kind == "body":

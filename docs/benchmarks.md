@@ -25,37 +25,37 @@
 
 | Вариант | 1 строка | 100 строк | 1000 строк | /ping |
 |---|---|---|---|---|
-| Ferronit + asyncpg (dict) | 16 067 | 7 988 | 1 450 | 92 481 |
-| Ferronit + msgspec | 16 617 | 11 309 | 2 473 | 92 036 |
-| Ferronit + rawmodel | 15 080 | 10 138 | 2 368 | 94 118 |
-| Litestar + msgspec | 11 797 | 8 429 | 2 304 | 37 692 |
-| Litestar + asyncpg | 11 310 | 7 799 | 1 691 | 37 616 |
-| Litestar + ORM | 2 495 | 1 462 | 293 | 36 796 |
-| FastAPI + ORM | 2 236 | 1 020 | 158 | 20 107 |
-| Django + ORM | 344 | 349 | 320 | 1 733 |
+| Ferronit + rawmodel (lifespan+DI) | 20 102 | 17 097 | 10 275 | 148 410 |
+| Litestar + msgspec | 12 197 | 8 562 | 2 161 | 37 017 |
+| Litestar + asyncpg | 11 754 | 7 231 | 1 636 | 37 647 |
+| Litestar + ORM | 2 493 | 1 423 | 271 | 37 192 |
+| FastAPI + ORM | 2 207 | 986 | 147 | 19 836 |
+| Django + ORM | 494 | 479 | 497 | 1 790 |
 
-- `/ping` (чистый фреймворк) — Ferronit **×2.5** к Litestar, **×4.7** к FastAPI.
-- Слой `rawmodel` идёт ≈ вровень с обычным msgspec — per-request цена модели
-  пренебрежима.
+- `/ping` (чистый фреймворк) — Ferronit **×4.0** к Litestar, **×7.5** к FastAPI.
+- Абсолютные req/s пляшут ±10–20% между сессиями (фон машины, частота CPU) —
+  сравнивать стоит только соотношения внутри одного прогона.
 
 ## Потолок: чистый Granian
 
 Совсем **без фреймворка** тот же сервер выдаёт:
 
 ```
-granian, пустое тело     ~168 000 req/s
-granian, {"ok": true}    ~145 000 req/s
+Совсем **без фреймворка** тот же сервер выдаёт (границы замера, цифры шумят ±20%):
+
+granian, пустое тело     ~120 000–185 000 req/s
+granian, {"ok": true}    ~135 000–170 000 req/s
 ```
 
-То есть `/ping` у Ferronit (~94k) сохраняет **~65%** от JSON-потолка сырого
-сервера; Litestar ~26%, FastAPI ~14%, Django ~1%.
+`/ping` у Ferronit из матрицы выше — 128 192 req/s; строгие проценты к потолку
+не выводим — абсолюты между сессиями несравнимы.
 
 ## Воспроизведение
 
 ```bash
 ./bench/run_all_ab.sh                              # вся матрица маршрутизации/payload
 .venv/bin/python bench/ab_bench.py --server granian --routes 1000 --requests 20000
-.venv/bin/python bench/bench_rows.py               # матрица строк (8 вариантов)
+.venv/bin/python bench/bench_rows.py               # матрица строк (6 вариантов)
 .venv/bin/python bench/bench_granian_bare.py       # потолок чистого granian
 .venv/bin/python bench/plot_rows.py                # → bench_rows.html
 ```

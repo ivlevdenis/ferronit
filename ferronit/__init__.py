@@ -1,9 +1,9 @@
 """Ferronit — High-performance ASGI web framework with DDD support."""
 
+from ferronit.binding import Header
 from ferronit.core.app import Ferronit
 from ferronit.core.request import Request, UploadedFile
 from ferronit.core.response import JSONResponse, Response, StreamingResponse, TextResponse
-from ferronit.injection import Header
 from ferronit.websocket import WebSocket, WebSocketState
 
 __all__ = [

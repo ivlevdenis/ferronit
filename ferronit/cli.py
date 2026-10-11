@@ -33,6 +33,8 @@ APP_TEMPLATE = '''\
 """Application services — use cases, no HTTP/DB code."""
 
 from ferronit.ddd import Command, Query
+from ferronit.hexagonal import Logger
+from infrastructure.db import OrderRepo
 
 
 class CreateOrderCmd(Command):
@@ -50,7 +52,7 @@ class GetOrderQ(Query):
 
 
 class OrderService:
-    def __init__(self, repo, logger):
+    def __init__(self, repo: OrderRepo, logger: Logger):
         self._repo = repo
         self._log = logger
 
@@ -66,15 +68,15 @@ class OrderService:
 '''
 
 INFRA_TEMPLATE = '''\
-"""Infrastructure — DB, DI container."""
+"""Infrastructure — DB models and repositories."""
 
-import asyncio
+from typing import Annotated
 
-from ferronit.contrib.rawdb import RawUnitOfWork, create_raw_pool
+from ferronit.contrib.rawdb import Pool
 from ferronit.contrib.rawmodel import Model
-from ferronit.di import Container
-from ferronit.hexagonal import Logger, PrintLogger
-from config import config
+
+# Маркер пула: разные БД — разные Annotated-ключи.
+ShopPool = Annotated[Pool, "shop"]
 
 
 class OrderModel(Model):
@@ -85,42 +87,19 @@ class OrderModel(Model):
     status: str = "created"
 
 
-_pool = None
-_lock = asyncio.Lock()
-
-
-async def get_pool():
-    """Пул создаём лениво: на импорте цикл событий сервера ещё не запущен."""
-    global _pool
-    if _pool is None:
-        async with _lock:
-            if _pool is None:
-                _pool = await create_raw_pool(
-                    config.get("DATABASE_URL", "postgresql://postgres:postgres@127.0.0.1:5432/postgres"),
-                    min_size=1,
-                    max_size=16,
-                )
-    return _pool
-
-
 class OrderRepo:
+    def __init__(self, pool: ShopPool):
+        self._pool = pool
+
     async def save(self, order):
-        async with RawUnitOfWork(await get_pool()) as uow:
+        async with self._pool.uow() as uow:
             await uow.model(OrderModel).save(OrderModel(
                 id=order.id, user_id=order.user_id, amount=order.amount, status=order.status,
             ))
 
     async def get(self, order_id):
-        async with RawUnitOfWork(await get_pool(), readonly=True) as uow:
+        async with self._pool.uow(readonly=True) as uow:
             return await uow.model(OrderModel).get(order_id)
-
-
-def bootstrap():
-    c = Container()
-    c.singleton(Logger, PrintLogger())
-    c.factory("OrderRepo", OrderRepo)
-    c.factory("OrderService", OrderService)
-    return c
 '''
 
 INTERFACES_TEMPLATE = '''\
@@ -128,42 +107,62 @@ INTERFACES_TEMPLATE = '''\
 
 from ferronit import Ferronit
 from ferronit.contrib.cors import cors
+from ferronit.contrib.rawdb import create_pool
 from ferronit.contrib.tracing import trace_middleware
-from ferronit.ddd import CommandBus, QueryBus
-from application.services import CreateOrderCmd, GetOrderQ
-from infrastructure.db import bootstrap
+from ferronit.di import Container
+from ferronit.hexagonal import Logger, PrintLogger
+from application.services import CreateOrderCmd, GetOrderQ, OrderService
+from config import config
+from infrastructure.db import OrderRepo, ShopPool
 
-container = bootstrap()
-cmd_bus = CommandBus()
-query_bus = QueryBus()
-cmd_bus.register(CreateOrderCmd, container.get("OrderService").create)
-query_bus.register(GetOrderQ, container.get("OrderService").get)
+container = Container()
+container.singleton(Logger, PrintLogger())
+container.factory(OrderRepo)
+container.factory(OrderService)
 
-app = Ferronit()
+app = Ferronit(container=container)
 app.use(cors())
 app.use(trace_middleware)
 
 
+@app.lifespan
+async def lifespan():
+    pool = await create_pool(
+        config.get("DATABASE_URL", "postgresql://postgres:postgres@127.0.0.1:5432/postgres"),
+        min_size=1,
+        max_size=16,
+    )
+    container.singleton(ShopPool, pool)
+    async with pool.uow() as uow:
+        await uow.connection.execute(
+            "CREATE TABLE IF NOT EXISTS orders ("
+            "id text PRIMARY KEY, user_id text NOT NULL, amount integer NOT NULL, "
+            "status text DEFAULT 'created')"
+        )
+    yield
+    await pool.close()
+
+
 @app.route("/")
 def home(req):
-    return {{"app": "%s"}}
+    return {{"app": "{name}"}}
 
 
 @app.route("/orders", methods=["POST"])
-async def create_order(req):
+async def create_order(req, orders: OrderService):
     body = await req.json()
     cmd = CreateOrderCmd(
         order_id=body["id"],
         user_id=body.get("user_id", "anonymous"),
         amount=body["amount"],
     )
-    result = await cmd_bus.dispatch(cmd)
+    result = await orders.create(cmd)
     return {{"order_id": result.id, "status": result.status}}
 
 
 @app.route("/orders/{{order_id}}")
-async def get_order(req):
-    result = await query_bus.ask(GetOrderQ(req.params["order_id"]))
+async def get_order(req, orders: OrderService):
+    result = await orders.get(GetOrderQ(req.params["order_id"]))
     if result is None:
         return {{"error": "not found"}}
     return {{"order_id": result.id, "status": result.status}}

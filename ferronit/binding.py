@@ -1,4 +1,4 @@
-"""Auto-injection — zero-overhead: pre-computed at registration time."""
+"""Handler argument binding — request params + container DI, pre-computed at registration."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from typing import Annotated, Any, Union, get_args, get_origin, get_type_hints
 
 from ferronit.core.request import PathParamError, Request, RequestError
 
-__all__ = ["Header", "inject"]
+__all__ = ["Header", "bind"]
 
 _TRUE = frozenset({"true", "1", "yes", "on"})
 _FALSE = frozenset({"false", "0", "no", "off"})
@@ -28,13 +28,17 @@ class Header:
         self.name = name
 
 
-def inject(handler):
-    """Wrap handler with pre-computed parameter resolution strategy.
+def bind(handler, container=None):
+    """Bind a handler's arguments from the request and the DI container.
 
     Fast paths (chosen at registration time, zero per-request overhead):
         1. pass_through — handler expects Request directly;
-        2. inject_params — handler has typed path/query/header/body params;
+        2. bind_params — handler has typed path/query/header/body params;
         3. default — fallback.
+
+    ``container`` (optional) adds DI resolution: a parameter whose type or
+    ``Annotated[...]`` key is registered in the container is resolved from it
+    at request time, instead of being treated as a request parameter.
 
     Для каждого параметра на регистрации собирается коэрсер-замыкание и источник
     (path/query/header/body) — на каждый запрос остаётся только вызов готовой
@@ -85,6 +89,10 @@ def inject(handler):
             resolvers.append(("body", name, None, default, False, None, base))
             body_resolvers.append((name, base))
             continue
+        # DI-зависимость: тип/Annotated-ключ зарегистрирован в контейнере
+        if container is not None and hint is not None and container.has(hint):
+            resolvers.append(("di", name, None, default, False, None, hint))
+            continue
         element = _element_type(base)
         resolvers.append((
             "auto",
@@ -97,11 +105,11 @@ def inject(handler):
         ))
 
     if is_async:
-        async def inject_async(req):
+        async def bind_async(req):
             body = {n: await req.model(m) for n, m in body_resolvers} if body_resolvers else {}
-            return await handler(*_resolve(req, resolvers, body))
-        inject_async.__name__ = handler.__name__
-        return inject_async
+            return await handler(*_bind_values(req, resolvers, body, container))
+        bind_async.__name__ = handler.__name__
+        return bind_async
 
     if body_resolvers:
         raise TypeError(
@@ -109,10 +117,10 @@ def inject(handler):
             f"(нельзя await в sync-функции)"
         )
 
-    def inject_sync(req):
-        return handler(*_resolve(req, resolvers, {}))
-    inject_sync.__name__ = handler.__name__
-    return inject_sync
+    def bind_sync(req):
+        return handler(*_bind_values(req, resolvers, {}, container))
+    bind_sync.__name__ = handler.__name__
+    return bind_sync
 
 
 def _unwrap_annotated(hint: Any) -> tuple[Any, Header | None]:
@@ -196,13 +204,16 @@ def _make_coercer(hint: Any):
     return None
 
 
-def _resolve(req: Request, resolvers: list, body_values: dict) -> list[Any]:
+def _bind_values(req: Request, resolvers: list, body_values: dict, container=None) -> list[Any]:
     """Resolve handler arguments in signature order (positional, no kwargs)."""
     values: list[Any] = []
     for r in resolvers:
         kind = r[0]
         if kind == "req":
             values.append(req)
+            continue
+        if kind == "di":
+            values.append(container.get(r[6]))
             continue
         _, name, coercer, default, is_list, element_coercer, extra = r
         if kind == "body":

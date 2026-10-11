@@ -31,7 +31,7 @@ ferronit/
 │   ├── request.py         # Request (заголовки/query в Rust), PathParamError, BodyTooLarge
 │   └── response.py        # Response, JSONResponse, StreamingResponse, TextResponse
 ├── routing.py             # RouteNode + независимая от CLI регистрация маршрутов
-├── injection.py           # auto-injection параметров (стратегия выбирается при регистрации)
+├── binding.py            # привязка параметров хендлера: request + контейнер (выбирается при регистрации)
 ├── middleware.py          # стек middleware
 ├── di.py                  # Container: синглтоны/фабрики по типу или строке
 ├── ddd.py                 # AggregateRoot, Command/Query, CommandBus, Repository
@@ -161,7 +161,7 @@ docker run -d --name ferronit-pg -e POSTGRES_PASSWORD=postgres -e POSTGRES_USER=
 | ASGI-движок, регистрация маршрутов, ошибки | `ferronit/core/app.py` |
 | Заголовки/query/body запроса | `ferronit/core/request.py` |
 | Ответы, стриминг | `ferronit/core/response.py` |
-| Типы параметров в хендлерах | `ferronit/injection.py` |
+| Типы параметров в хендлерах | `ferronit/binding.py` |
 | DDD / CQRS | `ferronit/ddd.py` |
 | Порты и адаптеры | `ferronit/hexagonal.py`, `ferronit/contrib/*` |
 | Доступ к БД | `ferronit/contrib/rawdb.py` + `rawmodel.py` (asyncpg без ORM) — единственный слой данных |
@@ -188,9 +188,8 @@ docker run -d --name ferronit-pg -e POSTGRES_PASSWORD=postgres -e POSTGRES_USER=
 
 ## Известные ограничения
 
-- **Хуков жизненного цикла нет**: `lifespan` только шлёт startup/shutdown.complete, `app.on_startup` /
-  `app.on_shutdown` не существуют. Ресурсы (пул БД, прогрев кэша) открываются лениво или в
-  `__main__` — см. `examples/rag_app.py` (`_seed_once`).
+- **Жизненный цикл — одна функция `@app.lifespan`** (async-генератор: setup → `yield` → teardown),
+  ресурсы кладутся в `app.container.singleton(...)` на старте. Отдельных `on_startup`/`on_shutdown` нет.
 - **Логирования нет**: необработанное исключение → 500 без трейсбека (в `debug=True` исключение
   поднимается наружу). Для прода нужен свой access/error-лог.
 - Rate limiter in-memory: при `--workers > 1` лимиты умножаются на число воркеров (для

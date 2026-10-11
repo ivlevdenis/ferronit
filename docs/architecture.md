@@ -83,18 +83,47 @@ order = await qb.ask(GetOrder("1"))
 ## DI-контейнер
 
 ```python
+from ferronit import Ferronit
 from ferronit.di import Container
 
-c = Container()
-c.singleton(Config, EnvConfig())
-c.singleton("pool", await create_raw_pool(dsn))
-c.factory("CartService", CartService)     # создаётся лениво при первом get()
-
-svc = c.get("CartService")
+app = Ferronit(container=Container())
+app.container.singleton(Logger, PrintLogger())
+app.container.factory(UserRepository)     # создаётся лениво при первом get()
 ```
 
 `factory` разрешает зависимости конструктора по type-аннотациям рекурсивно
-через контейнер (строковые аннотации по PEP 563 обрабатываются).
+через контейнер (строковые аннотации по PEP 563 обрабатываются). Несколько
+экземпляров одного типа различаются через `Annotated`:
+
+```python
+from typing import Annotated
+from ferronit.contrib.rawdb import Pool
+
+ShopPool = Annotated[Pool, "shop"]
+
+class UserRepository:
+    def __init__(self, pool: ShopPool):
+        ...
+```
+
+## Жизненный цикл
+
+`@app.lifespan` — одна async-генераторная функция: setup до `yield`, teardown
+после. Здесь создают ресурсы и кладут их в контейнер:
+
+```python
+from ferronit.contrib.rawdb import create_pool
+
+@app.lifespan
+async def lifespan():
+    pool = await create_pool(DSN, min_size=1, max_size=16)
+    app.container.singleton(ShopPool, pool)
+    yield
+    await pool.close()
+```
+
+Пул создаётся в цикле событий сервера (asyncpg привязан к циклу), доступен
+хендлерам через `app.container`, на shutdown закрывается.
 
 ## Конфигурация
 

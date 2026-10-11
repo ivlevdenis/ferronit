@@ -98,6 +98,28 @@ async def repo(pool):
     await pool.release(conn)
 
 
+async def test_create_pool_wrapper_roundtrip():
+    """Pool — обёртка: create_pool → uow() (write/read) → close()."""
+    from ferronit.contrib.rawdb import Pool, create_pool
+
+    try:
+        wrapped = await create_pool(DSN, min_size=1, max_size=2)
+    except Exception as exc:  # pragma: no cover - зависит от окружения
+        pytest.skip(f"PostgreSQL недоступен: {type(exc).__name__}")
+
+    assert isinstance(wrapped, Pool)
+    async with wrapped.uow() as uow:
+        await uow.connection.execute(DDL)
+        row = await uow[TABLE].save({"name": "pool", "email": "p@example.com", "age": 5})
+
+    assert row["name"] == "pool"
+    async with wrapped.uow(readonly=True) as uow:
+        got = await uow[TABLE].get(row["id"])
+    assert got["name"] == "pool"
+
+    await wrapped.close()
+
+
 async def test_save_returns_generated_pk(repo) -> None:
     row = await repo.save({"name": "A", "email": "a@example.com", "age": 30})
     assert row["id"] == 1

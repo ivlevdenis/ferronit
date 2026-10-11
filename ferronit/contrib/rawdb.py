@@ -25,8 +25,10 @@ from ferronit.hexagonal import Adapter, UnitOfWork
 
 __all__ = [
     "Condition",
+    "Pool",
     "RawRepository",
     "RawUnitOfWork",
+    "create_pool",
     "create_raw_pool",
 ]
 
@@ -324,6 +326,40 @@ class RawUnitOfWork(UnitOfWork):
             await self._pool.release(conn)
 
 
+class Pool:
+    """Typed wrapper around an ``asyncpg.Pool`` — the unit-of-work entry point.
+
+    Distinct pools are told apart by annotation: ``Annotated[Pool, "users"]``
+    vs ``Annotated[Pool, "orders"]``. The wrapper keeps ``RawUnitOfWork``
+    construction on the pool, so repositories depend on a specific pool type,
+    not on the raw driver.
+
+    Args:
+        pool: A ready asyncpg pool (from :func:`create_pool` or ``asyncpg``).
+    """
+
+    __slots__ = ("_pool",)
+
+    def __init__(self, pool: asyncpg.Pool) -> None:
+        self._pool = pool
+
+    def uow(self, pk: str = "id", *, readonly: bool = False) -> RawUnitOfWork:
+        """Return a :class:`RawUnitOfWork` over a connection from this pool.
+
+        Args:
+            pk: Primary key column used by the repository.
+            readonly: Skip ``BEGIN`` (read-only operations).
+
+        Returns:
+            A unit of work; use it as ``async with pool.uow() as uow:``.
+        """
+        return RawUnitOfWork(self._pool, pk, readonly=readonly)
+
+    async def close(self) -> None:
+        """Close the underlying pool."""
+        await self._pool.close()
+
+
 async def create_raw_pool(
     dsn: str, *, min_size: int = 1, max_size: int = 10
 ) -> asyncpg.Pool:
@@ -342,3 +378,22 @@ async def create_raw_pool(
         (rows are converted to dicts by the repository).
     """
     return await asyncpg.create_pool(dsn, min_size=min_size, max_size=max_size)
+
+
+async def create_pool(
+    dsn: str, *, min_size: int = 1, max_size: int = 10
+) -> Pool:
+    """Create a :class:`Pool` wrapper around an asyncpg pool.
+
+    Call this inside the event loop the server runs in (typically in
+    ``@app.lifespan`` setup): asyncpg binds the pool to that loop.
+
+    Args:
+        dsn: libpq-style connection string, e.g. ``postgresql://user@host/db``.
+        min_size: Minimum number of pooled connections.
+        max_size: Maximum number of pooled connections.
+
+    Returns:
+        A :class:`Pool` ready to hand out units of work.
+    """
+    return Pool(await asyncpg.create_pool(dsn, min_size=min_size, max_size=max_size))

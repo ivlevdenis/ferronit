@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import inspect
+from contextlib import asynccontextmanager
+
 import msgspec
 
 from ferronit._core import FerronitApp as RustApp
@@ -10,6 +13,7 @@ from ferronit.contrib.tracing import current_trace_id
 from ferronit.core.request import BodyTooLarge, PathParamError, RequestError, UnsupportedMediaType
 from ferronit.core.request import Request as PyRequest
 from ferronit.core.response import JSONResponse, Response, StreamingResponse, TextResponse
+from ferronit.di import Container
 from ferronit.middleware import Middleware
 from ferronit.openapi import OpenAPI
 
@@ -34,9 +38,26 @@ class Ferronit:
             registered route feeds.
     """
 
-    __slots__ = ("_app", "_debug", "_max_body_size", "_middleware", "_mw_cache", "_openapi", "_ws_origins")
+    __slots__ = (
+        "_app",
+        "_container",
+        "_debug",
+        "_lifespan_fn",
+        "_max_body_size",
+        "_middleware",
+        "_mw_cache",
+        "_openapi",
+        "_ws_origins",
+    )
 
-    def __init__(self, *, debug: bool = False, max_body_size: int | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        debug: bool = False,
+        max_body_size: int | None = None,
+        container: Container | None = None,
+        lifespan=None,
+    ) -> None:
         self._app = RustApp()
         self._openapi = OpenAPI()
         self._debug = debug
@@ -44,11 +65,35 @@ class Ferronit:
         self._mw_cache: dict = {}
         self._ws_origins: dict[str, list[str]] = {}
         self._max_body_size = max_body_size
+        self._container = container if container is not None else Container()
+        self._lifespan_fn = lifespan
 
     @property
     def openapi(self) -> OpenAPI:
         """OpenAPI: The schema builder fed by every registered route."""
         return self._openapi
+
+    @property
+    def container(self) -> Container:
+        """Container: The DI registry shared by handlers and services."""
+        return self._container
+
+    def lifespan(self, fn):
+        """Register the single async lifespan function.
+
+        The function is an async generator: setup runs before ``yield`` (before
+        the first request), teardown after it (on shutdown). Resources created
+        in setup are typically stored via ``app.container.singleton(...)``.
+
+        Args:
+            fn: Async generator function ``setup → yield → teardown``, or an
+                ``@asynccontextmanager``-wrapped function.
+
+        Returns:
+            The function unchanged, so it can be used as a decorator.
+        """
+        self._lifespan_fn = fn
+        return fn
 
     def use(self, mw):
         """Register middleware or a CORS-style extension.
@@ -85,9 +130,9 @@ class Ferronit:
         _methods = [m.upper() for m in (methods or ["GET"])]
 
         def decorator(handler):
-            # Auto-inject if handler has type hints beyond just `req`
-            from ferronit.injection import inject as _inject
-            wrapped = _inject(handler)
+            # Auto-bind if handler has type hints beyond just `req`
+            from ferronit.binding import bind as _bind
+            wrapped = _bind(handler, container=self._container)
 
             for m in _methods:
                 self._app.add_route(m, path, wrapped)
@@ -125,6 +170,32 @@ class Ferronit:
         """
         static.mount(self, prefix)
 
+    async def _run_lifespan(self, scope: dict, receive, send) -> None:
+        """Serve ASGI lifespan, running the registered lifespan function around it.
+
+        Startup runs before ``lifespan.startup.complete``; teardown runs before
+        ``lifespan.shutdown.complete``. Without a registered lifespan the
+        startup/shutdown messages complete immediately.
+        """
+        fn = self._lifespan_fn
+        if fn is None:
+            while True:
+                message = await receive()
+                if message["type"] == "lifespan.startup":
+                    await send({"type": "lifespan.startup.complete"})
+                elif message["type"] == "lifespan.shutdown":
+                    await send({"type": "lifespan.shutdown.complete"})
+                    return
+        cm = asynccontextmanager(fn) if inspect.isasyncgenfunction(fn) else fn
+        async with cm():
+            while True:
+                message = await receive()
+                if message["type"] == "lifespan.startup":
+                    await send({"type": "lifespan.startup.complete"})
+                elif message["type"] == "lifespan.shutdown":
+                    await send({"type": "lifespan.shutdown.complete"})
+                    return
+
     async def __call__(self, scope: dict, receive, send) -> None:
         """ASGI entry point — dispatch one lifespan, WebSocket, or HTTP event.
 
@@ -142,7 +213,7 @@ class Ferronit:
             send: ASGI send channel.
         """
         if scope["type"] == "lifespan":
-            await _lifespan(scope, receive, send)
+            await self._run_lifespan(scope, receive, send)
             return
         if scope["type"] == "websocket":
             from ferronit.websocket import WebSocket
@@ -380,23 +451,6 @@ def _to_response(result) -> Response:
     if hasattr(result, "__aiter__"):
         return StreamingResponse(result)
     return TextResponse(str(result))
-
-
-async def _lifespan(scope: dict, receive, send) -> None:
-    """Answer ASGI lifespan startup/shutdown messages until shutdown.
-
-    Args:
-        scope: The ASGI lifespan scope.
-        receive: ASGI receive channel.
-        send: ASGI send channel.
-    """
-    while True:
-        message = await receive()
-        if message["type"] == "lifespan.startup":
-            await send({"type": "lifespan.startup.complete"})
-        elif message["type"] == "lifespan.shutdown":
-            await send({"type": "lifespan.shutdown.complete"})
-            return
 
 
 async def _send_empty(send, status: int) -> None:

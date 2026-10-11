@@ -44,6 +44,17 @@ class Container:
         """
         self._factories[key] = concrete or key
 
+    def has(self, key: Any) -> bool:
+        """True if ``key`` is registered as a singleton or a factory.
+
+        Args:
+            key: Lookup key (a type, ``Annotated[...]`` alias, or a string).
+
+        Returns:
+            Whether :meth:`get` would resolve ``key``.
+        """
+        return key in self._instances or key in self._factories
+
     def get(self, target: Any) -> Any:
         """Resolve a dependency by key, instantiating and caching it if needed.
 

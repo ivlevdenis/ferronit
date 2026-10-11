@@ -10,11 +10,11 @@
 ## `rawdb` — сырой слой
 
 ```python
-from ferronit.contrib.rawdb import RawUnitOfWork, Condition, create_raw_pool
+from ferronit.contrib.rawdb import Pool, RawUnitOfWork, Condition, create_pool
 
-pool = await create_raw_pool("postgresql://user:***@host/db", min_size=1, max_size=16)
+pool = await create_pool("postgresql://user:***@host/db", min_size=1, max_size=16)
 
-async with RawUnitOfWork(pool) as uow:            # BEGIN / COMMIT (или rollback)
+async with pool.uow() as uow:                     # BEGIN / COMMIT (или rollback)
     repo = uow["users"]                           # имя таблицы → RawRepository
     row = await repo.save({"name": "Ada"})        # → {"name": "Ada", "id": 1}
     await repo.update(1, {"name": "Grace"})
@@ -22,7 +22,9 @@ async with RawUnitOfWork(pool) as uow:            # BEGIN / COMMIT (или rollb
     await repo.delete(1)
 ```
 
-- `RawUnitOfWork(pool, readonly=False)` — одно соединение, одна транзакция.
+- `Pool` — обёртка над asyncpg-пулом; `pool.uow(readonly=False)` отдаёт
+  `RawUnitOfWork` (одно соединение, одна транзакция), `pool.close()` закрывает.
+- `RawUnitOfWork(pool, readonly=False)` — то же напрямую.
   `readonly=True` пропускает `BEGIN` (экономия одного round-trip) для read-only.
 - `Condition(sql, params)` — фрагмент с PostgreSQL-плейсхолдерами (`$1`…).
   Комбинируется операторами:
@@ -35,8 +37,10 @@ c = ~Condition("email IS NULL")          # NOT (...)
 
 Плейсхолдеры перенумеровываются автоматически при комбинировании.
 
-Жизненный цикл: создавайте пул **внутри** event loop сервера; используйте
-**один** `RawUnitOfWork` на запрос.
+Жизненный цикл: создавайте пул **внутри** event loop сервера — обычно в
+`@app.lifespan` (setup до `yield`, `pool.close()` после); используйте **один**
+`RawUnitOfWork` на запрос. Несколько пулов одного типа различаются
+`Annotated[Pool, "marker"]` — см. [архитектуру](../architecture.md).
 
 ## `rawmodel` — типизированные модели и query DSL
 

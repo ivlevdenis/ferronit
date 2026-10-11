@@ -1,4 +1,4 @@
-# Внедрение зависимостей
+# Привязка параметров хендлера
 
 ## Зачем
 
@@ -71,6 +71,35 @@ class NewUser(msgspec.Struct):
 async def create_user(user: NewUser):
     return {"id": 1, "name": user.name}
 ```
+
+## Зависимости из контейнера
+
+Параметр, чей тип (или `Annotated`-ключ) зарегистрирован в `app.container`,
+резолвится из контейнера, а не из запроса — хендлер получает готовый порт:
+
+```python
+from ferronit import Ferronit
+from ferronit.di import Container
+
+app = Ferronit(container=Container())
+app.container.factory(UserRepository)
+
+@app.route("/users/{id}")
+async def get_user(req, users: UserRepository):
+    return await users.get(req.params["id"])
+```
+
+Порядок разрешения параметра:
+
+1. `req` / `Request` — сам объект запроса;
+2. `Annotated[T, Header(...)]` — заголовок;
+3. модель тела (`msgspec.Struct`/dataclass/Pydantic) — `req.model(...)`;
+4. тип или `Annotated`-ключ из контейнера — `container.get(...)`;
+5. иначе — path/query-параметр.
+
+DI-зависимость резолвится на каждом запросе, поэтому синглтоны (пулы, клиенты)
+должны быть зарегистрированы до первого запроса — обычно в `@app.lifespan`
+(см. [архитектуру](architecture.md)).
 
 ## Missing против invalid
 

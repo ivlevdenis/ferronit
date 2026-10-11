@@ -18,4 +18,4 @@ __all__ = [
     "WebSocket",
     "WebSocketState",
 ]
-__version__ = "0.12.0"
+__version__ = "0.12.1"

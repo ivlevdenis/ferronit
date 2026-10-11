@@ -1,11 +1,10 @@
 # Ferronit — запуск образа «одной командой».
 #
 #   docker compose up --build api           # минимальное приложение (порт 8000)
-#   docker compose up --build ecommerce     # полный DDD-пример на SQLite (порт 8001)
-#   docker compose --profile postgres up -d # Postgres 18 рядом (порт 5432)
+#   docker compose --profile postgres up --build ecommerce   # DDD-пример на Postgres (порт 8001)
+#   docker compose --profile postgres up -d  # Postgres 18 рядом (порт 5432)
 #
-# ecommerce переключается на Postgres так:
-#   DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/ferronit
+# ecommerce работает с Postgres из профиля `postgres` (DATABASE_URL уже настроен).
 
 services:
   api:
@@ -19,7 +18,7 @@ services:
       PORT: "8000"
     restart: unless-stopped
 
-  # examples/app.py — e-commerce с DDD/CQRS (SQLite внутри контейнера)
+  # examples/app.py — e-commerce с DDD/CQRS (Postgres из профиля `postgres`)
   ecommerce:
     build: .
     image: ferronit:0.10.0
@@ -27,10 +26,12 @@ services:
       - "8001:8000"
     environment:
       APP: examples.app:app
-      DATABASE_URL: sqlite+aiosqlite:////tmp/ecommerce.db
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/ferronit
       HEALTH_PATH: /cart
       WORKERS: "1"
     working_dir: /app
+    depends_on:
+      - postgres
     command:
       - sh
       - -c

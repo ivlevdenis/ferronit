@@ -33,7 +33,7 @@ step "mypy (типы)"
 if [ "${SKIP_CORE:-0}" = "1" ]; then
     step "Rust-ядро: пропущено (SKIP_CORE=1)"
 elif [ -x "$MATURIN" ]; then
-    step "Rust-ядро (maturin, abi3) — ferronit_core + ferronit_core.db"
+    step "Rust-ядро (maturin, abi3) — ferronit_core"
     (PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 "$MATURIN" develop --release 2>&1 | tail -3)
 else
     step "Rust-ядро: maturin не найден, пропускаю"

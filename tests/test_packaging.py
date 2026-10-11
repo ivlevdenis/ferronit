@@ -1,8 +1,7 @@
 """Сборка и версии: единый пакет ferronit содержит Python-слой и нативное ядро.
 
-`pip install ferronit` ставит всё сразу: пакет `ferronit/` (включая `ferronit.db` — слой
-данных) и нативное ядро `ferronit._core`. Отдельных дистрибутивов `ferronit-core`/`ferronit-db`
-быть не должно.
+`pip install ferronit` ставит всё сразу: пакет `ferronit/` и нативное ядро
+`ferronit._core`. Отдельных дистрибутивов `ferronit-core`/`ferronit-db` быть не должно.
 """
 
 from __future__ import annotations
@@ -23,19 +22,12 @@ def _cargo_version() -> str:
     return match.group(1)
 
 
-def test_native_core_and_db_live_under_ferronit() -> None:
-    """Ядро доступно как `ferronit._core`, слой данных — как `ferronit.db`."""
+def test_native_core_lives_under_ferronit() -> None:
+    """Ядро доступно как `ferronit._core`."""
     import ferronit._core as core
 
     for name in ("Router", "Request", "Response", "FerronitApp"):
         assert hasattr(core, name), f"ferronit._core.{name} отсутствует"
-    assert hasattr(core, "db"), "ferronit._core.db отсутствует"
-
-    assert hasattr(ferronit, "db"), "ferronit.db отсутствует"
-    for name in ("connect", "query_json"):
-        assert hasattr(ferronit.db, name), f"ferronit.db.{name} отсутствует"
-    assert ferronit.db.connect is core.db.connect
-    assert ferronit.db.query_json is core.db.query_json
 
 
 def test_single_distribution() -> None:
@@ -45,6 +37,22 @@ def test_single_distribution() -> None:
         assert not any(d.replace(" ", "").startswith(prefix) for d in requires), (
             f"ferronit не должен зависеть от {prefix}: {requires}"
         )
+
+
+def test_msgspec_is_runtime_dependency() -> None:
+    """msgspec — обязательная runtime-зависимость (не optional extra)."""
+    requires = metadata.requires("ferronit") or []
+    assert any("msgspec" in d.replace(" ", "") for d in requires), (
+        f"msgspec должен быть обязательной зависимостью: {requires}"
+    )
+
+
+def test_asyncpg_is_runtime_dependency() -> None:
+    """asyncpg — обязательная runtime-зависимость (слой данных rawdb/rawmodel)."""
+    requires = metadata.requires("ferronit") or []
+    assert any("asyncpg" in d.replace(" ", "") for d in requires), (
+        f"asyncpg должен быть обязательной зависимостью: {requires}"
+    )
 
 
 def test_version_matches_cargo() -> None:

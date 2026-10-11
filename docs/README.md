@@ -1,7 +1,7 @@
 # Ferronit — документация
 
 Ferronit — быстрая замена легаси Python-сервисов, которые упираются в производительность.
-Горячий путь (роутинг, JSON, gzip, CORS, PostgreSQL) — в Rust-ядре `ferronit._core`,
+Горячий путь (роутинг, JSON, gzip, CORS) — в Rust-ядре `ferronit._core`,
 хендлеры — обычный Python.
 
 Документация на русском. Карта:
@@ -19,10 +19,7 @@ Ferronit — быстрая замена легаси Python-сервисов, �
 - [OpenAPI](openapi.md) — автоматическая генерация схемы
 
 ## Слой данных
-- [Какой слой выбрать](data/overview.md) — три слоя и таблица «когда что»
-- [Запросы в Rust](data/rust-query.md) — `ferronit.db`: запрос → JSON целиком в Rust
-- [Сырой asyncpg + модели](data/rawdb.md) — `RawUnitOfWork`, `Model`, query DSL
-- [SQLAlchemy](data/sqlalchemy.md) — ORM и Core-репозитории
+- [Слой данных](data/overview.md) — rawdb + rawmodel: `RawUnitOfWork`, `Model`, query DSL
 
 ## Архитектура
 - [DDD, DI и гексагональная](architecture.md) — порты/адаптеры, шины, контейнер, конфиг, CLI

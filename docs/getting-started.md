@@ -18,18 +18,16 @@ Ferronit — **один пакет**, собранный [maturin](https://www.m
 
 - Python-слой (`ferronit`) — ASGI-движок, DDD/CQRS, DI, contrib;
 - нативное ядро (`ferronit._core`) — маршрутизация, разбор запроса, JSON, gzip, CORS;
-- слой данных (`ferronit.db`) — запросы PostgreSQL → JSON целиком в Rust.
+- слой данных (`ferronit.contrib.rawdb` + `rawmodel`) — asyncpg без ORM, модели и query DSL.
 
 Ядро собрано с фичей `abi3-py312`, поэтому один wheel работает на любом
-CPython 3.12+ — матрица версий Python не нужна. Внешних runtime-зависимостей
-у ядра нет.
+CPython 3.12+ — матрица версий Python не нужна. Обязательные runtime-зависимости —
+`msgspec` (быстрый JSON/валидация) и `asyncpg` (слой данных); ставятся автоматически.
 
 Опциональные extras (только то, что реально используете):
 
 ```bash
 pip install "ferronit[server]"     # granian, uvicorn — для запуска
-pip install "ferronit[postgres]"   # asyncpg, msgspec — сырой слой данных
-pip install "ferronit[db]"         # SQLAlchemy 2.0 + aiosqlite (асинхронный SQLite)
 pip install "ferronit[pydantic]"   # pydantic v2
 ```
 

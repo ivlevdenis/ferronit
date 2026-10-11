@@ -3,13 +3,12 @@
 Проверяют реальное поведение Ferronit; тесты, падающие из-за отсутствия
 защиты, фиксируются вместе с фиксом (тест — регрессионный страж).
 """
+import msgspec
 import pytest
-from sqlalchemy import Column, Integer, MetaData, String, Table
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from ferronit import Ferronit
 from ferronit.contrib.cors import cors
-from ferronit.contrib.db import RelationalUnitOfWork
+from ferronit.contrib.rawmodel import Model, select
 from ferronit.contrib.staticfiles import StaticFiles
 
 # ── helpers ───────────────────────────────────────────────────────────
@@ -38,55 +37,34 @@ async def call_app(app, method: str, path: str, headers: list | None = None,
     return status, hdrs, body_b
 
 
-def make_db_uow():
-    metadata = MetaData()
-    users = Table(
-        "users_sec", metadata,
-        Column("id", Integer, primary_key=True, autoincrement=True),
-        Column("name", String, nullable=False),
-        Column("email", String, nullable=False),
-    )
-    engine = create_async_engine("sqlite+aiosqlite://", echo=False)
-    factory = async_sessionmaker(engine, expire_on_commit=False)
-    return metadata, users, engine, RelationalUnitOfWork(factory)
+class SecUser(Model):
+    __table__ = "users_sec"
+    id: int = 0
+    name: str = ""
+    email: str = ""
 
 
 # ── 1-2. SQL injection ────────────────────────────────────────────────
 
-@pytest.mark.asyncio
-async def test_sql_injection_in_get():
-    """Инъекция в id не выполняется — параметризованный запрос."""
-    metadata, users, engine, uow = make_db_uow()
-    async with engine.begin() as conn:
-        await conn.run_sync(metadata.create_all)
-    async with uow:
-        repo = uow[users]
-        await repo.save({"name": "A", "email": "a@x.io"})
-        await uow.commit()
-        # классика: ' OR '1'='1 — параметризованный get не сработает как SELECT *
-        assert await repo.get("1 OR '1'='1") is None
-        assert await repo.get("1; DROP TABLE users_sec; --") is None
-    await engine.dispose()
+def test_sql_injection_in_get():
+    """Инъекция в id не выполняется — значение уходит bound-параметром."""
+    evil = "1 OR '1'='1"
+    sql, params = select(SecUser).where(SecUser.c.id == evil).compile()
+    assert evil not in sql           # инъекция не попала в текст запроса
+    assert params == [evil]          # а осталась значением параметра
 
 
-@pytest.mark.asyncio
-async def test_sql_injection_in_filter():
+def test_sql_injection_in_filter():
     """Инъекция через значение фильтра остаётся значением, не кодом."""
-    metadata, users, engine, uow = make_db_uow()
-    async with engine.begin() as conn:
-        await conn.run_sync(metadata.create_all)
-    async with uow:
-        repo = uow[users]
-        await repo.save({"name": "admin", "email": "a@x.io"})
-        await repo.save({"name": "user", "email": "u@x.io"})
-        await uow.commit()
+    evil = "' OR '1'='1"
+    sql, params = select(SecUser).where(SecUser.c.name == evil).compile()
+    assert evil not in sql
+    assert params == [evil]
 
-        evil = "' OR '1'='1"
-        rows = await repo.list(users.c.name == evil)
-        assert rows == []  # инъекция не вернула все строки
-        rows = await repo.list(users.c.name == "admin' OR '1'='1")
-        assert rows == []
-    await engine.dispose()
+    drop = "admin'; DROP TABLE users_sec; --"
+    sql2, params2 = select(SecUser).where(SecUser.c.name == drop).compile()
+    assert "DROP TABLE" not in sql2
+    assert params2 == [drop]
 
 
 # ── 3. Path traversal (static files) ──────────────────────────────────
@@ -146,6 +124,25 @@ async def test_xss_json_html_escaping():
     assert status == 200
     assert b"<script>" not in body
     assert b"\\u003cscript\\u003e" in body or b"\\u003Cscript\\u003E" in body
+
+
+@pytest.mark.asyncio
+async def test_xss_msgspec_struct_html_escaping():
+    """msgspec.Struct в ответе (быстрый путь msgspec) тоже экранирует HTML-символы."""
+    class Item(msgspec.Struct):
+        user_input: str
+
+    app = Ferronit()
+
+    @app.route("/xss-struct")
+    def xss_struct(req):
+        return Item(user_input="<script>alert(1)</script>&")
+
+    status, _, body = await call_app(app, "GET", "/xss-struct")
+    assert status == 200
+    assert b"<script>" not in body
+    assert b"\\u003cscript\\u003e" in body
+    assert b"\\u0026" in body
 
 
 # ── 6. Deep nesting in JSON body ──────────────────────────────────────

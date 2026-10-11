@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+import msgspec
+
 from ferronit._core import Request as RustRequest
 from ferronit.contrib.pydantic import decode_json
 
@@ -293,8 +295,6 @@ class Request:
         """
         # Fast path: msgspec.Struct — декод из байт одним C-проходом.
         if isinstance(target, type) and hasattr(target, "__struct_fields__"):
-            import msgspec
-
             body = await self.body()
             try:
                 return msgspec.json.decode(body, type=target)

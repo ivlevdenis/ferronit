@@ -27,7 +27,7 @@ jobs:
     name: Проверки и тесты
     runs-on: ubuntu-latest
     services:
-      # tests/test_ferronit_db.py и tests/test_postgres_real.py ходят в живой PostgreSQL :5432
+      # tests/test_rawdb.py, tests/test_rawmodel.py и tests/test_postgres_real.py ходят в живой PostgreSQL :5432
       postgres:
         image: postgres:18
         env:

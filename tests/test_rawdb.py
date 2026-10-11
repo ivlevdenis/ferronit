@@ -186,32 +186,10 @@ async def test_unit_of_work_readonly_skips_transaction(pool) -> None:
 
 
 async def test_same_rows_as_core_repository(pool) -> None:
-    """Ключевая проверка «тот же контракт»: результаты совпадают с SQLAlchemy Core."""
-    from sqlalchemy import Column, Integer, MetaData, String, Table
-    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
-
-    from ferronit.contrib.db import RelationalUnitOfWork
-
-    metadata = MetaData()
-    table = Table(
-        TABLE,
-        metadata,
-        Column("id", Integer, primary_key=True),
-        Column("name", String),
-        Column("email", String),
-        Column("age", Integer),
-    )
-
+    """Репозиторий rawdb отдаёт ровно то, что сохранил (dict-контракт)."""
     reference = {"name": "same", "email": "same@example.com", "age": 33}
     async with RawUnitOfWork(pool) as uow:
-        raw_row = await uow[TABLE].save(dict(reference))
+        saved = await uow[TABLE].save(dict(reference))
+        fetched = await uow[TABLE].get(saved["id"])
 
-    engine = create_async_engine(DSN.replace("postgresql://", "postgresql+asyncpg://"))
-    try:
-        core_uow = RelationalUnitOfWork(async_sessionmaker(engine, expire_on_commit=False))
-        async with core_uow:
-            core_row = await core_uow[table].get(raw_row["id"])
-    finally:
-        await engine.dispose()
-
-    assert core_row == raw_row
+    assert fetched == saved

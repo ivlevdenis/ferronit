@@ -23,21 +23,22 @@ from ferronit import Response, TextResponse, JSONResponse, StreamingResponse
 
 Возврат модели из хендлера автоматически сериализует её в JSON. Распознаются
 модели с `model_dump` (Pydantic), `__dataclass_fields__`, `__columns__`
-(rawmodel) или `__struct_fields__` (msgspec). msgspec и rawmodel-модели
-сериализуются Rust-энкодером (serde_json), Pydantic — собственным dump.
+(rawmodel) или `__struct_fields__` (msgspec). msgspec-модели (и списки из них)
+сериализуются C-энкодером msgspec, rawmodel и dataclass — Rust-энкодером
+(serde_json), Pydantic — собственным dump.
 
 ```python
 @app.route("/me")
 async def me():
-    return User(id=1, name="Ada")     # msgspec.Struct → JSON в Rust
+    return User(id=1, name="Ada")     # msgspec.Struct → JSON (msgspec C-энкодер)
 ```
 
 ## Какие модели поддерживаются
 
 Для тел запросов и ответов — три вида моделей:
 
-1. **`msgspec.Struct`** — быстрый путь: декод из байтов тела одним C-проходом,
-   сериализация в Rust. Рекомендуемый вариант для горячих путей.
+1. **`msgspec.Struct`** — быстрый путь: декод из байтов тела и сериализация ответа
+   C-энкодером msgspec. Рекомендуемый вариант для горячих путей.
 2. **Pydantic v2** — через зарегистрированный кодек (валидация богаче).
 3. **`@dataclass`** — fallback-кодек без внешних зависимостей.
 
@@ -51,5 +52,5 @@ from ferronit.contrib.pydantic import register_codec, PydanticCodec
 register_codec(MyType, MyCodec)   # decode_json / encode_json теперь знают MyType
 ```
 
-Ядро остаётся без зависимостей: Pydantic импортируется только при
-использовании.
+msgspec входит в ядро (обязательная зависимость); Pydantic остаётся
+опциональным и импортируется только при использовании.

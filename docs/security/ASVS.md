@@ -22,7 +22,7 @@
 | 1.2.1 | Output encoding для HTTP/HTML/XML | ✅ | JSON-escape HTML (XSS-тест + ASVS V1.2.1) |
 | 1.2.2 | URL-encoding при построении URL | ✅ | Ferronit не строит URL из ввода (ASVS V1.2.2) |
 | 1.2.3 | Escaping JS-контента | N/A | Ferronit не генерирует JS |
-| 1.2.4 | **Параметризованные SQL-запросы** | ✅ | CoreRepository (SQLAlchemy bind params), тесты SQL-инъекций |
+| 1.2.4 | **Параметризованные SQL-запросы** | ✅ | rawmodel DSL (bound-параметры), тесты SQL-инъекций |
 | 1.2.5 | Защита от OS command injection | N/A | Ferronit не исполняет команды из ввода |
 | 1.3.1 | Санитизация HTML (WYSIWYG) | 🔴 | Приложение |
 | 1.3.2 | Без eval()/динамического кода | ✅ | В рантайме Ferronit не использует eval (только в бенч-генераторах) |

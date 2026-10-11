@@ -11,7 +11,7 @@
 | `llm_sse_app.py` | LLM как порт (OpenAI/Claude/Mock) + SSE-стриминг токенов |
 | `rag_app.py` | RAG: векторный порт (Qdrant/Chroma/Mock) + LLM на Mock-адаптерах |
 | `ws_app.py` | WebSocket с проверкой Origin (CSRF-over-WebSocket guard) |
-| `app.py` | полный DDD-пример: агрегаты, CommandBus, UnitOfWork, SQLAlchemy |
+| `app.py` | полный DDD-пример: агрегаты, CommandBus, UnitOfWork, rawmodel |
 
 ## Запуск
 

@@ -1,4 +1,4 @@
-"""Ferronit E-Commerce API — full DDD + Hexagonal + Postgres.
+"""Ferronit E-Commerce API — full DDD + Hexagonal + Postgres (rawmodel).
 
 Endpoints:
   POST /cart/items      — add item to cart
@@ -10,6 +10,7 @@ Endpoints:
 """
 
 import asyncio
+import os
 
 try:
     import uvloop
@@ -18,12 +19,12 @@ except ImportError:
     pass
 
 from pydantic import BaseModel
-from sqlalchemy import Column, Float, Integer, String
 
-from ferronit import JSONResponse, Ferronit
+from ferronit import Ferronit
 from ferronit.contrib.cors import cors
-from ferronit.contrib.db import Base, create_relational_uow
 from ferronit.contrib.pydantic.pydantic_codec import install
+from ferronit.contrib.rawdb import RawUnitOfWork, create_raw_pool
+from ferronit.contrib.rawmodel import Model
 from ferronit.contrib.staticfiles import StaticFiles
 from ferronit.ddd import AggregateRoot, Command, CommandBus, Query, QueryBus
 from ferronit.hexagonal import ApplicationService
@@ -32,6 +33,22 @@ install()
 app = Ferronit(debug=True)
 app.use(cors())
 app.mount("/static", StaticFiles("./public"))
+
+DB_URL = os.environ.get("DATABASE_URL", "postgresql://postgres:postgres@127.0.0.1:5432/postgres")
+
+_pool = None
+_lock = asyncio.Lock()
+
+
+async def get_pool():
+    """Пул создаём лениво: на импорте цикл событий сервера ещё не запущен."""
+    global _pool
+    if _pool is None:
+        async with _lock:
+            if _pool is None:
+                _pool = await create_raw_pool(DB_URL, min_size=1, max_size=16)
+    return _pool
+
 
 # ── Domain Models ──────────────────────────────────────────────────────
 
@@ -67,35 +84,29 @@ class Order(AggregateRoot):
         self.total = sum(i.price * i.qty for i in items)
 
 
-# ── DB Models ──────────────────────────────────────────────────────────
+# ── DB Models (rawmodel) ───────────────────────────────────────────────
 
-class CartModel(Base):
-    __tablename__ = "carts"
-    id = Column(String, primary_key=True)
-    user_id = Column(String, nullable=False)
-
-
-class CartItemModel(Base):
-    __tablename__ = "cart_items"
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    cart_id = Column(String, nullable=False)
-    product_id = Column(String, nullable=False)
-    name = Column(String, nullable=False)
-    price = Column(Float, nullable=False)
-    qty = Column(Integer, nullable=False)
+class CartItemModel(Model):
+    __table__ = "cart_items"
+    id: int = 0
+    cart_id: str = ""
+    product_id: str = ""
+    name: str = ""
+    price: float = 0.0
+    qty: int = 0
 
 
-class OrderModel(Base):
-    __tablename__ = "orders"
-    id = Column(String, primary_key=True)
-    user_id = Column(String, nullable=False)
-    total = Column(Float, nullable=False)
+class OrderModel(Model):
+    __table__ = "orders"
+    id: str = ""
+    user_id: str = ""
+    total: float = 0.0
 
 
 # ── Commands / Queries ────────────────────────────────────────────────
 
 class AddToCartCmd(Command):
-    __slots__ = ("user_id", "product_id", "name", "price", "qty")
+    __slots__ = ("name", "price", "product_id", "qty", "user_id")
     def __init__(self, user_id, product_id, name, price, qty=1):
         self.user_id = user_id
         self.product_id = product_id
@@ -139,41 +150,37 @@ class OrderResponse(BaseModel):
 
 class CartService(ApplicationService):
     async def add_item(self, cmd: AddToCartCmd) -> Cart:
-        async with self.uow:
-            repo = self.uow[CartItemModel]
-            cart = Cart(f"cart-{cmd.user_id}", cmd.user_id)
-            cart.add(cmd.product_id, cmd.name, cmd.price, cmd.qty)
+        cart = Cart(f"cart-{cmd.user_id}", cmd.user_id)
+        cart.add(cmd.product_id, cmd.name, cmd.price, cmd.qty)
+        async with RawUnitOfWork(await get_pool()) as uow:
+            repo = uow.model(CartItemModel)
             for item in cart.items:
-                await repo.save(
-                    CartItemModel(
-                        cart_id=cart.id,
-                        product_id=item.product_id,
-                        name=item.name,
-                        price=item.price,
-                        qty=item.qty,
-                    )
-                )
+                await repo.save(CartItemModel(
+                    id=0,
+                    cart_id=cart.id,
+                    product_id=item.product_id,
+                    name=item.name,
+                    price=item.price,
+                    qty=item.qty,
+                ))
         return cart
 
     async def get_cart(self, q: GetCartQ) -> Cart | None:
-        async with self.uow:
-            repo = self.uow[CartItemModel]
-            from sqlalchemy import select
-
-            stmt = select(CartItemModel).where(CartItemModel.cart_id == f"cart-{q.user_id}")
-            result = await self.uow.session.execute(stmt)
-            rows = result.scalars().all()
-            if not rows:
-                return None
-            cart = Cart(f"cart-{q.user_id}", q.user_id)
-            for row in rows:
-                cart.add(row.product_id, row.name, row.price, row.qty)
-            return cart
+        async with RawUnitOfWork(await get_pool(), readonly=True) as uow:
+            rows = await uow.model(CartItemModel).list(
+                CartItemModel.c.cart_id == f"cart-{q.user_id}"
+            )
+        if not rows:
+            return None
+        cart = Cart(f"cart-{q.user_id}", q.user_id)
+        for row in rows:
+            cart.add(row.product_id, row.name, row.price, row.qty)
+        return cart
 
 
 class OrderService(ApplicationService):
-    def __init__(self, cart_service: CartService, uow):
-        super().__init__(uow)
+    def __init__(self, cart_service: CartService):
+        super().__init__()
         self._cart_service = cart_service
 
     async def place_order(self, cmd: PlaceOrderCmd) -> Order | None:
@@ -182,29 +189,24 @@ class OrderService(ApplicationService):
             return None
 
         order = Order(f"ord-{cmd.user_id}-{len(cart.items)}", cmd.user_id, cart.items)
-        async with self.uow:
-            repo = self.uow[OrderModel]
-            await repo.save(OrderModel(id=order.id, user_id=order.user_id, total=order.total))
+        async with RawUnitOfWork(await get_pool()) as uow:
+            await uow.model(OrderModel).save(
+                OrderModel(id=order.id, user_id=order.user_id, total=order.total)
+            )
         return order
 
     async def get_order(self, q: GetOrderQ) -> Order | None:
-        async with self.uow:
-            repo = self.uow[OrderModel]
-            row = await repo.get(q.order_id)
-            if not row:
-                return None
-            return Order(row.id, row.user_id, [])
+        async with RawUnitOfWork(await get_pool(), readonly=True) as uow:
+            row = await uow.model(OrderModel).get(q.order_id)
+        if not row:
+            return None
+        return Order(row.id, row.user_id, [])
 
 
 # ── Setup ──────────────────────────────────────────────────────────────
 
-import os
-
-DB_URL = os.environ.get("DATABASE_URL", "sqlite+aiosqlite:///ecommerce.db")
-uow = create_relational_uow(DB_URL)
-
-cart_service = CartService(uow)
-order_service = OrderService(cart_service, uow)
+cart_service = CartService()
+order_service = OrderService(cart_service)
 
 cmd_bus = CommandBus()
 cmd_bus.register(AddToCartCmd, cart_service.add_item)
@@ -300,14 +302,21 @@ async def get_order(req) -> OrderResponse:
 # ── Startup ────────────────────────────────────────────────────────────
 
 async def init_db():
-    from sqlalchemy.ext.asyncio import create_async_engine
-    engine = create_async_engine(DB_URL, echo=False)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    await engine.dispose()
+    """Создать таблицы (DDL) — отдельный пул, не трогает request-пул."""
+    pool = await create_raw_pool(DB_URL, min_size=1, max_size=1)
+    async with RawUnitOfWork(pool) as uow:
+        await uow.connection.execute(
+            "CREATE TABLE IF NOT EXISTS cart_items ("
+            "id serial PRIMARY KEY, cart_id text NOT NULL, product_id text NOT NULL, "
+            "name text NOT NULL, price double precision NOT NULL, qty integer NOT NULL)"
+        )
+        await uow.connection.execute(
+            "CREATE TABLE IF NOT EXISTS orders ("
+            "id text PRIMARY KEY, user_id text NOT NULL, total double precision NOT NULL)"
+        )
+    await pool.close()
 
 if __name__ == "__main__":
-    import asyncio
     asyncio.run(init_db())
     import uvicorn
     uvicorn.run(app, port=8000)

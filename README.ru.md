@@ -12,17 +12,18 @@ JSON, gzip, CORS и PostgreSQL уходят в Rust-ядро, а ваши хен
 Миграция, а не переписывание.
 
 **Документация:** [`docs/`](docs/README.md) — быстрый старт, роутинг, запросы,
-инъекция, слой данных (три варианта), DDD/DI, Rust-ядро, бенчмарки, ASVS.
+инъекция, слой данных (rawdb + rawmodel), DDD/DI, Rust-ядро, бенчмарки, ASVS.
 
 ## Установка
 
 ```bash
-pip install ferronit        # ставит сразу Python-слой и нативное ядро (ferronit._core + ferronit.db)
+pip install ferronit        # ставит сразу Python-слой и нативное ядро
 ```
 
 Ferronit — **один пакет**, собранный [maturin](https://www.maturin.rs)-ом как
 mixed-проект. Ядро (`ferronit._core`) собирается с фичей `abi3-py312` — один wheel
-работает на всех CPython от 3.12 до 3.15+. Внешних runtime-зависимостей нет.
+работает на всех CPython от 3.12 до 3.15+. Обязательные runtime-зависимости —
+`msgspec` (быстрый JSON/валидация) и `asyncpg` (слой данных rawdb/rawmodel).
 
 ```python
 # app.py

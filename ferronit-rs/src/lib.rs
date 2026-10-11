@@ -5,8 +5,6 @@ use pyo3::types::{PyBool, PyBytes, PyDict, PyFloat, PyInt, PyList, PyString, PyT
 use serde::ser::Serializer as _;
 use std::collections::HashMap;
 
-mod db;
-
 // ── Router ────────────────────────────────────────────────────────────
 
 #[pyclass]
@@ -771,16 +769,5 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Request>()?;
     m.add_class::<Response>()?;
     m.add_class::<FerronitApp>()?;
-
-    // Вложенный модуль данных: `ferronit._core.db` (алиасы `ferronit_core.db`, `ferronit_db`).
-    let db_module = PyModule::new(m.py(), "db")?;
-    db::register(&db_module)?;
-    m.add_submodule(&db_module)?;
-    // add_submodule ставит атрибут, но не sys.modules — регистрируем, чтобы
-    // `from ferronit._core.db import ...` тоже работал.
-    m.py()
-        .import("sys")?
-        .getattr("modules")?
-        .set_item("ferronit._core.db", &db_module)?;
     Ok(())
 }

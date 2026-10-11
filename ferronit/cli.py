@@ -68,40 +68,56 @@ class OrderService:
 INFRA_TEMPLATE = '''\
 """Infrastructure — DB, DI container."""
 
-from sqlalchemy import Column, Integer, String
-from ferronit.contrib.db import Base, create_relational_uow
+import asyncio
+
+from ferronit.contrib.rawdb import RawUnitOfWork, create_raw_pool
+from ferronit.contrib.rawmodel import Model
 from ferronit.di import Container
 from ferronit.hexagonal import Logger, PrintLogger
 from config import config
 
 
-class OrderModel(Base):
-    __tablename__ = "orders"
-    id = Column(String, primary_key=True)
-    user_id = Column(String, nullable=False)
-    amount = Column(Integer, nullable=False)
-    status = Column(String, default="created")
+class OrderModel(Model):
+    __table__ = "orders"
+    id: str = ""
+    user_id: str = ""
+    amount: int = 0
+    status: str = "created"
+
+
+_pool = None
+_lock = asyncio.Lock()
+
+
+async def get_pool():
+    """Пул создаём лениво: на импорте цикл событий сервера ещё не запущен."""
+    global _pool
+    if _pool is None:
+        async with _lock:
+            if _pool is None:
+                _pool = await create_raw_pool(
+                    config.get("DATABASE_URL", "postgresql://postgres:postgres@127.0.0.1:5432/postgres"),
+                    min_size=1,
+                    max_size=16,
+                )
+    return _pool
 
 
 class OrderRepo:
-    def __init__(self, uow):
-        self._uow = uow
-
     async def save(self, order):
-        async with self._uow:
-            self._uow[OrderModel].save(order)
+        async with RawUnitOfWork(await get_pool()) as uow:
+            await uow.model(OrderModel).save(OrderModel(
+                id=order.id, user_id=order.user_id, amount=order.amount, status=order.status,
+            ))
 
     async def get(self, order_id):
-        async with self._uow:
-            return await self._uow[OrderModel].get(order_id)
+        async with RawUnitOfWork(await get_pool(), readonly=True) as uow:
+            return await uow.model(OrderModel).get(order_id)
 
 
 def bootstrap():
-    uow = create_relational_uow(config.get("DATABASE_URL", "sqlite+aiosqlite:///db.sqlite3"))
-
     c = Container()
     c.singleton(Logger, PrintLogger())
-    c.singleton("uow", uow)
     c.factory("OrderRepo", OrderRepo)
     c.factory("OrderService", OrderService)
     return c
@@ -171,7 +187,7 @@ from ferronit.config import EnvConfig
 config = EnvConfig()
 PORT = config.int("PORT", 8000)
 DEBUG = config.bool("DEBUG", False)
-DB_URL = config.get("DATABASE_URL", "sqlite+aiosqlite:///db.sqlite3")
+DB_URL = config.get("DATABASE_URL", "postgresql://postgres:postgres@127.0.0.1:5432/postgres")
 '''
 
 PYPROJECT_BASE = '''
@@ -179,7 +195,7 @@ PYPROJECT_BASE = '''
 name = "{name}"
 version = "0.1.0"
 requires-python = ">=3.12"
-dependencies = ["ferronit", "uvicorn[standard]", "sqlalchemy[asyncio]"]
+dependencies = ["ferronit", "uvicorn[standard]"]
 
 [project.optional-dependencies]
 dev = ["pytest", "httpx"]

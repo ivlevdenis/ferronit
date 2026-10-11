@@ -12,18 +12,19 @@ routing, request parsing, JSON, gzip, CORS, PostgreSQL — into a Rust core, whi
 stay plain Python. A migration, not a rewrite.
 
 **Documentation:** [`docs/`](docs/README.md) — quick start, routing, requests,
-dependency injection, the data layer (three options), DDD/DI, the Rust core,
+dependency injection, the data layer (rawdb + rawmodel), DDD/DI, the Rust core,
 benchmarks, ASVS. *(Docs are currently written in Russian.)*
 
 ## Installation
 
 ```bash
-pip install ferronit        # installs the Python layer and the native core together (ferronit._core + ferronit.db)
+pip install ferronit        # installs the Python layer and the native core together
 ```
 
 Ferronit is a **single package** built with [maturin](https://www.maturin.rs) as a
 mixed project. The core (`ferronit._core`) is compiled with the `abi3-py312` feature, so
-one wheel works on every CPython from 3.12 to 3.15+. It has no runtime dependencies.
+one wheel works on every CPython from 3.12 to 3.15+. Its only runtime dependencies are
+`msgspec` (fast JSON/validation) and `asyncpg` (the rawdb/rawmodel data layer).
 
 ```python
 # app.py

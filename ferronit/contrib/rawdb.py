@@ -1,15 +1,9 @@
 """PostgreSQL adapter on a raw driver — thin asyncpg repository and Unit of Work.
 
-Why this module exists: it is a measured experiment. The SQLAlchemy layer costs
-roughly 0.43–0.55 ms per request inside this framework (see ``bench/README.md``),
-so this adapter keeps the repository surface while talking to ``asyncpg`` directly.
-
-What it deliberately does **not** have: any query builder, ORM mapping, unit of
-work identity map, relationship loading or migration support. Filters are
-explicit SQL fragments with bound parameters, and rows come back as ``dict``s.
-That is the trade-off: less comfort, and no protection from N+1 style mistakes,
-in exchange for roughly three times the throughput of the SQLAlchemy Core path
-on the same queries.
+This is Ferronit's single data layer: a thin repository/UnitOfWork over asyncpg,
+with rows as ``dict``s. It deliberately has no ORM mapping, relationship loading
+or migration support — filters are explicit SQL fragments with bound parameters,
+which keeps the hot path fast and predictable.
 
 Lifecycle rules worth knowing:
 

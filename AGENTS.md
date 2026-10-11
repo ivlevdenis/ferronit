@@ -17,8 +17,7 @@ Ferronit — высокопроизводительный Python ASGI-фрейм
 | Каталог | Что это |
 |---|---|
 | `ferronit/` | Python-пакет: ASGI-движок, DDD, DI, contrib + нативное ядро `ferronit._core` |
-| `ferronit-rs/` | Rust-крейт (роутинг/JSON/gzip/CORS + `db`), собирается как `ferronit._core` |
-| `ferronit/db.py` | Слой данных `ferronit.db` (`connect` / `query_json` → `ferronit._core.db`) |
+| `ferronit-rs/` | Rust-крейт (роутинг/JSON/gzip/CORS), собирается как `ferronit._core` |
 
 Сборка — maturin (`abi3-py312`), один wheel: `pip install ferronit` ставит сразу Python-слой и ядро.
 
@@ -42,7 +41,6 @@ ferronit/
 ├── config.py              # EnvConfig: типизированные переменные окружения
 ├── cli.py                 # ferronit new / dev / run + шаблоны scaffold-проекта
 └── contrib/               # инфраструктурные адаптеры (опциональные зависимости)
-    ├── db.py              # SQLAlchemy: RelationalRepository/UnitOfWork, CoreRepository
     ├── rawdb.py           # тонкий слой на asyncpg: RawRepository/RawUnitOfWork (без ORM)
     ├── rawmodel.py        # декларативные модели + Query/select поверх rawdb (asyncpg)
     ├── llm.py             # LlmPort + OpenAiAdapter, ClaudeAdapter, MockLlmAdapter
@@ -52,12 +50,10 @@ ferronit/
     └── pydantic/          # кодек pydantic v2
 
 ferronit-rs/src/lib.rs        # Rust: Router, parse_headers, Response::json (в т.ч. модели), gzip, CORS
-ferronit-rs/src/db.rs         # Rust: PostgreSQL → JSON (deadpool-postgres + prepare_cached, маппинг типов)
-ferronit/db.py                # слой данных ferronit.db (connect/query_json → ferronit._core.db)
 pyproject.toml                # метаданные, extras, [tool.poetry], [tool.maturin], ruff/mypy
 poetry.toml, poetry.lock      # окружение Poetry (venv в .venv/) и зафиксированные зависимости
 bench/                     # измерительный стенд (все цифры — docs/benchmarks.md) + README.md внутри
-tests/                     # 263 теста; tests/security/ — 64 (в т.ч. 14 ASVS L1)
+tests/                     # 249 тестов; tests/security/ — 64 (в т.ч. 14 ASVS L1)
 examples/                  # минимальный, DI, LLM+SSE, RAG, WebSocket + README
 docker/                    # Dockerfile-обвязка: demo_app.py, entrypoint.sh
 docs/                      # документация: README.md (хаб), data/ (слой данных), benchmarks.md,
@@ -119,8 +115,8 @@ docker run -d --name ferronit-pg -e POSTGRES_PASSWORD=postgres -e POSTGRES_USER=
 2. **`Cargo.lock` в репозитории** — фичи pyo3 менять только через `Cargo.toml` + пересборку.
 3. **`abi3-py312`, не понижать**: `PyString::to_str` требует `PyUnicode_AsUTF8AndSize`, которого
    нет в limited API до 3.10; Python-слой и так требует ≥ 3.12. Один wheel покрывает 3.12+.
-4. **Python-ядро без внешних зависимостей**: только stdlib и `ferronit._core`. Всё остальное —
-   optional extras (`server`, `db`, `postgres`, `pydantic`).
+4. **Python-ядро: stdlib + `ferronit._core` + `msgspec` + `asyncpg` (обязательные)**. Всё остальное —
+   optional extras (`server`, `pydantic`).
 5. **`ferronit._core.Response` — не тот же объект, что Python `Response`**: импортировать
    `from ferronit._core import Response as RustResp`.
 6. **PyO3 `#[getter]` срезает префикс `get_`**: Rust `fn get_status()` → в Python `.status`.
@@ -130,7 +126,8 @@ docker run -d --name ferronit-pg -e POSTGRES_PASSWORD=postgres -e POSTGRES_USER=
    `result = next_handler(req); if hasattr(result, "__await__"): result = await result`.
 9. **`X-Trace-Id` ставить в `Ferronit.__call__` ПОСЛЕ `_to_response`** — иначе заголовок теряется
    на возвратах dict/pydantic.
-10. **Что понимает `_to_response`**: `dict` и `list` (JSON через serde_json),
+10. **Что понимает `_to_response`**: `msgspec.Struct` и непустой список из них (JSON
+    C-энкодером msgspec, fallback на Rust), `dict` и `list` (JSON через serde_json),
     кортеж `(payload, status)` — документированный способ задать статус
     (`return {"error": "not found"}, 404`), `Response`, `str` (text/plain),
     объект с `model_dump()` / dataclass (JSON), асинхронный итератор (стриминг).
@@ -167,7 +164,7 @@ docker run -d --name ferronit-pg -e POSTGRES_PASSWORD=postgres -e POSTGRES_USER=
 | Типы параметров в хендлерах | `ferronit/injection.py` |
 | DDD / CQRS | `ferronit/ddd.py` |
 | Порты и адаптеры | `ferronit/hexagonal.py`, `ferronit/contrib/*` |
-| Доступ к БД | `ferronit/contrib/db.py` (CoreRepository — скорость, RelationalRepository — ORM-объекты), `ferronit/contrib/rawdb.py` + `rawmodel.py` (asyncpg без SQLAlchemy; модели сериализуются Rust-ядром напрямую); `ferronit.db` (запрос + JSON целиком в Rust, для больших выборок) |
+| Доступ к БД | `ferronit/contrib/rawdb.py` + `rawmodel.py` (asyncpg без ORM) — единственный слой данных |
 | LLM / векторный поиск | `ferronit/contrib/llm.py`, `ferronit/contrib/vectordb.py` |
 | Безопасность (заголовки, лимиты, rate limit) | `ferronit/contrib/security.py`, `ratelimit.py`, `docs/security/ASVS.md` |
 | Scaffold новых проектов | `ferronit/cli.py` (шаблоны в начале файла) |
@@ -181,7 +178,8 @@ docker run -d --name ferronit-pg -e POSTGRES_PASSWORD=postgres -e POSTGRES_USER=
 
 ## Границы работ
 
-- Не добавлять внешние зависимости в `ferronit/` (только optional extras в `pyproject.toml`).
+- Не добавлять новые внешние зависимости в `ferronit/` без необходимости (msgspec уже обязательная;
+  остальное — только optional extras в `pyproject.toml`).
 - Не трогать `bench/` (стенд замеров) при работе над фреймворком.
 - Не коммитить: `.venv/`, `dist/`, `ferronit-rs/target/`, `*.session`, `.env`.
 - Не переписывать числа в README без реального замера (`ab -n 30000 -c 50 -k`, Granian/uvicorn

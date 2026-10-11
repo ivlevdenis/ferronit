@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import msgspec
+
 from ferronit._core import FerronitApp as RustApp
 from ferronit._core import Response as RustResp
 from ferronit.contrib.tracing import current_trace_id
@@ -289,10 +291,46 @@ def _scope_header(scope: dict, name: str) -> str | None:
     return None
 
 
+def _msgspec_json(data) -> bytes | None:
+    """Encode with msgspec's C encoder.
+
+    Returns ``None`` when msgspec refuses the data (``TypeError``), so the
+    caller can fall back to the Rust serialiser.
+    """
+    try:
+        return _escape_html(msgspec.json.encode(data))
+    except TypeError:
+        return None
+
+
+def _escape_html(body: bytes) -> bytes:
+    """Escape ``<``, ``>``, ``&`` as ``\\uXXXX`` in an already-serialised JSON body.
+
+    Mirrors ``escape_html`` in the Rust core so the msgspec fast path keeps the
+    same XSS guard as the Rust ``Response.json`` path. The three bytes never
+    occur in JSON structural syntax, so a byte-level replace only touches string
+    contents.
+    """
+    return body.replace(b"&", b"\\u0026").replace(b"<", b"\\u003c").replace(b">", b"\\u003e")
+
+
+def _is_struct(obj) -> bool:
+    """True for a msgspec Struct (it carries ``__struct_fields__``)."""
+    return hasattr(obj, "__struct_fields__")
+
+
+def _struct_payload(result) -> bool:
+    """True for a msgspec Struct, or a non-empty list of them."""
+    return _is_struct(result) or (
+        isinstance(result, list) and bool(result) and _is_struct(result[0])
+    )
+
+
 def _to_response(result) -> Response:
     """Normalise a handler return value into a :class:`Response`.
 
-    Recognised types, in order: ``dict`` or ``list`` (JSON 200); a
+    Recognised types, in order: a ``msgspec.Struct`` or a list of them (JSON 200
+    via msgspec's C encoder); ``dict`` or ``list`` (JSON 200, encoded in Rust); a
     ``(payload, status)`` tuple whose second item is an int; an existing
     :class:`Response`; ``str``
     (text/plain); any object with ``model_dump`` or ``__dataclass_fields__``
@@ -305,12 +343,22 @@ def _to_response(result) -> Response:
     Returns:
         Response: The response object ready to be sent.
     """
+    if _struct_payload(result):
+        body = _msgspec_json(result)
+        if body is not None:
+            return Response(body=body, status=200, content_type="application/json; charset=utf-8")
     if isinstance(result, (dict, list)):
         r = RustResp.json(result, 200)
         return Response(body=bytes(r.body), status=r.status, content_type=r.content_type)
     # (payload, status) — документированный паттерн: `return {"error": "..."}, 404`
     if isinstance(result, tuple) and len(result) == 2 and isinstance(result[1], int):
         payload, tuple_status = result
+        if _struct_payload(payload):
+            body = _msgspec_json(payload)
+            if body is not None:
+                return Response(
+                    body=body, status=tuple_status, content_type="application/json; charset=utf-8"
+                )
         if isinstance(payload, (dict, list)):
             r = RustResp.json(payload, tuple_status)
             return Response(body=bytes(r.body), status=r.status, content_type=r.content_type)

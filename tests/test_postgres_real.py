@@ -1,78 +1,69 @@
-"""E2E: Ferronit HTTP → CoreRepository → реальный PostgreSQL (Docker, дефолтные настройки).
+"""E2E: Ferronit HTTP → RawUnitOfWork → реальный PostgreSQL (Docker, дефолтные настройки).
 
 Требует: docker run -d --name ferronit-pg -e POSTGRES_PASSWORD=postgres \
     -e POSTGRES_USER=postgres -e POSTGRES_DB=postgres -p 5432:5432 postgres:latest
 """
 import pytest
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import Column, Integer, MetaData, String, Table, text
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from ferronit import Ferronit
-from ferronit.contrib.db import RelationalUnitOfWork
+from ferronit.contrib.rawdb import RawUnitOfWork, create_raw_pool
 
-DATABASE_URL = "postgresql+asyncpg://postgres:postgres@localhost:5432/postgres"
-
-metadata = MetaData()
-
-orders_table = Table(
-    "orders_core_test",
-    metadata,
-    Column("id", String, primary_key=True),
-    Column("user_id", String, nullable=False),
-    Column("amount", Integer, nullable=False),
-    Column("status", String, default="created"),
-)
+DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/postgres"
+TABLE = "orders_core_test"
 
 
 @pytest.fixture
-async def uow():
-    engine = create_async_engine(DATABASE_URL, echo=False)
-    async with engine.begin() as conn:
-        await conn.run_sync(metadata.drop_all)
-        await conn.run_sync(metadata.create_all)
-    factory = async_sessionmaker(engine, expire_on_commit=False)
-    yield RelationalUnitOfWork(factory)
-    await engine.dispose()
+async def pool():
+    p = await create_raw_pool(DATABASE_URL, min_size=1, max_size=4)
+    async with RawUnitOfWork(p) as uow:
+        await uow.connection.execute(f"DROP TABLE IF EXISTS {TABLE}")
+        await uow.connection.execute(
+            f"CREATE TABLE {TABLE} ("
+            "id text PRIMARY KEY, user_id text NOT NULL, "
+            "amount integer NOT NULL, status text DEFAULT 'created')"
+        )
+    yield p
+    await p.close()
 
 
-def make_app(uow: RelationalUnitOfWork) -> Ferronit:
+def make_app(pool) -> Ferronit:
     app = Ferronit()
 
     @app.route("/orders", methods=["POST"])
     async def create_order(req):
         body = await req.json()
-        async with uow:
-            repo = uow[orders_table]
-            row = await repo.save(
-                {"id": body["id"], "user_id": body.get("user_id", "anonymous"),
-                 "amount": body["amount"]},
+        async with RawUnitOfWork(pool) as uow:
+            row = await uow[TABLE].save(
+                {
+                    "id": body["id"],
+                    "user_id": body.get("user_id", "anonymous"),
+                    "amount": body["amount"],
+                },
                 returning=True,
             )
         return {"order_id": row["id"], "status": row["status"]}
 
     @app.route("/orders/{order_id}")
     async def get_order(req):
-        async with uow:
-            repo = uow[orders_table]
-            row = await repo.get(req.params["order_id"])
+        async with RawUnitOfWork(pool, readonly=True) as uow:
+            row = await uow[TABLE].get(req.params["order_id"])
         if row is None:
             return {"error": "not found"}
         return row
 
     @app.route("/orders")
     async def list_orders(req):
-        async with uow:
-            repo = uow[orders_table]
-            rows = await repo.list()
+        async with RawUnitOfWork(pool, readonly=True) as uow:
+            rows = await uow[TABLE].list()
         return {"orders": rows}
 
     return app
 
 
 @pytest.fixture
-async def client(uow):
-    app = make_app(uow)
+async def client(pool):
+    app = make_app(pool)
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
         yield c
@@ -100,21 +91,20 @@ async def test_pg_list(client):
 
 
 @pytest.mark.asyncio
-async def test_pg_raw_sql(client, uow):
+async def test_pg_raw_sql(client, pool):
     """Настоящий SQL к Postgres после HTTP-записи."""
     await client.post("/orders", json={"id": "x", "amount": 42})
 
-    async with uow:
-        result = await uow.session.execute(
-            text("SELECT amount FROM orders_core_test WHERE id = :oid"), {"oid": "x"}
+    async with RawUnitOfWork(pool, readonly=True) as uow:
+        value = await uow.connection.fetchval(
+            f"SELECT amount FROM {TABLE} WHERE id = $1", "x"
         )
-        assert result.scalar_one() == 42
+        assert value == 42
 
 
 @pytest.mark.asyncio
-async def test_pg_returning_defaults(uow):
+async def test_pg_returning_defaults(pool):
     """RETURNING возвращает server_defaults (на PG INSERT...RETURNING нативный)."""
-    async with uow:
-        repo = uow[orders_table]
-        row = await repo.save({"id": "d1", "user_id": "u", "amount": 7}, returning=True)
+    async with RawUnitOfWork(pool) as uow:
+        row = await uow[TABLE].save({"id": "d1", "user_id": "u", "amount": 7}, returning=True)
         assert row["status"] == "created"

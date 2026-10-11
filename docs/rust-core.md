@@ -14,13 +14,11 @@
 | gzip | сжатие в Rust с учётом q-факторов `Accept-Encoding` |
 | CORS | preflight и разрешение origin без Python |
 | Multipart | нативный парсер multipart/form-data |
-| PostgreSQL | фоновый tokio-рантайм, `query_json` (read-heavy пути) |
 
 ## Публичная поверхность
 
 ```python
 from ferronit._core import FerronitApp, Request, Response, Router
-from ferronit._core import db          # ferronit.db реэкспортирует connect/query_json
 ```
 
 ### `FerronitApp`

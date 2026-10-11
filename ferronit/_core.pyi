@@ -6,10 +6,7 @@
 
 from typing import Any
 
-__all__ = ["FerronitApp", "Request", "Response", "Router", "db"]
-
-# Вложенный модуль данных (PostgreSQL → JSON в Rust): connect / query_json.
-db: Any
+__all__ = ["FerronitApp", "Request", "Response", "Router"]
 
 class Router:
     """Conflict-free router over method+path patterns (matchit under the hood)."""

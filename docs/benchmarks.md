@@ -25,15 +25,16 @@
 
 | Вариант | 1 строка | 100 строк | 1000 строк | /ping |
 |---|---|---|---|---|
-| Ferronit + asyncpg (dict) | 15 540 | 7 849 | 1 275 | 91 935 |
-| Ferronit + msgspec | 14 611 | 10 664 | 2 279 | 91 642 |
-| Ferronit + rawmodel | 13 959 | 9 011 | 2 199 | 91 208 |
-| Litestar + msgspec | 11 138 | 8 218 | 2 032 | 36 636 |
-| Litestar + ORM | 2 474 | 1 028 | 283 | 37 503 |
-| FastAPI + ORM | 2 072 | 680 | 161 | 24 408 |
-| Django + ORM | 481 | 474 | 417 | 1 784 |
+| Ferronit + asyncpg (dict) | 16 067 | 7 988 | 1 450 | 92 481 |
+| Ferronit + msgspec | 16 617 | 11 309 | 2 473 | 92 036 |
+| Ferronit + rawmodel | 15 080 | 10 138 | 2 368 | 94 118 |
+| Litestar + msgspec | 11 797 | 8 429 | 2 304 | 37 692 |
+| Litestar + asyncpg | 11 310 | 7 799 | 1 691 | 37 616 |
+| Litestar + ORM | 2 495 | 1 462 | 293 | 36 796 |
+| FastAPI + ORM | 2 236 | 1 020 | 158 | 20 107 |
+| Django + ORM | 344 | 349 | 320 | 1 733 |
 
-- `/ping` (чистый фреймворк) — Ferronit **×2.5** к Litestar, **×3.8** к FastAPI.
+- `/ping` (чистый фреймворк) — Ferronit **×2.5** к Litestar, **×4.7** к FastAPI.
 - Слой `rawmodel` идёт ≈ вровень с обычным msgspec — per-request цена модели
   пренебрежима.
 
@@ -46,28 +47,14 @@ granian, пустое тело     ~168 000 req/s
 granian, {"ok": true}    ~145 000 req/s
 ```
 
-То есть `/ping` у Ferronit (~91k) сохраняет **~63%** от JSON-потолка сырого
-сервера; Litestar ~25%, FastAPI ~17%, Django ~1%.
-
-## Куда уходит время (SELECT 100 строк, SQLite)
-
-| Слой | ops/s | Потери |
-|---|---|---|
-| sqlite3 (синхронный C-драйвер) | 33 506 | — (потолок БД) |
-| aiosqlite (async) | 15 080 | −55% |
-| SQLAlchemy async ORM | 2 036 | −87% |
-| Ferronit GET на Granian | 1 644 | −19% |
-
-Узкое место — ORM-mapping (~88% времени запроса) — Ferronit добавляет лишь ~19%
-поверх ORM-слоя.
+То есть `/ping` у Ferronit (~94k) сохраняет **~65%** от JSON-потолка сырого
+сервера; Litestar ~26%, FastAPI ~14%, Django ~1%.
 
 ## Воспроизведение
 
 ```bash
 ./bench/run_all_ab.sh                              # вся матрица маршрутизации/payload
 .venv/bin/python bench/ab_bench.py --server granian --routes 1000 --requests 20000
-.venv/bin/python bench/bench_db.py granian         # SQLite GET/POST
-.venv/bin/python bench/bench_postgres.py granian   # PostgreSQL Core/ORM против FastAPI
 .venv/bin/python bench/bench_rows.py               # матрица строк (8 вариантов)
 .venv/bin/python bench/bench_granian_bare.py       # потолок чистого granian
 .venv/bin/python bench/plot_rows.py                # → bench_rows.html

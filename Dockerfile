@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 #
-# Ferronit — единый пакет: Python (ferronit/ + ferronit_db/) и нативное ядро (ferronit_core + ferronit_core.db)
+# Ferronit — единый пакет: Python (ferronit/) и нативное ядро (ferronit_core)
 # собираются maturin-ом в один wheel (abi3-py312) прямо в билд-стейдже. Наружу нужна только
 # сеть до PyPI/crates.io. Итоговый образ содержит один wheel и прод-сервер Granian.
 #
@@ -28,7 +28,6 @@ WORKDIR /src
 # ferronit-rs/target/ исключён .dockerignore; crates скачиваем отдельным слоем.
 COPY ferronit-rs/ ./ferronit-rs/
 COPY ferronit/ ./ferronit/
-COPY ferronit_db/ ./ferronit_db/
 COPY pyproject.toml README.md ./
 RUN cargo fetch --manifest-path ferronit-rs/Cargo.toml
 RUN pip install --no-cache-dir "maturin>=1.14,<2" \
@@ -49,8 +48,8 @@ ENV PYTHONUNBUFFERED=1 \
 
 COPY --from=builder /wheels /wheels
 # Один wheel: pip install ferronit ставит и Python-слой, и нативное ядро.
-RUN pip install --no-cache-dir "/wheels/$(cd /wheels && ls ferronit-[0-9]*.whl)[server,db,postgres,pydantic]" \
- && pip install --no-cache-dir aiosqlite uvloop \
+RUN pip install --no-cache-dir "/wheels/$(cd /wheels && ls ferronit-[0-9]*.whl)[server,pydantic]" \
+ && pip install --no-cache-dir uvloop \
  && rm -rf /wheels
 
 # Прод-образ работает не от root

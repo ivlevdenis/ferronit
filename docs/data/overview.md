@@ -1,27 +1,31 @@
-# Какой слой данных выбрать
+# Слой данных — rawdb + rawmodel
 
-Ferronit не навязывает один способ работы с БД — их три, под разные задачи.
-Главное решение при проектировании: **насколько горячий путь** и **нужны ли
-связи/миграции**.
+Ferronit использует **один** способ работы с PostgreSQL: тонкий слой `rawdb` на
+asyncpg плюс типизированные модели и query DSL `rawmodel`. Никакого ORM — явный
+SQL, bound-параметры, максимум throughput.
 
-| Слой | Модуль | Когда использовать |
-|---|---|---|
-| Запросы в Rust | `ferronit.db` | read-heavy эндпоинты с большими выборками: запрос и JSON-кодирование минуют Python |
-| Сырой asyncpg + модели | `ferronit.contrib.rawdb` + `rawmodel` | максимальный throughput, типизированные модели + SQL DSL без ORM |
-| SQLAlchemy | `ferronit.contrib.db` | полный ORM, связи, миграции — когда скорость не критична |
+| Модуль | Что даёт |
+|---|---|
+| `ferronit.contrib.rawdb` | `RawUnitOfWork`, `RawRepository`, `Condition`, `create_raw_pool` — сырые dict-строки на asyncpg |
+| `ferronit.contrib.rawmodel` | `Model` (неизменяемый msgspec.Struct), `Query`/`select`, `RawModelRepository` — типизированные модели и DSL |
 
-Правило большого пальца по измерениям (Granian, 1 воркер, `ab -c 50`):
+Правило большого пальца: `RawUnitOfWork(pool, readonly=True)` для чтений (пропускает
+`BEGIN`, экономит round-trip), `uow.model(User)` для типизированного доступа к строкам.
 
-- `ferronit.db` (запрос → JSON в Rust) — **×2.4–2.5** к Ferronit+asyncpg на чтении 100 строк;
-- `rawdb` (сырой asyncpg, без ORM) — **×2.7–3.1** к SQLAlchemy Core на чтении, ×8 на записи;
-- SQLAlchemy Core — **+46%** к ORM на чтении (модели не нужны → берите dict-строки);
-- сам ORM-mapping — ~88% времени запроса: это и есть узкое место, а не фреймворк.
+```python
+from ferronit.contrib.rawdb import RawUnitOfWork, create_raw_pool
+from ferronit.contrib.rawmodel import Model, select
 
-Вывод: ORM не тяните в горячие чтения. Сырой драйвер — для отдельных
-эндпоинтов с максимальной нагрузкой. `ferronit.db` — когда нужно отдать большой
-набор и не трогать его в Python вообще. Подробные цифры и методика —
-в [бенчмарках](../benchmarks.md).
+class User(Model):
+    __table__ = "users"        # по умолчанию — плюрализованное имя класса
+    id: int = 0
+    name: str = ""
+    age: int = 0
 
-- [Запросы в Rust](rust-query.md) — `ferronit.db`
-- [Сырой asyncpg + модели](rawdb.md) — `RawUnitOfWork`, `Model`, query DSL
-- [SQLAlchemy](sqlalchemy.md) — ORM и Core-репозитории
+pool = await create_raw_pool("postgresql://user@host/db", min_size=1, max_size=16)
+
+async with RawUnitOfWork(pool, readonly=True) as uow:
+    adults = await uow.model(User).fetch(select(User).where(User.c.age >= 18).limit(50))
+```
+
+Подробный разбор API — в [rawdb и rawmodel](rawdb.md).

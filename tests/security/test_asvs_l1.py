@@ -8,12 +8,10 @@ import os
 from pathlib import Path
 
 import pytest
-from sqlalchemy import Column, Integer, MetaData, String, Table
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from ferronit import Ferronit
-from ferronit.contrib.db import RelationalUnitOfWork
 from ferronit.contrib.ratelimit import rate_limit
+from ferronit.contrib.rawmodel import Model, select
 from ferronit.contrib.security import security_headers
 from ferronit.contrib.staticfiles import StaticFiles
 
@@ -63,32 +61,19 @@ async def test_asvs_v1_2_1_output_encoding_for_json_context():
     assert b"\\u0026" in body  # & тоже экранирован
 
 
+class AsvsUser(Model):
+    __table__ = "users_asvs"
+    id: int = 0
+    name: str = ""
+
+
 @pytest.mark.asyncio
 async def test_asvs_v1_2_4_parameterized_queries():
     """V1.2.4 (L1): data selection or database queries use parameterized queries."""
-    metadata = MetaData()
-    users = Table(
-        "users_asvs", metadata,
-        Column("id", Integer, primary_key=True, autoincrement=True),
-        Column("name", String, nullable=False),
-    )
-    engine = create_async_engine("sqlite+aiosqlite://", echo=False)
-    factory = async_sessionmaker(engine, expire_on_commit=False)
-    uow = RelationalUnitOfWork(factory)
-
-    async with engine.begin() as conn:
-        await conn.run_sync(metadata.create_all)
-    async with uow:
-        repo = uow[users]
-        await repo.save({"name": "A"})
-        await uow.commit()
-
-        # классическая инъекция не выполняется
-        assert await repo.get("1 OR 1=1") is None
-        assert await repo.get("1; DROP TABLE users_asvs; --") is None
-        rows = await repo.list(users.c.name == "' OR '1'='1")
-        assert rows == []
-    await engine.dispose()
+    evil = "1 OR 1=1"
+    sql, params = select(AsvsUser).where(AsvsUser.c.name == evil).compile()
+    assert evil not in sql          # инъекция не попала в текст запроса
+    assert params == [evil]         # а ушла bound-параметром
 
 
 @pytest.mark.asyncio

@@ -10,8 +10,8 @@
     "semantic_hash": ""
   },
   "bench/ab_bench.py": {
-    "mtime": 1791565157.3843248,
-    "ast_hash": "8d4563c50a29501d1aa0105c0bb3dc0c",
+    "mtime": 1791815342.3680594,
+    "ast_hash": "aafa7e974bd388dd566b74df4d933b3d",
     "semantic_hash": ""
   },
   "bench/bench_logic.py": {
@@ -220,13 +220,13 @@
     "semantic_hash": ""
   },
   "docker/demo_app.py": {
-    "mtime": 1791794354.1302583,
-    "ast_hash": "49674548eade0217099b30e2c10ce1cd",
+    "mtime": 1791804590.42309,
+    "ast_hash": "eab730682238e5deacb38d3fba3064cb",
     "semantic_hash": ""
   },
   "docker/entrypoint.sh": {
-    "mtime": 1791794354.1303654,
-    "ast_hash": "c7fb86aed4a2dfc4ddd9315837a922c8",
+    "mtime": 1791804590.4231534,
+    "ast_hash": "4a2d00b684f91651cd8ec9bb6da34d8d",
     "semantic_hash": ""
   },
   "examples/app.py": {
@@ -290,8 +290,8 @@
     "semantic_hash": ""
   },
   "scripts/docker_smoke.sh": {
-    "mtime": 1791794354.1306372,
-    "ast_hash": "e01c28ecd433dea01f7c46bf4d6fe43f",
+    "mtime": 1791804590.4240093,
+    "ast_hash": "eb95a6dc970928a497ddbbff803d3a7e",
     "semantic_hash": ""
   },
   "tests/security/test_asvs_l1.py": {
@@ -455,28 +455,28 @@
     "semantic_hash": ""
   },
   "AGENTS.md": {
-    "mtime": 1791794446.2383337,
-    "ast_hash": "d65dc2b4fcefee31326488a4c600072e",
+    "mtime": 1791815327.4009728,
+    "ast_hash": "b6ba869fe8421234942356a9c995d0b3",
     "semantic_hash": ""
   },
   "CLAUDE.md": {
-    "mtime": 1791713857.1451523,
-    "ast_hash": "790e3cfef5cc0f4a68c6cc220dbc0362",
+    "mtime": 1791815331.1309943,
+    "ast_hash": "28dbee7bbc71fef828dbfba42bb5eb67",
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1791794354.1230946,
-    "ast_hash": "c7c5c4fae7cf7b4f9116d54ca37c0877",
+    "mtime": 1791804590.423862,
+    "ast_hash": "de9c842d945001e3e2d1654f6e393d9c",
     "semantic_hash": ""
   },
   "bench/README.md": {
-    "mtime": 1791756030.4024415,
-    "ast_hash": "c75e1475fdf47cd9d00ca1c8149ac963",
+    "mtime": 1791815354.8571315,
+    "ast_hash": "2f773280e5a2e52a8466bdc341161a5c",
     "semantic_hash": ""
   },
   "docker-compose.yml": {
-    "mtime": 1791794354.1232493,
-    "ast_hash": "c31942ecf56c3d88e58d7a8afe94d29c",
+    "mtime": 1791804590.4230042,
+    "ast_hash": "0205442c03049be6359528aa4d0c2c6a",
     "semantic_hash": ""
   },
   "docs/architecture.html": {
@@ -495,8 +495,8 @@
     "semantic_hash": ""
   },
   "llms.txt": {
-    "mtime": 1791794446.2383337,
-    "ast_hash": "c80a0667ad0bf5739e053147894d8902",
+    "mtime": 1791804590.423792,
+    "ast_hash": "ad3a2d651275d692ce47f105058a1f42",
     "semantic_hash": ""
   },
   "public/hello.txt": {
@@ -515,8 +515,8 @@
     "semantic_hash": ""
   },
   "ferronit/__init__.py": {
-    "mtime": 1791794354.1222897,
-    "ast_hash": "5f70190d77ed660c465e0f4a85062ee3",
+    "mtime": 1791804590.4233835,
+    "ast_hash": "07622b1e9b2ff7ab43ad77579aadb7a9",
     "semantic_hash": ""
   },
   "ferronit/cli.py": {
@@ -655,8 +655,8 @@
     "semantic_hash": ""
   },
   ".github/workflows/release.yml": {
-    "mtime": 1791794354.1227782,
-    "ast_hash": "33e33ac9046a99e6a39b480072e70e1a",
+    "mtime": 1791804590.4236994,
+    "ast_hash": "cb004d802a528738c260f3a00068478a",
     "semantic_hash": ""
   },
   "docs/README.md": {
@@ -670,8 +670,8 @@
     "semantic_hash": ""
   },
   "docs/benchmarks.md": {
-    "mtime": 1791796487.26244,
-    "ast_hash": "83645b223041bf5b3311ceab64ca7dbf",
+    "mtime": 1791815383.901299,
+    "ast_hash": "3dc6d4c8288fe170b6f4ef717478ba6d",
     "semantic_hash": ""
   },
   "docs/data/overview.md": {
@@ -685,8 +685,8 @@
     "semantic_hash": ""
   },
   "docs/getting-started.md": {
-    "mtime": 1791794354.1304595,
-    "ast_hash": "02696ff435e8ef34c1b7abc9d9f7038c",
+    "mtime": 1791804590.4233012,
+    "ast_hash": "ebcbbbc8f03e8158dcadf5d1a32c6b58",
     "semantic_hash": ""
   },
   "docs/middleware.md": {
@@ -750,8 +750,8 @@
     "semantic_hash": ""
   },
   "README.ru.md": {
-    "mtime": 1791794354.1231718,
-    "ast_hash": "f751ed512c14648ee766551651847511",
+    "mtime": 1791804590.42393,
+    "ast_hash": "ca0af7881ddfd18244a2a16e13969f0e",
     "semantic_hash": ""
   },
   "ferronit/binding.py": {

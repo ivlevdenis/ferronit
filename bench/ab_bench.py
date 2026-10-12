@@ -4,15 +4,15 @@
 сервера, поэтому httpx-замеры говорят о клиенте, а не о фреймворке. ab написан на C и
 не создаёт это бутылочное горлышко.
 
-Что делает: генерирует два одинаковых приложения (Ferronit и FastAPI) с N маршрутами,
-поднимает их одним и тем же сервером (uvicorn или granian, 1 воркер), прогревает и
-мерит ab по выборке маршрутов (первый / средний / последний) — так видно и то, что
-FastAPI деградирует с ростом таблицы маршрутов, и то, что Ferronit остаётся плоским.
+Что делает: генерирует одинаковые приложения (Ferronit, FastAPI, Litestar,
+BlackSheep) с N маршрутами, поднимает их одним и тем же сервером (uvicorn или
+granian, 1 воркер), прогревает и мерит ab по выборке маршрутов (первый / средний /
+последний) — так видно, кто деградирует с ростом таблицы маршрутов, а кто нет.
 
     python bench/ab_bench.py --server uvicorn --routes 50
     python bench/ab_bench.py --server granian  --routes 1000 --requests 20000
     python bench/ab_bench.py --server uvicorn --payload big --requests 5000
-    python bench/ab_bench.py --server uvicorn --routes 50 --no-fastapi
+    python bench/ab_bench.py --server uvicorn --routes 50 --no-fastapi --no-litestar
 
 Результаты — в stdout (таблица); ничего не пишется в файлы, кроме временных приложений.
 """
@@ -61,6 +61,45 @@ def _make(i):
     def handler():
         return {"route": i}
     return handler
+
+
+for _i in range(__ROUTES__):
+    _make(_i)
+
+__PAYLOAD__
+'''
+
+LITESTAR_TEMPLATE = '''
+from litestar import Litestar, get
+
+_handlers = []
+
+
+def _make(i):
+    @get(f"/route{i}")
+    async def handler() -> dict:
+        return {"route": i}
+    _handlers.append(handler)
+
+
+for _i in range(__ROUTES__):
+    _make(_i)
+
+__PAYLOAD__
+
+app = Litestar(route_handlers=_handlers)
+'''
+
+BLACKSHEEP_TEMPLATE = '''
+from blacksheep import Application
+
+app = Application()
+
+
+def _make(i):
+    @app.router.get(f"/route{i}")
+    async def handler():
+        return {"route": i}
 
 
 for _i in range(__ROUTES__):
@@ -119,6 +158,59 @@ def payload():
 ''',
 }
 
+LITESTAR_PAYLOAD_BODY = {
+    "none": "",
+    "small": '''
+@get("/payload")
+async def payload() -> dict:
+    return {"ok": True}
+_handlers.append(payload)
+''',
+    "medium": '''
+_ITEMS = [{"id": i, "name": f"item-{i}", "price": i * 10} for i in range(50)]
+
+
+@get("/payload")
+async def payload() -> dict:
+    return {"count": 50, "items": _ITEMS}
+_handlers.append(payload)
+''',
+    "big": '''
+_ITEMS = [{"id": i, "name": f"item-{i}", "price": i * 10} for i in range(500)]
+
+
+@get("/payload")
+async def payload() -> dict:
+    return {"count": 500, "items": _ITEMS}
+_handlers.append(payload)
+''',
+}
+
+BLACKSHEEP_PAYLOAD_BODY = {
+    "none": "",
+    "small": '''
+@app.router.get("/payload")
+async def payload():
+    return {"ok": True}
+''',
+    "medium": '''
+_ITEMS = [{"id": i, "name": f"item-{i}", "price": i * 10} for i in range(50)]
+
+
+@app.router.get("/payload")
+async def payload():
+    return {"count": 50, "items": _ITEMS}
+''',
+    "big": '''
+_ITEMS = [{"id": i, "name": f"item-{i}", "price": i * 10} for i in range(500)]
+
+
+@app.router.get("/payload")
+async def payload():
+    return {"count": 500, "items": _ITEMS}
+''',
+}
+
 RPS_RE = re.compile(r"Requests per second:\s+([\d.]+)")
 FAILED_RE = re.compile(r"Failed requests:\s+(\d+)")
 NON2XX_RE = re.compile(r"Non-2xx responses:\s+(\d+)")
@@ -126,11 +218,13 @@ PCT_RE = re.compile(r"^\s+(\d+)%\s+(\d+)\s*$", re.MULTILINE)
 
 
 def write_apps(routes: int, payload: str) -> dict[str, str]:
-    """Generate the two apps on disk; return {module_name: path}."""
+    """Generate the apps on disk; return {module_name: path}."""
     written: dict[str, str] = {}
     for name, template, payloads in (
         ("ferronit", FERRONIT_TEMPLATE, PAYLOAD_BODY),
         ("fastapi", FASTAPI_TEMPLATE, FASTAPI_PAYLOAD_BODY),
+        ("litestar", LITESTAR_TEMPLATE, LITESTAR_PAYLOAD_BODY),
+        ("blacksheep", BLACKSHEEP_TEMPLATE, BLACKSHEEP_PAYLOAD_BODY),
     ):
         source = template.replace("__ROUTES__", str(routes)).replace("__PAYLOAD__", payloads[payload])
         path = BENCH_DIR / f"_abgen_{name}.py"
@@ -213,14 +307,16 @@ def measure(port: int, paths: list[str], requests: int, concurrency: int, runs: 
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Ferronit vs FastAPI — только ApacheBench")
+    ap = argparse.ArgumentParser(description="Ferronit vs FastAPI/Litestar/BlackSheep — только ApacheBench")
     ap.add_argument("--server", choices=["uvicorn", "granian"], default="uvicorn")
     ap.add_argument("--routes", type=int, default=50)
     ap.add_argument("--requests", type=int, default=20000)
     ap.add_argument("--concurrency", type=int, default=50)
     ap.add_argument("--runs", type=int, default=3)
     ap.add_argument("--payload", choices=list(PAYLOAD_BODY), default="none")
-    ap.add_argument("--no-fastapi", action="store_true", help="мерить только Ferronit")
+    ap.add_argument("--no-fastapi", action="store_true", help="пропустить FastAPI")
+    ap.add_argument("--no-litestar", action="store_true", help="пропустить Litestar")
+    ap.add_argument("--no-blacksheep", action="store_true", help="пропустить BlackSheep")
     a = ap.parse_args()
 
     if subprocess.run(["which", "ab"], capture_output=True).returncode != 0:
@@ -229,8 +325,13 @@ def main() -> int:
 
     modules = write_apps(a.routes, a.payload)
     apps = [("ferronit", modules["ferronit"], 8161)]
+    # BlackSheep — основной конкурент: идёт первым после Ferronit.
+    if not a.no_blacksheep:
+        apps.append(("blacksheep", modules["blacksheep"], 8162))
+    if not a.no_litestar:
+        apps.append(("litestar", modules["litestar"], 8163))
     if not a.no_fastapi:
-        apps.append(("fastapi", modules["fastapi"], 8162))
+        apps.append(("fastapi", modules["fastapi"], 8164))
 
     target = "/payload" if a.payload != "none" else None
     paths = [target] if target else sample_routes(a.routes)
@@ -266,9 +367,16 @@ def main() -> int:
                   f"p99={data['p99']} мс   failed={data['failed']} non2xx={data['non2xx']}")
         print(f"  медиана: {res['median_rps']:,.0f} req/s")
 
-    if "ferronit" in results and "fastapi" in results:
-        v, f = results["ferronit"]["median_rps"], results["fastapi"]["median_rps"]
-        print(f"\nИтого: Ferronit {v:,.0f} vs FastAPI {f:,.0f} req/s → ×{v / f:.2f}")
+    if "ferronit" in results:
+        base = results["ferronit"]["median_rps"]
+        print("\nИтого (медиана req/s):")
+        print(f"  {'ferronit':<10} {base:>10,.0f}")
+        for name in ("blacksheep", "litestar", "fastapi"):
+            if name not in results:
+                continue
+            r = results[name]["median_rps"]
+            tag = "  ← основной конкурент" if name == "blacksheep" else ""
+            print(f"  {name:<10} {r:>10,.0f}   Ferronit ×{base / r:.2f}{tag}")
     return 0
 
 

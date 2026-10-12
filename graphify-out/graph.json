@@ -17,7 +17,7 @@
       "label": "write_apps()",
       "file_type": "code",
       "source_file": "bench/ab_bench.py",
-      "source_location": "L128",
+      "source_location": "L220",
       "_origin": "ast",
       "id": "bench_ab_bench_write_apps",
       "community": 49,
@@ -27,7 +27,7 @@
       "label": "server_cmd()",
       "file_type": "code",
       "source_file": "bench/ab_bench.py",
-      "source_location": "L142",
+      "source_location": "L236",
       "_origin": "ast",
       "id": "bench_ab_bench_server_cmd",
       "community": 49,
@@ -37,7 +37,7 @@
       "label": "wait_ready()",
       "file_type": "code",
       "source_file": "bench/ab_bench.py",
-      "source_location": "L151",
+      "source_location": "L245",
       "_origin": "ast",
       "id": "bench_ab_bench_wait_ready",
       "community": 49,
@@ -47,7 +47,7 @@
       "label": "run_ab()",
       "file_type": "code",
       "source_file": "bench/ab_bench.py",
-      "source_location": "L163",
+      "source_location": "L257",
       "_origin": "ast",
       "id": "bench_ab_bench_run_ab",
       "community": 49,
@@ -57,7 +57,7 @@
       "label": "sample_routes()",
       "file_type": "code",
       "source_file": "bench/ab_bench.py",
-      "source_location": "L184",
+      "source_location": "L278",
       "_origin": "ast",
       "id": "bench_ab_bench_sample_routes",
       "community": 49,
@@ -67,7 +67,7 @@
       "label": "measure()",
       "file_type": "code",
       "source_file": "bench/ab_bench.py",
-      "source_location": "L193",
+      "source_location": "L287",
       "_origin": "ast",
       "id": "bench_ab_bench_measure",
       "community": 49,
@@ -77,7 +77,7 @@
       "label": "main()",
       "file_type": "code",
       "source_file": "bench/ab_bench.py",
-      "source_location": "L215",
+      "source_location": "L309",
       "_origin": "ast",
       "id": "bench_ab_bench_main",
       "community": 49,
@@ -94,22 +94,22 @@
       "norm_label": "\u0435\u0434\u0438\u043d\u0441\u0442\u0432\u0435\u043d\u043d\u044b\u0438 \u0438\u0441\u0442\u043e\u0447\u043d\u0438\u043a \u0446\u0438\u0444\u0440 \u043f\u043e http: apachebench (c-\u043a\u043b\u0438\u0435\u043d\u0442, `ab`).  \u043f\u043e\u0447\u0435\u043c\u0443 \u0442\u043e\u043b\u044c\u043a\u043e"
     },
     {
-      "label": "Generate the two apps on disk; return {module_name: path}.",
+      "label": "Generate the apps on disk; return {module_name: path}.",
       "file_type": "rationale",
       "source_file": "bench/ab_bench.py",
-      "source_location": "L129",
+      "source_location": "L221",
       "_origin": "ast",
-      "id": "bench_ab_bench_rationale_129",
+      "id": "bench_ab_bench_rationale_221",
       "community": 49,
-      "norm_label": "generate the two apps on disk; return {module_name: path}."
+      "norm_label": "generate the apps on disk; return {module_name: path}."
     },
     {
       "label": "Build the server command line for the requested backend.",
       "file_type": "rationale",
       "source_file": "bench/ab_bench.py",
-      "source_location": "L143",
+      "source_location": "L237",
       "_origin": "ast",
-      "id": "bench_ab_bench_rationale_143",
+      "id": "bench_ab_bench_rationale_237",
       "community": 49,
       "norm_label": "build the server command line for the requested backend."
     },
@@ -117,9 +117,9 @@
       "label": "Wait until the server accepts TCP connections (no HTTP client involved).",
       "file_type": "rationale",
       "source_file": "bench/ab_bench.py",
-      "source_location": "L152",
+      "source_location": "L246",
       "_origin": "ast",
-      "id": "bench_ab_bench_rationale_152",
+      "id": "bench_ab_bench_rationale_246",
       "community": 49,
       "norm_label": "wait until the server accepts tcp connections (no http client involved)."
     },
@@ -127,9 +127,9 @@
       "label": "Run one ab measurement and parse the numbers we report.",
       "file_type": "rationale",
       "source_file": "bench/ab_bench.py",
-      "source_location": "L164",
+      "source_location": "L258",
       "_origin": "ast",
-      "id": "bench_ab_bench_rationale_164",
+      "id": "bench_ab_bench_rationale_258",
       "community": 49,
       "norm_label": "run one ab measurement and parse the numbers we report."
     },
@@ -137,9 +137,9 @@
       "label": "First / middle / last route \u2014 so a routing table scan cannot hide.",
       "file_type": "rationale",
       "source_file": "bench/ab_bench.py",
-      "source_location": "L185",
+      "source_location": "L279",
       "_origin": "ast",
-      "id": "bench_ab_bench_rationale_185",
+      "id": "bench_ab_bench_rationale_279",
       "community": 49,
       "norm_label": "first / middle / last route \u2014 so a routing table scan cannot hide."
     },
@@ -147,9 +147,9 @@
       "label": "Warm up, then run each sampled path `runs` times and keep the median.",
       "file_type": "rationale",
       "source_file": "bench/ab_bench.py",
-      "source_location": "L194",
+      "source_location": "L288",
       "_origin": "ast",
-      "id": "bench_ab_bench_rationale_194",
+      "id": "bench_ab_bench_rationale_288",
       "community": 49,
       "norm_label": "warm up, then run each sampled path `runs` times and keep the median."
     },
@@ -230,7 +230,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "bench_bench_logic",
-      "community": 13,
+      "community": 22,
       "norm_label": "bench_logic.py"
     },
     {
@@ -240,7 +240,7 @@
       "source_location": "L24",
       "_origin": "ast",
       "id": "bench_bench_logic_ab_reqs",
-      "community": 13,
+      "community": 22,
       "norm_label": "ab_reqs()"
     },
     {
@@ -250,7 +250,7 @@
       "source_location": "L37",
       "_origin": "ast",
       "id": "bench_bench_logic_serve",
-      "community": 13,
+      "community": 22,
       "norm_label": "serve()"
     },
     {
@@ -260,7 +260,7 @@
       "source_location": "",
       "_origin": "ast",
       "id": "bench_bench_logic_py_popen",
-      "community": 13,
+      "community": 22,
       "norm_label": "popen"
     },
     {
@@ -270,7 +270,7 @@
       "source_location": "L48",
       "_origin": "ast",
       "id": "bench_bench_logic_main",
-      "community": 13,
+      "community": 22,
       "norm_label": "main()"
     },
     {
@@ -280,7 +280,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "bench_bench_logic_rationale_1",
-      "community": 13,
+      "community": 22,
       "norm_label": "\u0441\u043a\u043e\u043b\u044c\u043a\u043e \u0431\u0438\u0437\u043d\u0435\u0441-\u043b\u043e\u0433\u0438\u043a\u0430 \u0441\u044a\u0435\u0434\u0430\u0435\u0442 \u043e\u0442 \u043f\u0440\u043e\u043f\u0443\u0441\u043a\u043d\u043e\u0438 \u0441\u043f\u043e\u0441\u043e\u0431\u043d\u043e\u0441\u0442\u0438 ferronit \u043d\u0430 postgresql."
     },
     {
@@ -290,7 +290,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "bench_bench_params",
-      "community": 13,
+      "community": 7,
       "norm_label": "bench_params.py"
     },
     {
@@ -300,7 +300,7 @@
       "source_location": "L96",
       "_origin": "ast",
       "id": "bench_bench_params_start",
-      "community": 13,
+      "community": 7,
       "norm_label": "start()"
     },
     {
@@ -310,7 +310,7 @@
       "source_location": "",
       "_origin": "ast",
       "id": "bench_bench_params_py_popen",
-      "community": 13,
+      "community": 7,
       "norm_label": "popen"
     },
     {
@@ -320,7 +320,7 @@
       "source_location": "L106",
       "_origin": "ast",
       "id": "bench_bench_params_check",
-      "community": 13,
+      "community": 7,
       "norm_label": "check()"
     },
     {
@@ -330,7 +330,7 @@
       "source_location": "L112",
       "_origin": "ast",
       "id": "bench_bench_params_fmt",
-      "community": 13,
+      "community": 7,
       "norm_label": "fmt()"
     },
     {
@@ -340,7 +340,7 @@
       "source_location": "L116",
       "_origin": "ast",
       "id": "bench_bench_params_log_x",
-      "community": 13,
+      "community": 7,
       "norm_label": "_log_x()"
     },
     {
@@ -350,7 +350,7 @@
       "source_location": "L120",
       "_origin": "ast",
       "id": "bench_bench_params_render_svg",
-      "community": 13,
+      "community": 7,
       "norm_label": "render_svg()"
     },
     {
@@ -360,7 +360,7 @@
       "source_location": "L155",
       "_origin": "ast",
       "id": "bench_bench_params_main",
-      "community": 13,
+      "community": 7,
       "norm_label": "main()"
     },
     {
@@ -370,7 +370,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "bench_bench_params_rationale_1",
-      "community": 13,
+      "community": 7,
       "norm_label": "ferronit vs fastapi vs litestar: \u043e\u0431\u0440\u0430\u0431\u043e\u0442\u043a\u0430 \u0432\u0445\u043e\u0434\u043d\u044b\u0445 \u043f\u0430\u0440\u0430\u043c\u0435\u0442\u0440\u043e\u0432.  \u0442\u0440\u0438 \u043e\u0434\u0438\u043d\u0430\u043a\u043e\u0432\u044b\u0445 \u044d"
     },
     {
@@ -380,7 +380,7 @@
       "source_location": "L121",
       "_origin": "ast",
       "id": "bench_bench_params_rationale_121",
-      "community": 13,
+      "community": 7,
       "norm_label": "\u0441\u0433\u0440\u0443\u043f\u043f\u0438\u0440\u043e\u0432\u0430\u043d\u043d\u044b\u0435 \u0433\u043e\u0440\u0438\u0437\u043e\u043d\u0442\u0430\u043b\u044c\u043d\u044b\u0435 \u043f\u043e\u043b\u043e\u0441\u044b: 3 \u0444\u0440\u0435\u0438\u043c\u0432\u043e\u0440\u043a\u0430 \u00d7 3 \u043c\u0430\u0440\u0448\u0440\u0443\u0442\u0430."
     },
     {
@@ -1758,7 +1758,7 @@
       "source_location": "L53",
       "_origin": "ast",
       "id": "bench_micro_bench_model_user",
-      "community": 45,
+      "community": 12,
       "norm_label": "user"
     },
     {
@@ -1888,7 +1888,7 @@
       "source_location": "L54",
       "_origin": "ast",
       "id": "bench_micro_bench_model_rationale_54",
-      "community": 45,
+      "community": 12,
       "norm_label": "\u0443\u0437\u043a\u0430\u044f \u043c\u043e\u0434\u0435\u043b\u044c: \u0442\u0435 \u0436\u0435 \u0442\u0440\u0438 \u043f\u043e\u043b\u044f, \u0447\u0442\u043e \u0438 \u0432 \u0442\u0430\u0431\u043b\u0438\u0446\u0435 \u0441\u0442\u0435\u043d\u0434\u0430 ``users``."
     },
     {
@@ -2068,7 +2068,7 @@
       "source_location": "",
       "_origin": "ast",
       "id": "runtimeerror",
-      "community": 13,
+      "community": 22,
       "norm_label": "runtimeerror"
     },
     {
@@ -2478,7 +2478,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "bench_plot_rows",
-      "community": 13,
+      "community": 48,
       "norm_label": "plot_rows.py"
     },
     {
@@ -2488,7 +2488,7 @@
       "source_location": "L56",
       "_origin": "ast",
       "id": "bench_plot_rows_collect",
-      "community": 13,
+      "community": 48,
       "norm_label": "collect()"
     },
     {
@@ -2498,7 +2498,7 @@
       "source_location": "L69",
       "_origin": "ast",
       "id": "bench_plot_rows_load",
-      "community": 13,
+      "community": 48,
       "norm_label": "load()"
     },
     {
@@ -2508,7 +2508,7 @@
       "source_location": "L76",
       "_origin": "ast",
       "id": "bench_plot_rows_fmt",
-      "community": 13,
+      "community": 48,
       "norm_label": "_fmt()"
     },
     {
@@ -2518,7 +2518,7 @@
       "source_location": "L80",
       "_origin": "ast",
       "id": "bench_plot_rows_log_x",
-      "community": 13,
+      "community": 48,
       "norm_label": "_log_x()"
     },
     {
@@ -2528,7 +2528,7 @@
       "source_location": "L85",
       "_origin": "ast",
       "id": "bench_plot_rows_gridlines",
-      "community": 13,
+      "community": 48,
       "norm_label": "_gridlines()"
     },
     {
@@ -2538,7 +2538,7 @@
       "source_location": "L100",
       "_origin": "ast",
       "id": "bench_plot_rows_legend",
-      "community": 13,
+      "community": 48,
       "norm_label": "_legend()"
     },
     {
@@ -2548,7 +2548,7 @@
       "source_location": "L110",
       "_origin": "ast",
       "id": "bench_plot_rows_render",
-      "community": 13,
+      "community": 48,
       "norm_label": "render()"
     },
     {
@@ -2558,7 +2558,7 @@
       "source_location": "",
       "_origin": "ast",
       "id": "bench_plot_rows_py_path",
-      "community": 13,
+      "community": 48,
       "norm_label": "path"
     },
     {
@@ -2568,7 +2568,7 @@
       "source_location": "L188",
       "_origin": "ast",
       "id": "bench_plot_rows_main",
-      "community": 13,
+      "community": 48,
       "norm_label": "main()"
     },
     {
@@ -2578,7 +2578,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "bench_plot_rows_rationale_1",
-      "community": 13,
+      "community": 48,
       "norm_label": "\u0437\u0430\u043f\u0443\u0441\u043a bench_rows (1/100/1000) \u0438 \u043f\u043e\u0441\u0442\u0440\u043e\u0435\u043d\u0438\u0435 \u043a\u0440\u0430\u0441\u0438\u0432\u043e\u0433\u043e html-\u0433\u0440\u0430\u0444\u0438\u043a\u0430.  \u0438\u0441\u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u043d"
     },
     {
@@ -2588,7 +2588,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "bench_prof_clean",
-      "community": 22,
+      "community": 27,
       "norm_label": "prof_clean.py"
     },
     {
@@ -2598,7 +2598,7 @@
       "source_location": "L18",
       "_origin": "ast",
       "id": "bench_prof_clean_make_scope",
-      "community": 22,
+      "community": 27,
       "norm_label": "make_scope()"
     },
     {
@@ -2608,7 +2608,7 @@
       "source_location": "L27",
       "_origin": "ast",
       "id": "bench_prof_clean_recv",
-      "community": 22,
+      "community": 27,
       "norm_label": "recv()"
     },
     {
@@ -2618,7 +2618,7 @@
       "source_location": "L31",
       "_origin": "ast",
       "id": "bench_prof_clean_send",
-      "community": 22,
+      "community": 27,
       "norm_label": "send()"
     },
     {
@@ -2628,7 +2628,7 @@
       "source_location": "L35",
       "_origin": "ast",
       "id": "bench_prof_clean_run",
-      "community": 22,
+      "community": 27,
       "norm_label": "run()"
     },
     {
@@ -2638,7 +2638,7 @@
       "source_location": "L40",
       "_origin": "ast",
       "id": "bench_prof_clean_measure",
-      "community": 22,
+      "community": 27,
       "norm_label": "measure()"
     },
     {
@@ -2648,7 +2648,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "bench_prof_clean_rationale_1",
-      "community": 22,
+      "community": 27,
       "norm_label": "\u0447\u0435\u0441\u0442\u043d\u044b\u0438 \u0437\u0430\u043c\u0435\u0440 hot path: gc \u0432\u044b\u043a\u043b\u044e\u0447\u0435\u043d, \u043c\u0435\u0434\u0438\u0430\u043d\u0430 \u0438\u0437 3 \u043f\u0440\u043e\u0433\u043e\u043d\u043e\u0432."
     },
     {
@@ -2658,7 +2658,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "bench_prof_components",
-      "community": 29,
+      "community": 131,
       "norm_label": "prof_components.py"
     },
     {
@@ -2668,7 +2668,7 @@
       "source_location": "L31",
       "_origin": "ast",
       "id": "bench_prof_components_noop_send",
-      "community": 29,
+      "community": 131,
       "norm_label": "noop_send()"
     },
     {
@@ -2678,7 +2678,7 @@
       "source_location": "L35",
       "_origin": "ast",
       "id": "bench_prof_components_noop_receive",
-      "community": 29,
+      "community": 131,
       "norm_label": "noop_receive()"
     },
     {
@@ -2688,7 +2688,7 @@
       "source_location": "L39",
       "_origin": "ast",
       "id": "bench_prof_components_bench",
-      "community": 29,
+      "community": 131,
       "norm_label": "bench()"
     },
     {
@@ -2698,7 +2698,7 @@
       "source_location": "L49",
       "_origin": "ast",
       "id": "bench_prof_components_main",
-      "community": 29,
+      "community": 131,
       "norm_label": "main()"
     },
     {
@@ -2708,7 +2708,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "bench_prof_components_rationale_1",
-      "community": 29,
+      "community": 131,
       "norm_label": "\u0440\u0430\u0437\u043b\u043e\u0436\u0435\u043d\u0438\u0435 \u0433\u043e\u0440\u044f\u0447\u0435\u0433\u043e \u043f\u0443\u0442\u0438 ferronit \u043d\u0430 \u043a\u043e\u043c\u043f\u043e\u043d\u0435\u043d\u0442\u044b (\u043c\u043a\u0441/\u043e\u043f)."
     },
     {
@@ -2718,7 +2718,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "bench_prof_hot",
-      "community": 22,
+      "community": 27,
       "norm_label": "prof_hot.py"
     },
     {
@@ -2728,7 +2728,7 @@
       "source_location": "L15",
       "_origin": "ast",
       "id": "bench_prof_hot_make_scope",
-      "community": 22,
+      "community": 27,
       "norm_label": "make_scope()"
     },
     {
@@ -2738,7 +2738,7 @@
       "source_location": "L29",
       "_origin": "ast",
       "id": "bench_prof_hot_run",
-      "community": 22,
+      "community": 27,
       "norm_label": "run()"
     },
     {
@@ -2748,7 +2748,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "bench_prof_hot_rationale_1",
-      "community": 22,
+      "community": 27,
       "norm_label": "\u0447\u0438\u0441\u0442\u044b\u0438 \u043f\u0440\u043e\u0444\u0438\u043b\u044c ferronit: \u043f\u0440\u044f\u043c\u043e\u0438 \u0432\u044b\u0437\u043e\u0432 asgi, \u0431\u0435\u0437 httpx-\u0448\u0443\u043c\u0430."
     },
     {
@@ -3212,7 +3212,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "bench_rust_pg_orm_src_entity",
-      "community": 7,
+      "community": 40,
       "norm_label": "entity.rs"
     },
     {
@@ -3222,7 +3222,7 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "bench_rust_pg_orm_src_entity_model",
-      "community": 7,
+      "community": 40,
       "norm_label": "model"
     },
     {
@@ -3232,7 +3232,7 @@
       "source_location": "",
       "_origin": "ast",
       "id": "bench_rust_pg_orm_src_entity_rs_string",
-      "community": 7,
+      "community": 40,
       "norm_label": "string"
     },
     {
@@ -3242,7 +3242,7 @@
       "source_location": "L15",
       "_origin": "ast",
       "id": "bench_rust_pg_orm_src_entity_relation",
-      "community": 7,
+      "community": 40,
       "norm_label": "relation"
     },
     {
@@ -3282,7 +3282,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "bench_rust_pg_orm_src_main",
-      "community": 7,
+      "community": 40,
       "norm_label": "main.rs"
     },
     {
@@ -3292,7 +3292,7 @@
       "source_location": "L22",
       "_origin": "ast",
       "id": "bench_rust_pg_orm_src_main_args",
-      "community": 7,
+      "community": 40,
       "norm_label": "args"
     },
     {
@@ -3302,7 +3302,7 @@
       "source_location": "",
       "_origin": "ast",
       "id": "bench_rust_pg_orm_src_main_rs_string",
-      "community": 7,
+      "community": 40,
       "norm_label": "string"
     },
     {
@@ -3312,7 +3312,7 @@
       "source_location": "L30",
       "_origin": "ast",
       "id": "bench_rust_pg_orm_src_main_parse_args",
-      "community": 7,
+      "community": 40,
       "norm_label": "parse_args()"
     },
     {
@@ -3322,7 +3322,7 @@
       "source_location": "L55",
       "_origin": "ast",
       "id": "bench_rust_pg_orm_src_main_report",
-      "community": 7,
+      "community": 40,
       "norm_label": "report()"
     },
     {
@@ -3332,7 +3332,7 @@
       "source_location": "",
       "_origin": "ast",
       "id": "bench_rust_pg_orm_src_main_rs_vec",
-      "community": 7,
+      "community": 40,
       "norm_label": "vec"
     },
     {
@@ -3342,7 +3342,7 @@
       "source_location": "L70",
       "_origin": "ast",
       "id": "bench_rust_pg_orm_src_main_run_tokio_pg",
-      "community": 7,
+      "community": 40,
       "norm_label": "run_tokio_pg()"
     },
     {
@@ -3352,7 +3352,7 @@
       "source_location": "L129",
       "_origin": "ast",
       "id": "bench_rust_pg_orm_src_main_run_sqlx",
-      "community": 7,
+      "community": 40,
       "norm_label": "run_sqlx()"
     },
     {
@@ -3362,7 +3362,7 @@
       "source_location": "L175",
       "_origin": "ast",
       "id": "bench_rust_pg_orm_src_main_run_seaorm",
-      "community": 7,
+      "community": 40,
       "norm_label": "run_seaorm()"
     },
     {
@@ -3372,7 +3372,7 @@
       "source_location": "L210",
       "_origin": "ast",
       "id": "bench_rust_pg_orm_src_main_main",
-      "community": 7,
+      "community": 40,
       "norm_label": "main()"
     },
     {
@@ -3580,7 +3580,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "examples_app",
-      "community": 56,
+      "community": 45,
       "norm_label": "app.py"
     },
     {
@@ -3590,7 +3590,7 @@
       "source_location": "L44",
       "_origin": "ast",
       "id": "examples_app_cartitem",
-      "community": 56,
+      "community": 45,
       "norm_label": "cartitem"
     },
     {
@@ -3600,7 +3600,7 @@
       "source_location": "L45",
       "_origin": "ast",
       "id": "examples_app_cartitem_init",
-      "community": 56,
+      "community": 45,
       "norm_label": ".__init__()"
     },
     {
@@ -3610,7 +3610,7 @@
       "source_location": "L52",
       "_origin": "ast",
       "id": "examples_app_order",
-      "community": 56,
+      "community": 45,
       "norm_label": "order"
     },
     {
@@ -3620,7 +3620,7 @@
       "source_location": "L53",
       "_origin": "ast",
       "id": "examples_app_order_init",
-      "community": 56,
+      "community": 45,
       "norm_label": ".__init__()"
     },
     {
@@ -3630,7 +3630,7 @@
       "source_location": "L61",
       "_origin": "ast",
       "id": "examples_app_order_cancel",
-      "community": 56,
+      "community": 45,
       "norm_label": ".cancel()"
     },
     {
@@ -3660,7 +3660,7 @@
       "source_location": "L90",
       "_origin": "ast",
       "id": "examples_app_ordermapper",
-      "community": 56,
+      "community": 45,
       "norm_label": "ordermapper"
     },
     {
@@ -3670,7 +3670,7 @@
       "source_location": "L91",
       "_origin": "ast",
       "id": "examples_app_ordermapper_to_aggregate",
-      "community": 56,
+      "community": 45,
       "norm_label": ".to_aggregate()"
     },
     {
@@ -3680,7 +3680,7 @@
       "source_location": "L97",
       "_origin": "ast",
       "id": "examples_app_ordermapper_from_aggregate",
-      "community": 56,
+      "community": 45,
       "norm_label": ".from_aggregate()"
     },
     {
@@ -3690,7 +3690,7 @@
       "source_location": "L108",
       "_origin": "ast",
       "id": "examples_app_orderrepository",
-      "community": 56,
+      "community": 45,
       "norm_label": "orderrepository"
     },
     {
@@ -3700,7 +3700,7 @@
       "source_location": "L109",
       "_origin": "ast",
       "id": "examples_app_orderrepository_by_user",
-      "community": 56,
+      "community": 45,
       "norm_label": ".by_user()"
     },
     {
@@ -3710,7 +3710,7 @@
       "source_location": "L115",
       "_origin": "ast",
       "id": "examples_app_orderservice",
-      "community": 56,
+      "community": 45,
       "norm_label": "orderservice"
     },
     {
@@ -3720,7 +3720,7 @@
       "source_location": "L116",
       "_origin": "ast",
       "id": "examples_app_orderservice_init",
-      "community": 56,
+      "community": 45,
       "norm_label": ".__init__()"
     },
     {
@@ -3730,7 +3730,7 @@
       "source_location": "L119",
       "_origin": "ast",
       "id": "examples_app_orderservice_place_order",
-      "community": 56,
+      "community": 45,
       "norm_label": ".place_order()"
     },
     {
@@ -3740,7 +3740,7 @@
       "source_location": "L126",
       "_origin": "ast",
       "id": "examples_app_orderservice_get_order",
-      "community": 56,
+      "community": 45,
       "norm_label": ".get_order()"
     },
     {
@@ -3750,7 +3750,7 @@
       "source_location": "L129",
       "_origin": "ast",
       "id": "examples_app_orderservice_cancel",
-      "community": 56,
+      "community": 45,
       "norm_label": ".cancel()"
     },
     {
@@ -3770,7 +3770,7 @@
       "source_location": "L168",
       "_origin": "ast",
       "id": "examples_app_orderresponse",
-      "community": 56,
+      "community": 45,
       "norm_label": "orderresponse"
     },
     {
@@ -3780,7 +3780,7 @@
       "source_location": "L176",
       "_origin": "ast",
       "id": "examples_app_to_response",
-      "community": 56,
+      "community": 45,
       "norm_label": "_to_response()"
     },
     {
@@ -3790,7 +3790,7 @@
       "source_location": "L190",
       "_origin": "ast",
       "id": "examples_app_create_order",
-      "community": 56,
+      "community": 45,
       "norm_label": "create_order()"
     },
     {
@@ -3800,7 +3800,7 @@
       "source_location": "L201",
       "_origin": "ast",
       "id": "examples_app_list_orders",
-      "community": 56,
+      "community": 45,
       "norm_label": "list_orders()"
     },
     {
@@ -3810,7 +3810,7 @@
       "source_location": "L206",
       "_origin": "ast",
       "id": "examples_app_get_order",
-      "community": 56,
+      "community": 45,
       "norm_label": "get_order()"
     },
     {
@@ -3820,7 +3820,7 @@
       "source_location": "L214",
       "_origin": "ast",
       "id": "examples_app_cancel_order",
-      "community": 56,
+      "community": 45,
       "norm_label": "cancel_order()"
     },
     {
@@ -3830,7 +3830,7 @@
       "source_location": "L222",
       "_origin": "ast",
       "id": "examples_app_openapi_spec",
-      "community": 56,
+      "community": 45,
       "norm_label": "openapi_spec()"
     },
     {
@@ -3840,7 +3840,7 @@
       "source_location": "L227",
       "_origin": "ast",
       "id": "examples_app_ping",
-      "community": 56,
+      "community": 45,
       "norm_label": "ping()"
     },
     {
@@ -3850,7 +3850,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "examples_app_rationale_1",
-      "community": 56,
+      "community": 45,
       "norm_label": "ferronit \u2014 \u0433\u0435\u043a\u0441\u0430\u0433\u043e\u043d\u0430\u043b\u044c\u043d\u044b\u0438 \u043f\u0440\u0438\u043c\u0435\u0440: \u0430\u0433\u0440\u0435\u0433\u0430\u0442 order + mapper + repository.  \u0437\u0430\u043a\u0430\u0437 \u2014"
     },
     {
@@ -5110,7 +5110,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ferronit_init",
-      "community": 29,
+      "community": 6,
       "norm_label": "__init__.py"
     },
     {
@@ -5120,7 +5120,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ferronit_init_rationale_1",
-      "community": 29,
+      "community": 6,
       "norm_label": "ferronit \u2014 high-performance asgi web framework with ddd support."
     },
     {
@@ -5850,7 +5850,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ferronit_contrib_cors",
-      "community": 25,
+      "community": 14,
       "norm_label": "cors.py"
     },
     {
@@ -5860,7 +5860,7 @@
       "source_location": "L10",
       "_origin": "ast",
       "id": "ferronit_contrib_cors_cors",
-      "community": 25,
+      "community": 14,
       "norm_label": "cors()"
     },
     {
@@ -5870,7 +5870,7 @@
       "source_location": "L28",
       "_origin": "ast",
       "id": "ferronit_contrib_cors_corsconfig",
-      "community": 25,
+      "community": 14,
       "norm_label": "_corsconfig"
     },
     {
@@ -5880,7 +5880,7 @@
       "source_location": "L29",
       "_origin": "ast",
       "id": "ferronit_contrib_cors_corsconfig_init",
-      "community": 25,
+      "community": 14,
       "norm_label": ".__init__()"
     },
     {
@@ -5890,7 +5890,7 @@
       "source_location": "L35",
       "_origin": "ast",
       "id": "ferronit_contrib_cors_corsconfig_apply",
-      "community": 25,
+      "community": 14,
       "norm_label": ".apply()"
     },
     {
@@ -5900,7 +5900,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ferronit_contrib_cors_rationale_1",
-      "community": 25,
+      "community": 14,
       "norm_label": "cors \u2014 rust-native, one-liner."
     },
     {
@@ -5910,7 +5910,7 @@
       "source_location": "L16",
       "_origin": "ast",
       "id": "ferronit_contrib_cors_rationale_16",
-      "community": 25,
+      "community": 14,
       "norm_label": "enable cors at rust level \u2014 no per-request python overhead.      usage:"
     },
     {
@@ -5920,7 +5920,7 @@
       "source_location": "L36",
       "_origin": "ast",
       "id": "ferronit_contrib_cors_rationale_36",
-      "community": 25,
+      "community": 14,
       "norm_label": "install the configured cors policy on the app's rust core.          args:"
     },
     {
@@ -6130,7 +6130,7 @@
       "source_location": "L58",
       "_origin": "ast",
       "id": "ferronit_contrib_kafka_kafkamessagebus_publish",
-      "community": 18,
+      "community": 22,
       "norm_label": ".publish()"
     },
     {
@@ -6190,7 +6190,7 @@
       "source_location": "L59",
       "_origin": "ast",
       "id": "ferronit_contrib_kafka_rationale_59",
-      "community": 18,
+      "community": 22,
       "norm_label": "send a message to a topic and wait for acknowledgement.          args:"
     },
     {
@@ -6220,7 +6220,7 @@
       "source_location": "L20",
       "_origin": "ast",
       "id": "ferronit_contrib_llm_chatmessage",
-      "community": 95,
+      "community": 58,
       "norm_label": "chatmessage"
     },
     {
@@ -6230,7 +6230,7 @@
       "source_location": "L33",
       "_origin": "ast",
       "id": "ferronit_contrib_llm_chatresponse",
-      "community": 39,
+      "community": 60,
       "norm_label": "chatresponse"
     },
     {
@@ -6310,7 +6310,7 @@
       "source_location": "L117",
       "_origin": "ast",
       "id": "ferronit_contrib_llm_mockllmadapter_chat",
-      "community": 95,
+      "community": 60,
       "norm_label": ".chat()"
     },
     {
@@ -6330,7 +6330,7 @@
       "source_location": "L151",
       "_origin": "ast",
       "id": "ferronit_contrib_llm_openaiadapter",
-      "community": 95,
+      "community": 60,
       "norm_label": "openaiadapter"
     },
     {
@@ -6340,7 +6340,7 @@
       "source_location": "L154",
       "_origin": "ast",
       "id": "ferronit_contrib_llm_openaiadapter_init",
-      "community": 95,
+      "community": 60,
       "norm_label": ".__init__()"
     },
     {
@@ -6360,7 +6360,7 @@
       "source_location": "L173",
       "_origin": "ast",
       "id": "ferronit_contrib_llm_openaiadapter_chat",
-      "community": 95,
+      "community": 60,
       "norm_label": ".chat()"
     },
     {
@@ -6370,7 +6370,7 @@
       "source_location": "L210",
       "_origin": "ast",
       "id": "ferronit_contrib_llm_openaiadapter_embed",
-      "community": 95,
+      "community": 60,
       "norm_label": ".embed()"
     },
     {
@@ -6380,7 +6380,7 @@
       "source_location": "L236",
       "_origin": "ast",
       "id": "ferronit_contrib_llm_claudeadapter",
-      "community": 60,
+      "community": 95,
       "norm_label": "claudeadapter"
     },
     {
@@ -6390,7 +6390,7 @@
       "source_location": "L239",
       "_origin": "ast",
       "id": "ferronit_contrib_llm_claudeadapter_init",
-      "community": 60,
+      "community": 95,
       "norm_label": ".__init__()"
     },
     {
@@ -6420,7 +6420,7 @@
       "source_location": "L308",
       "_origin": "ast",
       "id": "ferronit_contrib_llm_claudeadapter_embed",
-      "community": 60,
+      "community": 95,
       "norm_label": ".embed()"
     },
     {
@@ -6440,7 +6440,7 @@
       "source_location": "L21",
       "_origin": "ast",
       "id": "ferronit_contrib_llm_rationale_21",
-      "community": 95,
+      "community": 58,
       "norm_label": "a single message in a chat conversation.      attributes:         role: one of `"
     },
     {
@@ -6450,7 +6450,7 @@
       "source_location": "L34",
       "_origin": "ast",
       "id": "ferronit_contrib_llm_rationale_34",
-      "community": 39,
+      "community": 60,
       "norm_label": "a completion returned by a language model adapter.      attributes:         cont"
     },
     {
@@ -6520,7 +6520,7 @@
       "source_location": "L118",
       "_origin": "ast",
       "id": "ferronit_contrib_llm_rationale_118",
-      "community": 95,
+      "community": 60,
       "norm_label": "return a canned chat reply and record the call.          args:             messa"
     },
     {
@@ -6540,7 +6540,7 @@
       "source_location": "L152",
       "_origin": "ast",
       "id": "ferronit_contrib_llm_rationale_152",
-      "community": 95,
+      "community": 60,
       "norm_label": "openai api adapter \u2014 async, no external deps beyond httpx."
     },
     {
@@ -6560,7 +6560,7 @@
       "source_location": "L174",
       "_origin": "ast",
       "id": "ferronit_contrib_llm_rationale_174",
-      "community": 95,
+      "community": 60,
       "norm_label": "call openai's ``/chat/completions`` endpoint.          args:             message"
     },
     {
@@ -6570,7 +6570,7 @@
       "source_location": "L211",
       "_origin": "ast",
       "id": "ferronit_contrib_llm_rationale_211",
-      "community": 95,
+      "community": 60,
       "norm_label": "call openai's ``/embeddings`` endpoint.          args:             text: input t"
     },
     {
@@ -6580,7 +6580,7 @@
       "source_location": "L237",
       "_origin": "ast",
       "id": "ferronit_contrib_llm_rationale_237",
-      "community": 60,
+      "community": 95,
       "norm_label": "anthropic claude api adapter."
     },
     {
@@ -6610,7 +6610,7 @@
       "source_location": "L309",
       "_origin": "ast",
       "id": "ferronit_contrib_llm_rationale_309",
-      "community": 60,
+      "community": 95,
       "norm_label": "unsupported \u2014 claude has no embeddings api.          args:             text: ign"
     },
     {
@@ -7060,7 +7060,7 @@
       "source_location": "L117",
       "_origin": "ast",
       "id": "ferronit_contrib_rawdb_rawrepository_init",
-      "community": 13,
+      "community": 22,
       "norm_label": ".__init__()"
     },
     {
@@ -7070,7 +7070,7 @@
       "source_location": "",
       "_origin": "ast",
       "id": "ferronit_contrib_rawdb_py_connection",
-      "community": 13,
+      "community": 22,
       "norm_label": "connection"
     },
     {
@@ -7150,7 +7150,7 @@
       "source_location": "L251",
       "_origin": "ast",
       "id": "ferronit_contrib_rawdb_rawunitofwork_connection",
-      "community": 13,
+      "community": 22,
       "norm_label": ".connection()"
     },
     {
@@ -7420,7 +7420,7 @@
       "source_location": "L252",
       "_origin": "ast",
       "id": "ferronit_contrib_rawdb_rationale_252",
-      "community": 13,
+      "community": 22,
       "norm_label": "connection acquired for the current context.          returns:             the a"
     },
     {
@@ -7520,7 +7520,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ferronit_contrib_rawmodel",
-      "community": 45,
+      "community": 11,
       "norm_label": "rawmodel.py"
     },
     {
@@ -7610,7 +7610,7 @@
       "source_location": "L147",
       "_origin": "ast",
       "id": "ferronit_contrib_rawmodel_modelmeta",
-      "community": 45,
+      "community": 11,
       "norm_label": "modelmeta"
     },
     {
@@ -7620,7 +7620,7 @@
       "source_location": "",
       "_origin": "ast",
       "id": "structmeta",
-      "community": 45,
+      "community": 11,
       "norm_label": "structmeta"
     },
     {
@@ -7660,7 +7660,7 @@
       "source_location": "L185",
       "_origin": "ast",
       "id": "ferronit_contrib_rawmodel_model_to_tuple",
-      "community": 38,
+      "community": 94,
       "norm_label": ".to_tuple()"
     },
     {
@@ -7830,7 +7830,7 @@
       "source_location": "L256",
       "_origin": "ast",
       "id": "ferronit_contrib_rawmodel_column_desc",
-      "community": 94,
+      "community": 38,
       "norm_label": ".desc()"
     },
     {
@@ -7870,7 +7870,7 @@
       "source_location": "L277",
       "_origin": "ast",
       "id": "ferronit_contrib_rawmodel_query",
-      "community": 43,
+      "community": 11,
       "norm_label": "query"
     },
     {
@@ -7910,7 +7910,7 @@
       "source_location": "L319",
       "_origin": "ast",
       "id": "ferronit_contrib_rawmodel_query_limit",
-      "community": 43,
+      "community": 11,
       "norm_label": ".limit()"
     },
     {
@@ -7920,7 +7920,7 @@
       "source_location": "L324",
       "_origin": "ast",
       "id": "ferronit_contrib_rawmodel_query_offset",
-      "community": 43,
+      "community": 11,
       "norm_label": ".offset()"
     },
     {
@@ -7930,7 +7930,7 @@
       "source_location": "L329",
       "_origin": "ast",
       "id": "ferronit_contrib_rawmodel_query_first",
-      "community": 43,
+      "community": 11,
       "norm_label": ".first()"
     },
     {
@@ -7940,7 +7940,7 @@
       "source_location": "L335",
       "_origin": "ast",
       "id": "ferronit_contrib_rawmodel_query_columns",
-      "community": 43,
+      "community": 11,
       "norm_label": ".columns()"
     },
     {
@@ -7950,7 +7950,7 @@
       "source_location": "L340",
       "_origin": "ast",
       "id": "ferronit_contrib_rawmodel_query_count",
-      "community": 43,
+      "community": 11,
       "norm_label": ".count()"
     },
     {
@@ -7960,7 +7960,7 @@
       "source_location": "L345",
       "_origin": "ast",
       "id": "ferronit_contrib_rawmodel_query_aggregate",
-      "community": 43,
+      "community": 11,
       "norm_label": ".aggregate()"
     },
     {
@@ -8150,7 +8150,7 @@
       "source_location": "L571",
       "_origin": "ast",
       "id": "ferronit_contrib_rawmodel_identitymap",
-      "community": 45,
+      "community": 9,
       "norm_label": "identitymap"
     },
     {
@@ -8160,7 +8160,7 @@
       "source_location": "L583",
       "_origin": "ast",
       "id": "ferronit_contrib_rawmodel_identitymap_init",
-      "community": 45,
+      "community": 9,
       "norm_label": ".__init__()"
     },
     {
@@ -8200,7 +8200,7 @@
       "source_location": "L629",
       "_origin": "ast",
       "id": "ferronit_contrib_rawmodel_rawmodelrepository",
-      "community": 9,
+      "community": 43,
       "norm_label": "rawmodelrepository"
     },
     {
@@ -8480,7 +8480,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ferronit_contrib_rawmodel_rationale_1",
-      "community": 45,
+      "community": 11,
       "norm_label": "declarative row models for the raw asyncpg layer.  why this module exists: ``raw"
     },
     {
@@ -8540,7 +8540,7 @@
       "source_location": "L148",
       "_origin": "ast",
       "id": "ferronit_contrib_rawmodel_rationale_148",
-      "community": 45,
+      "community": 11,
       "norm_label": "metaclass: \u043a\u0430\u0436\u0434\u044b\u0438 \u043f\u043e\u0434\u043a\u043b\u0430\u0441\u0441 ``model`` \u2014 ``msgspec.struct`` + \u043a\u043e\u043b\u043e\u043d\u043a\u0438 \u043f\u043e \u043f\u043e\u0440\u044f\u0434\u043a\u0443."
     },
     {
@@ -8570,7 +8570,7 @@
       "source_location": "L186",
       "_origin": "ast",
       "id": "ferronit_contrib_rawmodel_rationale_186",
-      "community": 38,
+      "community": 94,
       "norm_label": "return the field values in declaration order."
     },
     {
@@ -8650,7 +8650,7 @@
       "source_location": "L257",
       "_origin": "ast",
       "id": "ferronit_contrib_rawmodel_rationale_257",
-      "community": 94,
+      "community": 38,
       "norm_label": "ordering term: descending."
     },
     {
@@ -8670,7 +8670,7 @@
       "source_location": "L278",
       "_origin": "ast",
       "id": "ferronit_contrib_rawmodel_rationale_278",
-      "community": 43,
+      "community": 11,
       "norm_label": "a ``select`` over one model, compiled to stable sql with bound parameters."
     },
     {
@@ -8700,7 +8700,7 @@
       "source_location": "L320",
       "_origin": "ast",
       "id": "ferronit_contrib_rawmodel_rationale_320",
-      "community": 43,
+      "community": 11,
       "norm_label": "limit the number of rows."
     },
     {
@@ -8710,7 +8710,7 @@
       "source_location": "L325",
       "_origin": "ast",
       "id": "ferronit_contrib_rawmodel_rationale_325",
-      "community": 43,
+      "community": 11,
       "norm_label": "skip ``n`` rows before returning."
     },
     {
@@ -8720,7 +8720,7 @@
       "source_location": "L330",
       "_origin": "ast",
       "id": "ferronit_contrib_rawmodel_rationale_330",
-      "community": 43,
+      "community": 11,
       "norm_label": "\u043e\u0433\u0440\u0430\u043d\u0438\u0447\u0438\u0442\u044c \u043e\u0434\u043d\u043e\u0438 \u0441\u0442\u0440\u043e\u043a\u043e\u0438 (``limit 1``)."
     },
     {
@@ -8730,7 +8730,7 @@
       "source_location": "L336",
       "_origin": "ast",
       "id": "ferronit_contrib_rawmodel_rationale_336",
-      "community": 43,
+      "community": 11,
       "norm_label": "\u0432\u044b\u0431\u0440\u0430\u0442\u044c \u043a\u043e\u043d\u043a\u0440\u0435\u0442\u043d\u044b\u0435 \u043a\u043e\u043b\u043e\u043d\u043a\u0438 \u0432\u043c\u0435\u0441\u0442\u043e \u0432\u0441\u0435\u0445 \u043f\u043e\u043b\u0435\u0438 \u043c\u043e\u0434\u0435\u043b\u0438."
     },
     {
@@ -8740,7 +8740,7 @@
       "source_location": "L341",
       "_origin": "ast",
       "id": "ferronit_contrib_rawmodel_rationale_341",
-      "community": 43,
+      "community": 11,
       "norm_label": "\u0430\u0433\u0440\u0435\u0433\u0430\u0442 ``count(*)``; \u0440\u0435\u0437\u0443\u043b\u044c\u0442\u0430\u0442 \u0437\u0430\u0431\u0438\u0440\u0430\u0435\u0442\u0441\u044f \u0447\u0435\u0440\u0435\u0437 ``repo.fetch_value()``."
     },
     {
@@ -8750,7 +8750,7 @@
       "source_location": "L346",
       "_origin": "ast",
       "id": "ferronit_contrib_rawmodel_rationale_346",
-      "community": 43,
+      "community": 11,
       "norm_label": "\u043f\u0440\u043e\u0438\u0437\u0432\u043e\u043b\u044c\u043d\u044b\u0438 \u0430\u0433\u0440\u0435\u0433\u0430\u0442 (``sum(col)``, ``avg(col)``, ...); \u0447\u0435\u0440\u0435\u0437 ``fetch_value()``."
     },
     {
@@ -8790,7 +8790,7 @@
       "source_location": "L572",
       "_origin": "ast",
       "id": "ferronit_contrib_rawmodel_rationale_572",
-      "community": 45,
+      "community": 9,
       "norm_label": "instance cache mapping ``(model, primary_key)`` to a loaded instance.      lives"
     },
     {
@@ -8830,7 +8830,7 @@
       "source_location": "L630",
       "_origin": "ast",
       "id": "ferronit_contrib_rawmodel_rationale_630",
-      "community": 9,
+      "community": 43,
       "norm_label": "repository over one table returning model instances instead of dicts.      the p"
     },
     {
@@ -9050,7 +9050,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ferronit_contrib_security",
-      "community": 29,
+      "community": 14,
       "norm_label": "security.py"
     },
     {
@@ -9060,7 +9060,7 @@
       "source_location": "L19",
       "_origin": "ast",
       "id": "ferronit_contrib_security_security_headers",
-      "community": 26,
+      "community": 14,
       "norm_label": "security_headers()"
     },
     {
@@ -9070,7 +9070,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ferronit_contrib_security_rationale_1",
-      "community": 29,
+      "community": 14,
       "norm_label": "security headers \u2014 production defaults in one middleware.  usage:     from ferro"
     },
     {
@@ -9080,7 +9080,7 @@
       "source_location": "L27",
       "_origin": "ast",
       "id": "ferronit_contrib_security_rationale_27",
-      "community": 26,
+      "community": 14,
       "norm_label": "add production security headers to every response.      - x-content-type-options"
     },
     {
@@ -9090,7 +9090,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ferronit_contrib_staticfiles",
-      "community": 29,
+      "community": 131,
       "norm_label": "staticfiles.py"
     },
     {
@@ -9160,7 +9160,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ferronit_contrib_staticfiles_rationale_1",
-      "community": 29,
+      "community": 131,
       "norm_label": "static files serving \u2014 directory mount with caching and range support."
     },
     {
@@ -9190,7 +9190,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ferronit_contrib_tracing",
-      "community": 29,
+      "community": 72,
       "norm_label": "tracing.py"
     },
     {
@@ -9200,7 +9200,7 @@
       "source_location": "L20",
       "_origin": "ast",
       "id": "ferronit_contrib_tracing_current_trace_id",
-      "community": 29,
+      "community": 131,
       "norm_label": "current_trace_id()"
     },
     {
@@ -9250,7 +9250,7 @@
       "source_location": "L43",
       "_origin": "ast",
       "id": "ferronit_contrib_tracing_tracelogger_init",
-      "community": 20,
+      "community": 117,
       "norm_label": ".__init__()"
     },
     {
@@ -9300,7 +9300,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ferronit_contrib_tracing_rationale_1",
-      "community": 29,
+      "community": 72,
       "norm_label": "distributed tracing \u2014 x-trace-id header injection and propagation."
     },
     {
@@ -9310,7 +9310,7 @@
       "source_location": "L21",
       "_origin": "ast",
       "id": "ferronit_contrib_tracing_rationale_21",
-      "community": 29,
+      "community": 131,
       "norm_label": "get current trace id from context."
     },
     {
@@ -9380,7 +9380,7 @@
       "source_location": "L11",
       "_origin": "ast",
       "id": "ferronit_contrib_vectordb_vectordbport",
-      "community": 33,
+      "community": 68,
       "norm_label": "vectordbport"
     },
     {
@@ -9390,7 +9390,7 @@
       "source_location": "L19",
       "_origin": "ast",
       "id": "ferronit_contrib_vectordb_vectordbport_upsert",
-      "community": 33,
+      "community": 68,
       "norm_label": ".upsert()"
     },
     {
@@ -9400,7 +9400,7 @@
       "source_location": "L32",
       "_origin": "ast",
       "id": "ferronit_contrib_vectordb_vectordbport_search",
-      "community": 33,
+      "community": 68,
       "norm_label": ".search()"
     },
     {
@@ -9410,7 +9410,7 @@
       "source_location": "L47",
       "_origin": "ast",
       "id": "ferronit_contrib_vectordb_vectordbport_delete",
-      "community": 33,
+      "community": 68,
       "norm_label": ".delete()"
     },
     {
@@ -9590,7 +9590,7 @@
       "source_location": "L12",
       "_origin": "ast",
       "id": "ferronit_contrib_vectordb_rationale_12",
-      "community": 33,
+      "community": 68,
       "norm_label": "semantic search port \u2014 upsert, search, delete embeddings.      implementations a"
     },
     {
@@ -9600,7 +9600,7 @@
       "source_location": "L21",
       "_origin": "ast",
       "id": "ferronit_contrib_vectordb_rationale_21",
-      "community": 33,
+      "community": 68,
       "norm_label": "insert or overwrite points in a collection.          args:             collectio"
     },
     {
@@ -9610,7 +9610,7 @@
       "source_location": "L34",
       "_origin": "ast",
       "id": "ferronit_contrib_vectordb_rationale_34",
-      "community": 33,
+      "community": 68,
       "norm_label": "find the points most similar to a query vector.          args:             colle"
     },
     {
@@ -9620,7 +9620,7 @@
       "source_location": "L48",
       "_origin": "ast",
       "id": "ferronit_contrib_vectordb_rationale_48",
-      "community": 33,
+      "community": 68,
       "norm_label": "remove points from a collection.          args:             collection: collecti"
     },
     {
@@ -9760,7 +9760,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ferronit_core_app",
-      "community": 29,
+      "community": 131,
       "norm_label": "app.py"
     },
     {
@@ -9980,7 +9980,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ferronit_core_app_rationale_1",
-      "community": 29,
+      "community": 131,
       "norm_label": "ferronit app \u2014 rust routing, python handler execution."
     },
     {
@@ -10180,7 +10180,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ferronit_core_request",
-      "community": 29,
+      "community": 131,
       "norm_label": "request.py"
     },
     {
@@ -10190,7 +10190,7 @@
       "source_location": "L23",
       "_origin": "ast",
       "id": "ferronit_core_request_requesterror",
-      "community": 10,
+      "community": 131,
       "norm_label": "requesterror"
     },
     {
@@ -10200,7 +10200,7 @@
       "source_location": "",
       "_origin": "ast",
       "id": "exception",
-      "community": 10,
+      "community": 131,
       "norm_label": "exception"
     },
     {
@@ -10210,7 +10210,7 @@
       "source_location": "L32",
       "_origin": "ast",
       "id": "ferronit_core_request_bodytoolarge",
-      "community": 10,
+      "community": 131,
       "norm_label": "bodytoolarge"
     },
     {
@@ -10230,7 +10230,7 @@
       "source_location": "L49",
       "_origin": "ast",
       "id": "ferronit_core_request_pathparamerror",
-      "community": 10,
+      "community": 131,
       "norm_label": "pathparamerror"
     },
     {
@@ -10270,7 +10270,7 @@
       "source_location": "L93",
       "_origin": "ast",
       "id": "ferronit_core_request_uploadedfile_save",
-      "community": 131,
+      "community": 84,
       "norm_label": ".save()"
     },
     {
@@ -10280,7 +10280,7 @@
       "source_location": "",
       "_origin": "ast",
       "id": "ferronit_core_request_py_path",
-      "community": 131,
+      "community": 84,
       "norm_label": "path"
     },
     {
@@ -10460,7 +10460,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ferronit_core_request_rationale_1",
-      "community": 29,
+      "community": 131,
       "norm_label": "request object \u2014 rust-native parsing for headers, query, json."
     },
     {
@@ -10470,7 +10470,7 @@
       "source_location": "L24",
       "_origin": "ast",
       "id": "ferronit_core_request_rationale_24",
-      "community": 10,
+      "community": 131,
       "norm_label": "invalid client body or json \u2192 http 400.      raised by :meth:`request.json` (mal"
     },
     {
@@ -10480,7 +10480,7 @@
       "source_location": "L33",
       "_origin": "ast",
       "id": "ferronit_core_request_rationale_33",
-      "community": 10,
+      "community": 131,
       "norm_label": "request body exceeds ``max_body_size`` \u2192 http 413.      raised by :meth:`request"
     },
     {
@@ -10500,7 +10500,7 @@
       "source_location": "L50",
       "_origin": "ast",
       "id": "ferronit_core_request_rationale_50",
-      "community": 10,
+      "community": 131,
       "norm_label": "a path parameter failed type coercion \u2192 http 404 (asvs 2.1.1).      the applicat"
     },
     {
@@ -10540,7 +10540,7 @@
       "source_location": "L94",
       "_origin": "ast",
       "id": "ferronit_core_request_rationale_94",
-      "community": 131,
+      "community": 84,
       "norm_label": "write the uploaded file to disk."
     },
     {
@@ -10710,7 +10710,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ferronit_core_response",
-      "community": 29,
+      "community": 131,
       "norm_label": "response.py"
     },
     {
@@ -10840,7 +10840,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ferronit_core_response_rationale_1",
-      "community": 29,
+      "community": 131,
       "norm_label": "response objects \u2014 content-type aware, streaming-ready."
     },
     {
@@ -11260,7 +11260,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ferronit_di",
-      "community": 56,
+      "community": 27,
       "norm_label": "di.py"
     },
     {
@@ -11270,7 +11270,7 @@
       "source_location": "L10",
       "_origin": "ast",
       "id": "ferronit_di_container",
-      "community": 56,
+      "community": 45,
       "norm_label": "container"
     },
     {
@@ -11280,7 +11280,7 @@
       "source_location": "L24",
       "_origin": "ast",
       "id": "ferronit_di_container_init",
-      "community": 56,
+      "community": 45,
       "norm_label": ".__init__()"
     },
     {
@@ -11310,7 +11310,7 @@
       "source_location": "L37",
       "_origin": "ast",
       "id": "ferronit_di_container_factory",
-      "community": 56,
+      "community": 12,
       "norm_label": ".factory()"
     },
     {
@@ -11350,7 +11350,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ferronit_di_rationale_1",
-      "community": 56,
+      "community": 27,
       "norm_label": "dependency injection container \u2014 type/string-based, zero-reflect, lazy."
     },
     {
@@ -11360,7 +11360,7 @@
       "source_location": "L11",
       "_origin": "ast",
       "id": "ferronit_di_rationale_11",
-      "community": 56,
+      "community": 45,
       "norm_label": "simple di container.      usage:         c = container()         c.singleton(con"
     },
     {
@@ -11380,7 +11380,7 @@
       "source_location": "L38",
       "_origin": "ast",
       "id": "ferronit_di_rationale_38",
-      "community": 56,
+      "community": 12,
       "norm_label": "register a type to be constructed lazily on the first ``get``.          args:"
     },
     {
@@ -11430,7 +11430,7 @@
       "source_location": "L28",
       "_origin": "ast",
       "id": "ferronit_hexagonal_adapter",
-      "community": 45,
+      "community": 11,
       "norm_label": "adapter"
     },
     {
@@ -11440,7 +11440,7 @@
       "source_location": "L34",
       "_origin": "ast",
       "id": "ferronit_hexagonal_logger",
-      "community": 20,
+      "community": 117,
       "norm_label": "logger"
     },
     {
@@ -11450,7 +11450,7 @@
       "source_location": "L37",
       "_origin": "ast",
       "id": "ferronit_hexagonal_logger_info",
-      "community": 20,
+      "community": 117,
       "norm_label": ".info()"
     },
     {
@@ -11470,7 +11470,7 @@
       "source_location": "L55",
       "_origin": "ast",
       "id": "ferronit_hexagonal_logger_error",
-      "community": 20,
+      "community": 117,
       "norm_label": ".error()"
     },
     {
@@ -11590,7 +11590,7 @@
       "source_location": "L136",
       "_origin": "ast",
       "id": "ferronit_hexagonal_printlogger",
-      "community": 20,
+      "community": 117,
       "norm_label": "printlogger"
     },
     {
@@ -11600,7 +11600,7 @@
       "source_location": "L139",
       "_origin": "ast",
       "id": "ferronit_hexagonal_printlogger_info",
-      "community": 20,
+      "community": 117,
       "norm_label": ".info()"
     },
     {
@@ -11610,7 +11610,7 @@
       "source_location": "L143",
       "_origin": "ast",
       "id": "ferronit_hexagonal_printlogger_warning",
-      "community": 20,
+      "community": 117,
       "norm_label": ".warning()"
     },
     {
@@ -11620,7 +11620,7 @@
       "source_location": "L147",
       "_origin": "ast",
       "id": "ferronit_hexagonal_printlogger_error",
-      "community": 20,
+      "community": 117,
       "norm_label": ".error()"
     },
     {
@@ -11630,7 +11630,7 @@
       "source_location": "L152",
       "_origin": "ast",
       "id": "ferronit_hexagonal_inmemorycache",
-      "community": 40,
+      "community": 20,
       "norm_label": "inmemorycache"
     },
     {
@@ -11640,7 +11640,7 @@
       "source_location": "L155",
       "_origin": "ast",
       "id": "ferronit_hexagonal_inmemorycache_init",
-      "community": 40,
+      "community": 20,
       "norm_label": ".__init__()"
     },
     {
@@ -11650,7 +11650,7 @@
       "source_location": "L158",
       "_origin": "ast",
       "id": "ferronit_hexagonal_inmemorycache_get",
-      "community": 40,
+      "community": 53,
       "norm_label": ".get()"
     },
     {
@@ -11660,7 +11660,7 @@
       "source_location": "L162",
       "_origin": "ast",
       "id": "ferronit_hexagonal_inmemorycache_set",
-      "community": 40,
+      "community": 20,
       "norm_label": ".set()"
     },
     {
@@ -11670,7 +11670,7 @@
       "source_location": "L166",
       "_origin": "ast",
       "id": "ferronit_hexagonal_inmemorycache_delete",
-      "community": 40,
+      "community": 20,
       "norm_label": ".delete()"
     },
     {
@@ -11700,7 +11700,7 @@
       "source_location": "L177",
       "_origin": "ast",
       "id": "ferronit_hexagonal_inmemoryeventbus_publish",
-      "community": 40,
+      "community": 53,
       "norm_label": ".publish()"
     },
     {
@@ -11810,7 +11810,7 @@
       "source_location": "L29",
       "_origin": "ast",
       "id": "ferronit_hexagonal_rationale_29",
-      "community": 45,
+      "community": 11,
       "norm_label": "concrete implementation of a port (e.g. postgresrepo, redisbus)."
     },
     {
@@ -11820,7 +11820,7 @@
       "source_location": "L35",
       "_origin": "ast",
       "id": "ferronit_hexagonal_rationale_35",
-      "community": 20,
+      "community": 117,
       "norm_label": "application logger port."
     },
     {
@@ -11830,7 +11830,7 @@
       "source_location": "L38",
       "_origin": "ast",
       "id": "ferronit_hexagonal_rationale_38",
-      "community": 20,
+      "community": 117,
       "norm_label": "log an informational message.          args:             msg: human-readable mes"
     },
     {
@@ -11850,7 +11850,7 @@
       "source_location": "L56",
       "_origin": "ast",
       "id": "ferronit_hexagonal_rationale_56",
-      "community": 20,
+      "community": 117,
       "norm_label": "log an error-level message.          args:             msg: human-readable messa"
     },
     {
@@ -11960,7 +11960,7 @@
       "source_location": "L137",
       "_origin": "ast",
       "id": "ferronit_hexagonal_rationale_137",
-      "community": 20,
+      "community": 117,
       "norm_label": "logger adapter that prints records to standard output."
     },
     {
@@ -11970,7 +11970,7 @@
       "source_location": "L140",
       "_origin": "ast",
       "id": "ferronit_hexagonal_rationale_140",
-      "community": 20,
+      "community": 117,
       "norm_label": "print an info-level record to standard output."
     },
     {
@@ -11980,7 +11980,7 @@
       "source_location": "L144",
       "_origin": "ast",
       "id": "ferronit_hexagonal_rationale_144",
-      "community": 20,
+      "community": 117,
       "norm_label": "print a warn-level record to standard output."
     },
     {
@@ -11990,7 +11990,7 @@
       "source_location": "L148",
       "_origin": "ast",
       "id": "ferronit_hexagonal_rationale_148",
-      "community": 20,
+      "community": 117,
       "norm_label": "print an error-level record to standard output."
     },
     {
@@ -12000,7 +12000,7 @@
       "source_location": "L153",
       "_origin": "ast",
       "id": "ferronit_hexagonal_rationale_153",
-      "community": 40,
+      "community": 20,
       "norm_label": "cache adapter backed by an in-process dict; values never expire."
     },
     {
@@ -12010,7 +12010,7 @@
       "source_location": "L159",
       "_origin": "ast",
       "id": "ferronit_hexagonal_rationale_159",
-      "community": 40,
+      "community": 53,
       "norm_label": "return the stored value for a key, or none if it was never set."
     },
     {
@@ -12020,7 +12020,7 @@
       "source_location": "L163",
       "_origin": "ast",
       "id": "ferronit_hexagonal_rationale_163",
-      "community": 40,
+      "community": 20,
       "norm_label": "store a value under a key; ``ttl`` is accepted for parity and ignored."
     },
     {
@@ -12030,7 +12030,7 @@
       "source_location": "L167",
       "_origin": "ast",
       "id": "ferronit_hexagonal_rationale_167",
-      "community": 40,
+      "community": 20,
       "norm_label": "remove a key, ignoring a missing one."
     },
     {
@@ -12050,7 +12050,7 @@
       "source_location": "L178",
       "_origin": "ast",
       "id": "ferronit_hexagonal_rationale_178",
-      "community": 40,
+      "community": 53,
       "norm_label": "invoke every handler subscribed to the event's type, awaiting async ones."
     },
     {
@@ -12130,7 +12130,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ferronit_middleware",
-      "community": 29,
+      "community": 131,
       "norm_label": "middleware.py"
     },
     {
@@ -12200,7 +12200,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ferronit_middleware_rationale_1",
-      "community": 29,
+      "community": 131,
       "norm_label": "middleware stack \u2014 pre/post request hooks."
     },
     {
@@ -12560,7 +12560,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ferronit_websocket",
-      "community": 68,
+      "community": 6,
       "norm_label": "websocket.py"
     },
     {
@@ -12570,7 +12570,7 @@
       "source_location": "L10",
       "_origin": "ast",
       "id": "ferronit_websocket_websocketstate",
-      "community": 68,
+      "community": 6,
       "norm_label": "websocketstate"
     },
     {
@@ -12580,7 +12580,7 @@
       "source_location": "",
       "_origin": "ast",
       "id": "enum",
-      "community": 68,
+      "community": 6,
       "norm_label": "enum"
     },
     {
@@ -12610,7 +12610,7 @@
       "source_location": "L46",
       "_origin": "ast",
       "id": "ferronit_websocket_websocket_state",
-      "community": 68,
+      "community": 6,
       "norm_label": ".state()"
     },
     {
@@ -12650,7 +12650,7 @@
       "source_location": "L76",
       "_origin": "ast",
       "id": "ferronit_websocket_websocket_receive",
-      "community": 84,
+      "community": 27,
       "norm_label": ".receive()"
     },
     {
@@ -12670,7 +12670,7 @@
       "source_location": "L108",
       "_origin": "ast",
       "id": "ferronit_websocket_websocket_send_json",
-      "community": 6,
+      "community": 8,
       "norm_label": ".send_json()"
     },
     {
@@ -12680,7 +12680,7 @@
       "source_location": "L118",
       "_origin": "ast",
       "id": "ferronit_websocket_websocket_receive_json",
-      "community": 84,
+      "community": 27,
       "norm_label": ".receive_json()"
     },
     {
@@ -12700,7 +12700,7 @@
       "source_location": "L143",
       "_origin": "ast",
       "id": "ferronit_websocket_websocketdisconnect",
-      "community": 84,
+      "community": 6,
       "norm_label": "_websocketdisconnect"
     },
     {
@@ -12710,7 +12710,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "ferronit_websocket_rationale_1",
-      "community": 68,
+      "community": 6,
       "norm_label": "websocket support \u2014 standards-compliant asgi websocket handling."
     },
     {
@@ -12720,7 +12720,7 @@
       "source_location": "L11",
       "_origin": "ast",
       "id": "ferronit_websocket_rationale_11",
-      "community": 68,
+      "community": 6,
       "norm_label": "lifecycle state of a :class:`websocket` connection.      attributes:         con"
     },
     {
@@ -12740,7 +12740,7 @@
       "source_location": "L47",
       "_origin": "ast",
       "id": "ferronit_websocket_rationale_47",
-      "community": 68,
+      "community": 6,
       "norm_label": "websocketstate: current lifecycle state of the connection."
     },
     {
@@ -12780,7 +12780,7 @@
       "source_location": "L77",
       "_origin": "ast",
       "id": "ferronit_websocket_rationale_77",
-      "community": 84,
+      "community": 27,
       "norm_label": "receive one message from the peer.          returns:             str | bytes: te"
     },
     {
@@ -12800,7 +12800,7 @@
       "source_location": "L109",
       "_origin": "ast",
       "id": "ferronit_websocket_rationale_109",
-      "community": 6,
+      "community": 8,
       "norm_label": "serialise ``data`` to compact json and send it as a text message.          args:"
     },
     {
@@ -12810,7 +12810,7 @@
       "source_location": "L119",
       "_origin": "ast",
       "id": "ferronit_websocket_rationale_119",
-      "community": 84,
+      "community": 27,
       "norm_label": "receive one message and decode it as json.          returns:             object:"
     },
     {
@@ -14272,7 +14272,7 @@
       "source_location": "L137",
       "_origin": "ast",
       "id": "tests_security_test_security5_test_max_body_size_chunked",
-      "community": 26,
+      "community": 27,
       "norm_label": "test_max_body_size_chunked()"
     },
     {
@@ -14342,7 +14342,7 @@
       "source_location": "L138",
       "_origin": "ast",
       "id": "tests_security_test_security5_rationale_138",
-      "community": 26,
+      "community": 27,
       "norm_label": "\u043b\u0438\u043c\u0438\u0442 \u0441\u0440\u0430\u0431\u0430\u0442\u044b\u0432\u0430\u0435\u0442 \u0432\u043e \u0432\u0440\u0435\u043c\u044f \u0447\u0430\u043d\u043a\u043e\u0432\u0430\u043d\u043d\u043e\u0438 \u0437\u0430\u0433\u0440\u0443\u0437\u043a\u0438, \u043d\u0435 \u043f\u043e\u0441\u043b\u0435."
     },
     {
@@ -15362,7 +15362,7 @@
       "source_location": "L38",
       "_origin": "ast",
       "id": "tests_test_infra_test_di_singleton_and_factory",
-      "community": 20,
+      "community": 117,
       "norm_label": "test_di_singleton_and_factory()"
     },
     {
@@ -15372,7 +15372,7 @@
       "source_location": "L48",
       "_origin": "ast",
       "id": "tests_test_infra_test_di_resolve_with_defaults",
-      "community": 20,
+      "community": 117,
       "norm_label": "test_di_resolve_with_defaults()"
     },
     {
@@ -15382,7 +15382,7 @@
       "source_location": "L60",
       "_origin": "ast",
       "id": "tests_test_infra_test_di_missing_raises",
-      "community": 20,
+      "community": 117,
       "norm_label": "test_di_missing_raises()"
     },
     {
@@ -15882,7 +15882,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "tests_test_lifespan",
-      "community": 48,
+      "community": 27,
       "norm_label": "test_lifespan.py"
     },
     {
@@ -15892,7 +15892,7 @@
       "source_location": "L13",
       "_origin": "ast",
       "id": "tests_test_lifespan_repo",
-      "community": 48,
+      "community": 27,
       "norm_label": "repo"
     },
     {
@@ -15902,7 +15902,7 @@
       "source_location": "L14",
       "_origin": "ast",
       "id": "tests_test_lifespan_repo_init",
-      "community": 48,
+      "community": 27,
       "norm_label": ".__init__()"
     },
     {
@@ -15912,7 +15912,7 @@
       "source_location": "L18",
       "_origin": "ast",
       "id": "tests_test_lifespan_make_app",
-      "community": 48,
+      "community": 27,
       "norm_label": "_make_app()"
     },
     {
@@ -15922,7 +15922,7 @@
       "source_location": "L29",
       "_origin": "ast",
       "id": "tests_test_lifespan_http_get",
-      "community": 48,
+      "community": 27,
       "norm_label": "_http_get()"
     },
     {
@@ -15932,7 +15932,7 @@
       "source_location": "L49",
       "_origin": "ast",
       "id": "tests_test_lifespan_wait_for",
-      "community": 48,
+      "community": 27,
       "norm_label": "_wait_for()"
     },
     {
@@ -15942,7 +15942,7 @@
       "source_location": "L57",
       "_origin": "ast",
       "id": "tests_test_lifespan_test_di_injects_repo_from_container",
-      "community": 48,
+      "community": 27,
       "norm_label": "test_di_injects_repo_from_container()"
     },
     {
@@ -15952,7 +15952,7 @@
       "source_location": "L67",
       "_origin": "ast",
       "id": "tests_test_lifespan_test_factory_is_cached_lazy_singleton",
-      "community": 48,
+      "community": 27,
       "norm_label": "test_factory_is_cached_lazy_singleton()"
     },
     {
@@ -15962,7 +15962,7 @@
       "source_location": "L78",
       "_origin": "ast",
       "id": "tests_test_lifespan_test_lifespan_registers_resource_and_runs_teardown",
-      "community": 48,
+      "community": 27,
       "norm_label": "test_lifespan_registers_resource_and_runs_teardown()"
     },
     {
@@ -15972,7 +15972,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "tests_test_lifespan_rationale_1",
-      "community": 48,
+      "community": 27,
       "norm_label": "lifespan + di: \u0440\u0435\u0441\u0443\u0440\u0441\u044b \u0432 \u043a\u043e\u043d\u0442\u0435\u0438\u043d\u0435\u0440\u0435, \u0438\u043d\u044a\u0435\u043a\u0446\u0438\u044f \u043f\u043e\u0440\u0442\u043e\u0432 \u043f\u043e \u0442\u0438\u043f\u0443/annotated."
     },
     {
@@ -16992,7 +16992,7 @@
       "source_location": "L101",
       "_origin": "ast",
       "id": "tests_test_rawdb_test_create_pool_wrapper_roundtrip",
-      "community": 138,
+      "community": 21,
       "norm_label": "test_create_pool_wrapper_roundtrip()"
     },
     {
@@ -17072,7 +17072,7 @@
       "source_location": "L184",
       "_origin": "ast",
       "id": "tests_test_rawdb_test_unit_of_work_rolls_back_on_error",
-      "community": 21,
+      "community": 22,
       "norm_label": "test_unit_of_work_rolls_back_on_error()"
     },
     {
@@ -17142,7 +17142,7 @@
       "source_location": "L102",
       "_origin": "ast",
       "id": "tests_test_rawdb_rationale_102",
-      "community": 138,
+      "community": 21,
       "norm_label": "pool \u2014 \u043e\u0431\u0435\u0440\u0442\u043a\u0430: create_pool \u2192 uow() (write/read) \u2192 close()."
     },
     {
@@ -17262,7 +17262,7 @@
       "source_location": "L83",
       "_origin": "ast",
       "id": "tests_test_rawmodel_test_default_table_pluralizes",
-      "community": 9,
+      "community": 45,
       "norm_label": "test_default_table_pluralizes()"
     },
     {
@@ -17732,7 +17732,7 @@
       "source_location": "L467",
       "_origin": "ast",
       "id": "tests_test_rawmodel_test_selects_only_model_columns",
-      "community": 9,
+      "community": 43,
       "norm_label": "test_selects_only_model_columns()"
     },
     {
@@ -17852,7 +17852,7 @@
       "source_location": "L573",
       "_origin": "ast",
       "id": "tests_test_rawmodel_test_repository_di_resolves_pool_from_generic",
-      "community": 56,
+      "community": 45,
       "norm_label": "test_repository_di_resolves_pool_from_generic()"
     },
     {
@@ -17862,7 +17862,7 @@
       "source_location": "L585",
       "_origin": "ast",
       "id": "tests_test_rawmodel_test_repository_crud_roundtrip",
-      "community": 138,
+      "community": 45,
       "norm_label": "test_repository_crud_roundtrip()"
     },
     {
@@ -17882,7 +17882,7 @@
       "source_location": "L624",
       "_origin": "ast",
       "id": "tests_test_rawmodel_aggparent",
-      "community": 45,
+      "community": 43,
       "norm_label": "aggparent"
     },
     {
@@ -17892,7 +17892,7 @@
       "source_location": "L631",
       "_origin": "ast",
       "id": "tests_test_rawmodel_parentagg",
-      "community": 45,
+      "community": 43,
       "norm_label": "parentagg"
     },
     {
@@ -17902,7 +17902,7 @@
       "source_location": "L632",
       "_origin": "ast",
       "id": "tests_test_rawmodel_parentagg_init",
-      "community": 45,
+      "community": 43,
       "norm_label": ".__init__()"
     },
     {
@@ -17912,7 +17912,7 @@
       "source_location": "L638",
       "_origin": "ast",
       "id": "tests_test_rawmodel_parentmapper",
-      "community": 45,
+      "community": 43,
       "norm_label": "parentmapper"
     },
     {
@@ -17922,7 +17922,7 @@
       "source_location": "L639",
       "_origin": "ast",
       "id": "tests_test_rawmodel_parentmapper_to_aggregate",
-      "community": 45,
+      "community": 43,
       "norm_label": ".to_aggregate()"
     },
     {
@@ -17932,7 +17932,7 @@
       "source_location": "L642",
       "_origin": "ast",
       "id": "tests_test_rawmodel_parentmapper_from_aggregate",
-      "community": 45,
+      "community": 43,
       "norm_label": ".from_aggregate()"
     },
     {
@@ -18002,7 +18002,7 @@
       "source_location": "L468",
       "_origin": "ast",
       "id": "tests_test_rawmodel_rationale_468",
-      "community": 9,
+      "community": 43,
       "norm_label": "\u043c\u043e\u0434\u0435\u043b\u044c \u043c\u043e\u0436\u0435\u0442 \u0431\u044b\u0442\u044c \u0443\u0436\u0435 \u0442\u0430\u0431\u043b\u0438\u0446\u044b: select/returning \u0431\u0435\u0440\u0443\u0442 \u0442\u043e\u043b\u044c\u043a\u043e \u0435\u0435 \u043f\u043e\u043b\u044f."
     },
     {
@@ -18392,7 +18392,7 @@
       "source_location": "L14",
       "_origin": "ast",
       "id": "tests_test_vectordb_test_port_cannot_be_instantiated",
-      "community": 33,
+      "community": 68,
       "norm_label": "test_port_cannot_be_instantiated()"
     },
     {
@@ -18452,7 +18452,7 @@
       "source_location": "L69",
       "_origin": "ast",
       "id": "tests_test_vectordb_test_remote_adapters_construct_without_running_services",
-      "community": 50,
+      "community": 42,
       "norm_label": "test_remote_adapters_construct_without_running_services()"
     },
     {
@@ -18472,7 +18472,7 @@
       "source_location": "L70",
       "_origin": "ast",
       "id": "tests_test_vectordb_rationale_70",
-      "community": 50,
+      "community": 42,
       "norm_label": "\u043a\u043e\u043d\u0441\u0442\u0440\u0443\u043a\u0442\u043e\u0440\u044b \u0430\u0434\u0430\u043f\u0442\u0435\u0440\u043e\u0432 \u043d\u0435 \u0445\u043e\u0434\u044f\u0442 \u0432 \u0441\u0435\u0442\u044c \u2014 \u0441\u043e\u0435\u0434\u0438\u043d\u0435\u043d\u0438\u0435 \u0442\u043e\u043b\u044c\u043a\u043e \u0432 \u0432\u044b\u0437\u043e\u0432\u0430\u0445 \u043c\u0435\u0442\u043e\u0434\u043e\u0432."
     },
     {
@@ -18619,7 +18619,7 @@
       "label": "\u041a\u043e\u043c\u0430\u043d\u0434\u044b",
       "file_type": "document",
       "source_file": "AGENTS.md",
-      "source_location": "L71",
+      "source_location": "L76",
       "_origin": "ast",
       "id": "agents_\u043a\u043e\u043c\u0430\u043d\u0434\u044b",
       "community": 51,
@@ -18629,7 +18629,7 @@
       "label": "\u0418\u043d\u0432\u0430\u0440\u0438\u0430\u043d\u0442\u044b \u2014 \u041d\u0415 \u043b\u043e\u043c\u0430\u0442\u044c",
       "file_type": "document",
       "source_file": "AGENTS.md",
-      "source_location": "L111",
+      "source_location": "L116",
       "_origin": "ast",
       "id": "agents_\u0438\u043d\u0432\u0430\u0440\u0438\u0430\u043d\u0442\u044b_\u043d\u0435_\u043b\u043e\u043c\u0430\u0442\u044c",
       "community": 51,
@@ -18639,7 +18639,7 @@
       "label": "\u0421\u0442\u0438\u043b\u044c \u043a\u043e\u0434\u0430",
       "file_type": "document",
       "source_file": "AGENTS.md",
-      "source_location": "L143",
+      "source_location": "L148",
       "_origin": "ast",
       "id": "agents_\u0441\u0442\u0438\u043b\u044c_\u043a\u043e\u0434\u0430",
       "community": 51,
@@ -18649,7 +18649,7 @@
       "label": "\u041a\u0443\u0434\u0430 \u0438\u0434\u0442\u0438 \u0441 \u0437\u0430\u0434\u0430\u0447\u0435\u0439",
       "file_type": "document",
       "source_file": "AGENTS.md",
-      "source_location": "L156",
+      "source_location": "L161",
       "_origin": "ast",
       "id": "agents_\u043a\u0443\u0434\u0430_\u0438\u0434\u0442\u0438_\u0441_\u0437\u0430\u0434\u0430\u0447\u0435\u0439",
       "community": 51,
@@ -18659,7 +18659,7 @@
       "label": "\u042d\u043a\u043e\u043d\u043e\u043c\u0438\u044f \u043a\u043e\u043d\u0442\u0435\u043a\u0441\u0442\u0430",
       "file_type": "document",
       "source_file": "AGENTS.md",
-      "source_location": "L172",
+      "source_location": "L177",
       "_origin": "ast",
       "id": "agents_\u044d\u043a\u043e\u043d\u043e\u043c\u0438\u044f_\u043a\u043e\u043d\u0442\u0435\u043a\u0441\u0442\u0430",
       "community": 51,
@@ -18669,7 +18669,7 @@
       "label": "\u0413\u0440\u0430\u043d\u0438\u0446\u044b \u0440\u0430\u0431\u043e\u0442",
       "file_type": "document",
       "source_file": "AGENTS.md",
-      "source_location": "L179",
+      "source_location": "L184",
       "_origin": "ast",
       "id": "agents_\u0433\u0440\u0430\u043d\u0438\u0446\u044b_\u0440\u0430\u0431\u043e\u0442",
       "community": 51,
@@ -18679,7 +18679,7 @@
       "label": "\u0418\u0437\u0432\u0435\u0441\u0442\u043d\u044b\u0435 \u043e\u0433\u0440\u0430\u043d\u0438\u0447\u0435\u043d\u0438\u044f",
       "file_type": "document",
       "source_file": "AGENTS.md",
-      "source_location": "L189",
+      "source_location": "L194",
       "_origin": "ast",
       "id": "agents_\u0438\u0437\u0432\u0435\u0441\u0442\u043d\u044b\u0435_\u043e\u0433\u0440\u0430\u043d\u0438\u0447\u0435\u043d\u0438\u044f",
       "community": 51,
@@ -18899,7 +18899,7 @@
       "label": "\u041f\u043e\u043b\u0438\u0442\u0438\u043a\u0430: req/s \u043c\u0435\u0440\u044f\u0435\u043c \u0442\u043e\u043b\u044c\u043a\u043e `ab`",
       "file_type": "document",
       "source_file": "bench/README.md",
-      "source_location": "L7",
+      "source_location": "L10",
       "_origin": "ast",
       "id": "bench_readme_\u043f\u043e\u043b\u0438\u0442\u0438\u043a\u0430_req_s_\u043c\u0435\u0440\u044f\u0435\u043c_\u0442\u043e\u043b\u044c\u043a\u043e_ab",
       "community": 28,
@@ -18909,7 +18909,7 @@
       "label": "\u041e\u0441\u043d\u043e\u0432\u043d\u043e\u0435",
       "file_type": "document",
       "source_file": "bench/README.md",
-      "source_location": "L14",
+      "source_location": "L17",
       "_origin": "ast",
       "id": "bench_readme_\u043e\u0441\u043d\u043e\u0432\u043d\u043e\u0435",
       "community": 28,
@@ -18919,7 +18919,7 @@
       "label": "\u041f\u0440\u044f\u043c\u043e\u0439 \u0437\u0430\u043c\u0435\u0440 PostgreSQL (\u043e\u043a\u0442 2026)",
       "file_type": "document",
       "source_file": "bench/README.md",
-      "source_location": "L42",
+      "source_location": "L45",
       "_origin": "ast",
       "id": "bench_readme_\u043f\u0440\u044f\u043c\u043e\u0439_\u0437\u0430\u043c\u0435\u0440_postgresql_\u043e\u043a\u0442_2026",
       "community": 28,
@@ -18929,7 +18929,7 @@
       "label": "\u0421\u044b\u0440\u043e\u0439 \u0434\u0440\u0430\u0439\u0432\u0435\u0440: pgx \u043f\u0440\u043e\u0442\u0438\u0432 asyncpg \u043f\u0440\u043e\u0442\u0438\u0432 tokio-postgres",
       "file_type": "document",
       "source_file": "bench/README.md",
-      "source_location": "L52",
+      "source_location": "L55",
       "_origin": "ast",
       "id": "bench_readme_\u0441\u044b\u0440\u043e\u0439_\u0434\u0440\u0430\u0439\u0432\u0435\u0440_pgx_\u043f\u0440\u043e\u0442\u0438\u0432_asyncpg_\u043f\u0440\u043e\u0442\u0438\u0432_tokio_postgres",
       "community": 28,
@@ -18939,7 +18939,7 @@
       "label": "\u0421\u0430\u043c\u043e\u0434\u0435\u043b\u044c\u043d\u044b\u0439 \u043a\u043b\u0438\u0435\u043d\u0442 \u043f\u043e \u043f\u0440\u043e\u0432\u043e\u0434\u0443 \u043f\u0440\u043e\u0442\u0438\u0432 asyncpg (`pg_wire.py`, `wire_bench.py`)",
       "file_type": "document",
       "source_file": "bench/README.md",
-      "source_location": "L67",
+      "source_location": "L70",
       "_origin": "ast",
       "id": "bench_readme_\u0441\u0430\u043c\u043e\u0434\u0435\u043b\u044c\u043d\u044b\u0439_\u043a\u043b\u0438\u0435\u043d\u0442_\u043f\u043e_\u043f\u0440\u043e\u0432\u043e\u0434\u0443_\u043f\u0440\u043e\u0442\u0438\u0432_asyncpg_pg_wire_py_wire_bench_py",
       "community": 28,
@@ -18949,7 +18949,7 @@
       "label": "rawdb + rawmodel \u2014 \u043a\u0430\u043d\u043e\u043d\u0438\u0447\u0435\u0441\u043a\u0438\u0439 \u0441\u043b\u043e\u0439 \u0434\u0430\u043d\u043d\u044b\u0445",
       "file_type": "document",
       "source_file": "bench/README.md",
-      "source_location": "L83",
+      "source_location": "L86",
       "_origin": "ast",
       "id": "bench_readme_rawdb_rawmodel_\u043a\u0430\u043d\u043e\u043d\u0438\u0447\u0435\u0441\u043a\u0438\u0439_\u0441\u043b\u043e\u0439_\u0434\u0430\u043d\u043d\u044b\u0445",
       "community": 28,
@@ -18959,7 +18959,7 @@
       "label": "HTTP-\u0441\u0440\u0430\u0432\u043d\u0435\u043d\u0438\u0435 \u0444\u0440\u0435\u0439\u043c\u0432\u043e\u0440\u043a\u043e\u0432 (`bench_rows.py`)",
       "file_type": "document",
       "source_file": "bench/README.md",
-      "source_location": "L99",
+      "source_location": "L102",
       "_origin": "ast",
       "id": "bench_readme_http_\u0441\u0440\u0430\u0432\u043d\u0435\u043d\u0438\u0435_\u0444\u0440\u0435\u0439\u043c\u0432\u043e\u0440\u043a\u043e\u0432_bench_rows_py",
       "community": 28,
@@ -18969,7 +18969,7 @@
       "label": "\u041f\u0440\u043e\u0442\u043e\u043a\u043e\u043b \u0437\u0430\u043c\u0435\u0440\u0430 (\u0438\u043d\u0430\u0447\u0435 \u0446\u0438\u0444\u0440\u044b \u043d\u0435 \u0441\u0440\u0430\u0432\u043d\u0438\u043c\u044b \u043c\u0435\u0436\u0434\u0443 \u0441\u0435\u0441\u0441\u0438\u044f\u043c\u0438)",
       "file_type": "document",
       "source_file": "bench/README.md",
-      "source_location": "L119",
+      "source_location": "L122",
       "_origin": "ast",
       "id": "bench_readme_\u043f\u0440\u043e\u0442\u043e\u043a\u043e\u043b_\u0437\u0430\u043c\u0435\u0440\u0430_\u0438\u043d\u0430\u0447\u0435_\u0446\u0438\u0444\u0440\u044b_\u043d\u0435_\u0441\u0440\u0430\u0432\u043d\u0438\u043c\u044b_\u043c\u0435\u0436\u0434\u0443_\u0441\u0435\u0441\u0441\u0438\u044f\u043c\u0438",
       "community": 28,
@@ -18979,7 +18979,7 @@
       "label": "legacy_httpx/ \u2014 \u0447\u0442\u043e \u0437\u0434\u0435\u0441\u044c \u0438 \u043f\u043e\u0447\u0435\u043c\u0443 \u043d\u0435 \u0433\u043e\u0434\u0438\u0442\u0441\u044f",
       "file_type": "document",
       "source_file": "bench/README.md",
-      "source_location": "L132",
+      "source_location": "L135",
       "_origin": "ast",
       "id": "bench_readme_legacy_httpx_\u0447\u0442\u043e_\u0437\u0434\u0435\u0441\u044c_\u0438_\u043f\u043e\u0447\u0435\u043c\u0443_\u043d\u0435_\u0433\u043e\u0434\u0438\u0442\u0441\u044f",
       "community": 28,
@@ -18989,7 +18989,7 @@
       "label": "Helper-\u043f\u0440\u0438\u043b\u043e\u0436\u0435\u043d\u0438\u044f (`_`-\u043f\u0440\u0435\u0444\u0438\u043a\u0441)",
       "file_type": "document",
       "source_file": "bench/README.md",
-      "source_location": "L137",
+      "source_location": "L140",
       "_origin": "ast",
       "id": "bench_readme_helper_\u043f\u0440\u0438\u043b\u043e\u0436\u0435\u043d\u0438\u044f_\u043f\u0440\u0435\u0444\u0438\u043a\u0441",
       "community": 28,
@@ -19186,20 +19186,30 @@
       "norm_label": "\u0431\u0435\u043d\u0447\u043c\u0430\u0440\u043a\u0438"
     },
     {
-      "label": "\u041c\u0430\u0440\u0448\u0440\u0443\u0442\u0438\u0437\u0430\u0446\u0438\u044f: Ferronit \u043f\u0440\u043e\u0442\u0438\u0432 FastAPI",
+      "label": "\u041c\u0430\u0440\u0448\u0440\u0443\u0442\u0438\u0437\u0430\u0446\u0438\u044f: Ferronit \u043f\u0440\u043e\u0442\u0438\u0432 BlackSheep/FastAPI/Litestar",
       "file_type": "document",
       "source_file": "docs/benchmarks.md",
       "source_location": "L8",
       "_origin": "ast",
-      "id": "docs_benchmarks_\u043c\u0430\u0440\u0448\u0440\u0443\u0442\u0438\u0437\u0430\u0446\u0438\u044f_ferronit_\u043f\u0440\u043e\u0442\u0438\u0432_fastapi",
+      "id": "docs_benchmarks_\u043c\u0430\u0440\u0448\u0440\u0443\u0442\u0438\u0437\u0430\u0446\u0438\u044f_ferronit_\u043f\u0440\u043e\u0442\u0438\u0432_blacksheep_fastapi_litestar",
       "community": 113,
-      "norm_label": "\u043c\u0430\u0440\u0448\u0440\u0443\u0442\u0438\u0437\u0430\u0446\u0438\u044f: ferronit \u043f\u0440\u043e\u0442\u0438\u0432 fastapi"
+      "norm_label": "\u043c\u0430\u0440\u0448\u0440\u0443\u0442\u0438\u0437\u0430\u0446\u0438\u044f: ferronit \u043f\u0440\u043e\u0442\u0438\u0432 blacksheep/fastapi/litestar"
+    },
+    {
+      "label": "Granian, 1000 \u043c\u0430\u0440\u0448\u0440\u0443\u0442\u043e\u0432: \u0441\u0432\u043e\u0434\u043d\u043e \u043f\u0440\u043e\u0442\u0438\u0432 \u0432\u0441\u0435\u0445",
+      "file_type": "document",
+      "source_file": "docs/benchmarks.md",
+      "source_location": "L25",
+      "_origin": "ast",
+      "id": "docs_benchmarks_granian_1000_\u043c\u0430\u0440\u0448\u0440\u0443\u0442\u043e\u0432_\u0441\u0432\u043e\u0434\u043d\u043e_\u043f\u0440\u043e\u0442\u0438\u0432_\u0432\u0441\u0435\u0445",
+      "community": 113,
+      "norm_label": "granian, 1000 \u043c\u0430\u0440\u0448\u0440\u0443\u0442\u043e\u0432: \u0441\u0432\u043e\u0434\u043d\u043e \u043f\u0440\u043e\u0442\u0438\u0432 \u0432\u0441\u0435\u0445"
     },
     {
       "label": "\u0421\u0442\u0440\u043e\u043a\u0438: Ferronit \u043f\u0440\u043e\u0442\u0438\u0432 Litestar/FastAPI/Django/BlackSheep",
       "file_type": "document",
       "source_file": "docs/benchmarks.md",
-      "source_location": "L22",
+      "source_location": "L40",
       "_origin": "ast",
       "id": "docs_benchmarks_\u0441\u0442\u0440\u043e\u043a\u0438_ferronit_\u043f\u0440\u043e\u0442\u0438\u0432_litestar_fastapi_django_blacksheep",
       "community": 113,
@@ -19209,7 +19219,7 @@
       "label": "\u0417\u0430\u043f\u0438\u0441\u0438: INSERT / UPDATE / UPSERT",
       "file_type": "document",
       "source_file": "docs/benchmarks.md",
-      "source_location": "L43",
+      "source_location": "L61",
       "_origin": "ast",
       "id": "docs_benchmarks_\u0437\u0430\u043f\u0438\u0441\u0438_insert_update_upsert",
       "community": 113,
@@ -19219,7 +19229,7 @@
       "label": "\u0421\u0432\u044f\u0437\u0438: GET /parents (N \u0440\u043e\u0434\u0438\u0442\u0435\u043b\u0435\u0439 \u00d7 3 \u0440\u0435\u0431\u0451\u043d\u043a\u0430)",
       "file_type": "document",
       "source_file": "docs/benchmarks.md",
-      "source_location": "L58",
+      "source_location": "L76",
       "_origin": "ast",
       "id": "docs_benchmarks_\u0441\u0432\u044f\u0437\u0438_get_parents_n_\u0440\u043e\u0434\u0438\u0442\u0435\u043b\u0435\u0439_3_\u0440\u0435\u0431\u0451\u043d\u043a\u0430",
       "community": 113,
@@ -19229,7 +19239,7 @@
       "label": "\u041f\u043e\u0442\u043e\u043b\u043e\u043a: \u0447\u0438\u0441\u0442\u044b\u0439 Granian",
       "file_type": "document",
       "source_file": "docs/benchmarks.md",
-      "source_location": "L73",
+      "source_location": "L91",
       "_origin": "ast",
       "id": "docs_benchmarks_\u043f\u043e\u0442\u043e\u043b\u043e\u043a_\u0447\u0438\u0441\u0442\u044b\u0439_granian",
       "community": 113,
@@ -19239,7 +19249,7 @@
       "label": "\u0412\u043e\u0441\u043f\u0440\u043e\u0438\u0437\u0432\u0435\u0434\u0435\u043d\u0438\u0435",
       "file_type": "document",
       "source_file": "docs/benchmarks.md",
-      "source_location": "L87",
+      "source_location": "L105",
       "_origin": "ast",
       "id": "docs_benchmarks_\u0432\u043e\u0441\u043f\u0440\u043e\u0438\u0437\u0432\u0435\u0434\u0435\u043d\u0438\u0435",
       "community": 113,
@@ -19352,7 +19362,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "docs_data_rawdb",
-      "community": 32,
+      "community": 100,
       "norm_label": "rawdb.md"
     },
     {
@@ -20311,7 +20321,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "bench/ab_bench.py",
-      "source_location": "L215",
+      "source_location": "L309",
       "weight": 1.0,
       "source": "bench_ab_bench",
       "target": "bench_ab_bench_main",
@@ -20321,7 +20331,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "bench/ab_bench.py",
-      "source_location": "L193",
+      "source_location": "L287",
       "weight": 1.0,
       "source": "bench_ab_bench",
       "target": "bench_ab_bench_measure",
@@ -20331,7 +20341,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "bench/ab_bench.py",
-      "source_location": "L163",
+      "source_location": "L257",
       "weight": 1.0,
       "source": "bench_ab_bench",
       "target": "bench_ab_bench_run_ab",
@@ -20341,7 +20351,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "bench/ab_bench.py",
-      "source_location": "L184",
+      "source_location": "L278",
       "weight": 1.0,
       "source": "bench_ab_bench",
       "target": "bench_ab_bench_sample_routes",
@@ -20351,7 +20361,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "bench/ab_bench.py",
-      "source_location": "L142",
+      "source_location": "L236",
       "weight": 1.0,
       "source": "bench_ab_bench",
       "target": "bench_ab_bench_server_cmd",
@@ -20361,7 +20371,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "bench/ab_bench.py",
-      "source_location": "L151",
+      "source_location": "L245",
       "weight": 1.0,
       "source": "bench_ab_bench",
       "target": "bench_ab_bench_wait_ready",
@@ -20371,7 +20381,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "bench/ab_bench.py",
-      "source_location": "L128",
+      "source_location": "L220",
       "weight": 1.0,
       "source": "bench_ab_bench",
       "target": "bench_ab_bench_write_apps",
@@ -20403,7 +20413,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "bench/ab_bench.py",
-      "source_location": "L230",
+      "source_location": "L326",
       "weight": 1.0,
       "source": "bench_ab_bench_main",
       "target": "bench_ab_bench_write_apps",
@@ -20413,9 +20423,9 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "bench/ab_bench.py",
-      "source_location": "L129",
+      "source_location": "L221",
       "weight": 1.0,
-      "source": "bench_ab_bench_rationale_129",
+      "source": "bench_ab_bench_rationale_221",
       "target": "bench_ab_bench_write_apps",
       "confidence_score": 1.0
     },
@@ -20424,7 +20434,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "bench/ab_bench.py",
-      "source_location": "L244",
+      "source_location": "L345",
       "weight": 1.0,
       "source": "bench_ab_bench_main",
       "target": "bench_ab_bench_server_cmd",
@@ -20434,9 +20444,9 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "bench/ab_bench.py",
-      "source_location": "L143",
+      "source_location": "L237",
       "weight": 1.0,
-      "source": "bench_ab_bench_rationale_143",
+      "source": "bench_ab_bench_rationale_237",
       "target": "bench_ab_bench_server_cmd",
       "confidence_score": 1.0
     },
@@ -20445,7 +20455,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "bench/ab_bench.py",
-      "source_location": "L247",
+      "source_location": "L348",
       "weight": 1.0,
       "source": "bench_ab_bench_main",
       "target": "bench_ab_bench_wait_ready",
@@ -20455,9 +20465,9 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "bench/ab_bench.py",
-      "source_location": "L152",
+      "source_location": "L246",
       "weight": 1.0,
-      "source": "bench_ab_bench_rationale_152",
+      "source": "bench_ab_bench_rationale_246",
       "target": "bench_ab_bench_wait_ready",
       "confidence_score": 1.0
     },
@@ -20466,7 +20476,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "bench/ab_bench.py",
-      "source_location": "L195",
+      "source_location": "L289",
       "weight": 1.0,
       "source": "bench_ab_bench_measure",
       "target": "bench_ab_bench_run_ab",
@@ -20476,9 +20486,9 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "bench/ab_bench.py",
-      "source_location": "L164",
+      "source_location": "L258",
       "weight": 1.0,
-      "source": "bench_ab_bench_rationale_164",
+      "source": "bench_ab_bench_rationale_258",
       "target": "bench_ab_bench_run_ab",
       "confidence_score": 1.0
     },
@@ -20487,7 +20497,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "bench/ab_bench.py",
-      "source_location": "L236",
+      "source_location": "L337",
       "weight": 1.0,
       "source": "bench_ab_bench_main",
       "target": "bench_ab_bench_sample_routes",
@@ -20497,9 +20507,9 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "bench/ab_bench.py",
-      "source_location": "L185",
+      "source_location": "L279",
       "weight": 1.0,
-      "source": "bench_ab_bench_rationale_185",
+      "source": "bench_ab_bench_rationale_279",
       "target": "bench_ab_bench_sample_routes",
       "confidence_score": 1.0
     },
@@ -20508,7 +20518,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "bench/ab_bench.py",
-      "source_location": "L250",
+      "source_location": "L351",
       "weight": 1.0,
       "source": "bench_ab_bench_main",
       "target": "bench_ab_bench_measure",
@@ -20518,9 +20528,9 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "bench/ab_bench.py",
-      "source_location": "L194",
+      "source_location": "L288",
       "weight": 1.0,
-      "source": "bench_ab_bench_rationale_194",
+      "source": "bench_ab_bench_rationale_288",
       "target": "bench_ab_bench_measure",
       "confidence_score": 1.0
     },
@@ -59331,7 +59341,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "AGENTS.md",
-      "source_location": "L179",
+      "source_location": "L184",
       "weight": 1.0,
       "source": "agents_agents_md_ferronit",
       "target": "agents_\u0433\u0440\u0430\u043d\u0438\u0446\u044b_\u0440\u0430\u0431\u043e\u0442",
@@ -59341,7 +59351,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "AGENTS.md",
-      "source_location": "L189",
+      "source_location": "L194",
       "weight": 1.0,
       "source": "agents_agents_md_ferronit",
       "target": "agents_\u0438\u0437\u0432\u0435\u0441\u0442\u043d\u044b\u0435_\u043e\u0433\u0440\u0430\u043d\u0438\u0447\u0435\u043d\u0438\u044f",
@@ -59351,7 +59361,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "AGENTS.md",
-      "source_location": "L111",
+      "source_location": "L116",
       "weight": 1.0,
       "source": "agents_agents_md_ferronit",
       "target": "agents_\u0438\u043d\u0432\u0430\u0440\u0438\u0430\u043d\u0442\u044b_\u043d\u0435_\u043b\u043e\u043c\u0430\u0442\u044c",
@@ -59371,7 +59381,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "AGENTS.md",
-      "source_location": "L71",
+      "source_location": "L76",
       "weight": 1.0,
       "source": "agents_agents_md_ferronit",
       "target": "agents_\u043a\u043e\u043c\u0430\u043d\u0434\u044b",
@@ -59381,7 +59391,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "AGENTS.md",
-      "source_location": "L156",
+      "source_location": "L161",
       "weight": 1.0,
       "source": "agents_agents_md_ferronit",
       "target": "agents_\u043a\u0443\u0434\u0430_\u0438\u0434\u0442\u0438_\u0441_\u0437\u0430\u0434\u0430\u0447\u0435\u0439",
@@ -59391,7 +59401,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "AGENTS.md",
-      "source_location": "L143",
+      "source_location": "L148",
       "weight": 1.0,
       "source": "agents_agents_md_ferronit",
       "target": "agents_\u0441\u0442\u0438\u043b\u044c_\u043a\u043e\u0434\u0430",
@@ -59411,7 +59421,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "AGENTS.md",
-      "source_location": "L172",
+      "source_location": "L177",
       "weight": 1.0,
       "source": "agents_agents_md_ferronit",
       "target": "agents_\u044d\u043a\u043e\u043d\u043e\u043c\u0438\u044f_\u043a\u043e\u043d\u0442\u0435\u043a\u0441\u0442\u0430",
@@ -59671,7 +59681,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "bench/README.md",
-      "source_location": "L137",
+      "source_location": "L140",
       "weight": 1.0,
       "source": "bench_readme_\u0441\u0442\u0435\u043d\u0434_\u0437\u0430\u043c\u0435\u0440\u043e\u0432_ferronit",
       "target": "bench_readme_helper_\u043f\u0440\u0438\u043b\u043e\u0436\u0435\u043d\u0438\u044f_\u043f\u0440\u0435\u0444\u0438\u043a\u0441",
@@ -59681,7 +59691,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "bench/README.md",
-      "source_location": "L99",
+      "source_location": "L102",
       "weight": 1.0,
       "source": "bench_readme_\u0441\u0442\u0435\u043d\u0434_\u0437\u0430\u043c\u0435\u0440\u043e\u0432_ferronit",
       "target": "bench_readme_http_\u0441\u0440\u0430\u0432\u043d\u0435\u043d\u0438\u0435_\u0444\u0440\u0435\u0439\u043c\u0432\u043e\u0440\u043a\u043e\u0432_bench_rows_py",
@@ -59691,7 +59701,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "bench/README.md",
-      "source_location": "L132",
+      "source_location": "L135",
       "weight": 1.0,
       "source": "bench_readme_\u0441\u0442\u0435\u043d\u0434_\u0437\u0430\u043c\u0435\u0440\u043e\u0432_ferronit",
       "target": "bench_readme_legacy_httpx_\u0447\u0442\u043e_\u0437\u0434\u0435\u0441\u044c_\u0438_\u043f\u043e\u0447\u0435\u043c\u0443_\u043d\u0435_\u0433\u043e\u0434\u0438\u0442\u0441\u044f",
@@ -59701,7 +59711,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "bench/README.md",
-      "source_location": "L83",
+      "source_location": "L86",
       "weight": 1.0,
       "source": "bench_readme_\u0441\u0442\u0435\u043d\u0434_\u0437\u0430\u043c\u0435\u0440\u043e\u0432_ferronit",
       "target": "bench_readme_rawdb_rawmodel_\u043a\u0430\u043d\u043e\u043d\u0438\u0447\u0435\u0441\u043a\u0438\u0439_\u0441\u043b\u043e\u0439_\u0434\u0430\u043d\u043d\u044b\u0445",
@@ -59711,7 +59721,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "bench/README.md",
-      "source_location": "L14",
+      "source_location": "L17",
       "weight": 1.0,
       "source": "bench_readme_\u0441\u0442\u0435\u043d\u0434_\u0437\u0430\u043c\u0435\u0440\u043e\u0432_ferronit",
       "target": "bench_readme_\u043e\u0441\u043d\u043e\u0432\u043d\u043e\u0435",
@@ -59721,7 +59731,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "bench/README.md",
-      "source_location": "L7",
+      "source_location": "L10",
       "weight": 1.0,
       "source": "bench_readme_\u0441\u0442\u0435\u043d\u0434_\u0437\u0430\u043c\u0435\u0440\u043e\u0432_ferronit",
       "target": "bench_readme_\u043f\u043e\u043b\u0438\u0442\u0438\u043a\u0430_req_s_\u043c\u0435\u0440\u044f\u0435\u043c_\u0442\u043e\u043b\u044c\u043a\u043e_ab",
@@ -59731,7 +59741,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "bench/README.md",
-      "source_location": "L119",
+      "source_location": "L122",
       "weight": 1.0,
       "source": "bench_readme_\u0441\u0442\u0435\u043d\u0434_\u0437\u0430\u043c\u0435\u0440\u043e\u0432_ferronit",
       "target": "bench_readme_\u043f\u0440\u043e\u0442\u043e\u043a\u043e\u043b_\u0437\u0430\u043c\u0435\u0440\u0430_\u0438\u043d\u0430\u0447\u0435_\u0446\u0438\u0444\u0440\u044b_\u043d\u0435_\u0441\u0440\u0430\u0432\u043d\u0438\u043c\u044b_\u043c\u0435\u0436\u0434\u0443_\u0441\u0435\u0441\u0441\u0438\u044f\u043c\u0438",
@@ -59741,7 +59751,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "bench/README.md",
-      "source_location": "L42",
+      "source_location": "L45",
       "weight": 1.0,
       "source": "bench_readme_\u0441\u0442\u0435\u043d\u0434_\u0437\u0430\u043c\u0435\u0440\u043e\u0432_ferronit",
       "target": "bench_readme_\u043f\u0440\u044f\u043c\u043e\u0439_\u0437\u0430\u043c\u0435\u0440_postgresql_\u043e\u043a\u0442_2026",
@@ -59751,7 +59761,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "bench/README.md",
-      "source_location": "L67",
+      "source_location": "L70",
       "weight": 1.0,
       "source": "bench_readme_\u043f\u0440\u044f\u043c\u043e\u0439_\u0437\u0430\u043c\u0435\u0440_postgresql_\u043e\u043a\u0442_2026",
       "target": "bench_readme_\u0441\u0430\u043c\u043e\u0434\u0435\u043b\u044c\u043d\u044b\u0439_\u043a\u043b\u0438\u0435\u043d\u0442_\u043f\u043e_\u043f\u0440\u043e\u0432\u043e\u0434\u0443_\u043f\u0440\u043e\u0442\u0438\u0432_asyncpg_pg_wire_py_wire_bench_py",
@@ -59761,7 +59771,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "bench/README.md",
-      "source_location": "L52",
+      "source_location": "L55",
       "weight": 1.0,
       "source": "bench_readme_\u043f\u0440\u044f\u043c\u043e\u0439_\u0437\u0430\u043c\u0435\u0440_postgresql_\u043e\u043a\u0442_2026",
       "target": "bench_readme_\u0441\u044b\u0440\u043e\u0439_\u0434\u0440\u0430\u0439\u0432\u0435\u0440_pgx_\u043f\u0440\u043e\u0442\u0438\u0432_asyncpg_\u043f\u0440\u043e\u0442\u0438\u0432_tokio_postgres",
@@ -60101,7 +60111,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "docs/benchmarks.md",
-      "source_location": "L87",
+      "source_location": "L105",
       "weight": 1.0,
       "source": "docs_benchmarks_\u0431\u0435\u043d\u0447\u043c\u0430\u0440\u043a\u0438",
       "target": "docs_benchmarks_\u0432\u043e\u0441\u043f\u0440\u043e\u0438\u0437\u0432\u0435\u0434\u0435\u043d\u0438\u0435",
@@ -60111,7 +60121,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "docs/benchmarks.md",
-      "source_location": "L43",
+      "source_location": "L61",
       "weight": 1.0,
       "source": "docs_benchmarks_\u0431\u0435\u043d\u0447\u043c\u0430\u0440\u043a\u0438",
       "target": "docs_benchmarks_\u0437\u0430\u043f\u0438\u0441\u0438_insert_update_upsert",
@@ -60124,14 +60134,14 @@
       "source_location": "L8",
       "weight": 1.0,
       "source": "docs_benchmarks_\u0431\u0435\u043d\u0447\u043c\u0430\u0440\u043a\u0438",
-      "target": "docs_benchmarks_\u043c\u0430\u0440\u0448\u0440\u0443\u0442\u0438\u0437\u0430\u0446\u0438\u044f_ferronit_\u043f\u0440\u043e\u0442\u0438\u0432_fastapi",
+      "target": "docs_benchmarks_\u043c\u0430\u0440\u0448\u0440\u0443\u0442\u0438\u0437\u0430\u0446\u0438\u044f_ferronit_\u043f\u0440\u043e\u0442\u0438\u0432_blacksheep_fastapi_litestar",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "docs/benchmarks.md",
-      "source_location": "L73",
+      "source_location": "L91",
       "weight": 1.0,
       "source": "docs_benchmarks_\u0431\u0435\u043d\u0447\u043c\u0430\u0440\u043a\u0438",
       "target": "docs_benchmarks_\u043f\u043e\u0442\u043e\u043b\u043e\u043a_\u0447\u0438\u0441\u0442\u044b\u0439_granian",
@@ -60141,7 +60151,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "docs/benchmarks.md",
-      "source_location": "L58",
+      "source_location": "L76",
       "weight": 1.0,
       "source": "docs_benchmarks_\u0431\u0435\u043d\u0447\u043c\u0430\u0440\u043a\u0438",
       "target": "docs_benchmarks_\u0441\u0432\u044f\u0437\u0438_get_parents_n_\u0440\u043e\u0434\u0438\u0442\u0435\u043b\u0435\u0439_3_\u0440\u0435\u0431\u0451\u043d\u043a\u0430",
@@ -60151,10 +60161,20 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "docs/benchmarks.md",
-      "source_location": "L22",
+      "source_location": "L40",
       "weight": 1.0,
       "source": "docs_benchmarks_\u0431\u0435\u043d\u0447\u043c\u0430\u0440\u043a\u0438",
       "target": "docs_benchmarks_\u0441\u0442\u0440\u043e\u043a\u0438_ferronit_\u043f\u0440\u043e\u0442\u0438\u0432_litestar_fastapi_django_blacksheep",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/benchmarks.md",
+      "source_location": "L25",
+      "weight": 1.0,
+      "source": "docs_benchmarks_\u043c\u0430\u0440\u0448\u0440\u0443\u0442\u0438\u0437\u0430\u0446\u0438\u044f_ferronit_\u043f\u0440\u043e\u0442\u0438\u0432_blacksheep_fastapi_litestar",
+      "target": "docs_benchmarks_granian_1000_\u043c\u0430\u0440\u0448\u0440\u0443\u0442\u043e\u0432_\u0441\u0432\u043e\u0434\u043d\u043e_\u043f\u0440\u043e\u0442\u0438\u0432_\u0432\u0441\u0435\u0445",
       "confidence_score": 1.0
     },
     {
@@ -61169,5 +61189,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "b1c6295982bc7939999adf9627867a8521125185"
+  "built_at_commit": "cff2325c423f4e5cf6c718a3e1193ec981731bde"
 }

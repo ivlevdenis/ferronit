@@ -39,11 +39,11 @@ bench/_bench_rows_*.py
 bench/_bench_pg_*.py
 bench/_bench_db_*.py
 bench/_abgen_*.py
+bench/_abrun_*.py
 bench/RESULTS_ab.txt
 
-# граф знаний: кэш и бэкапы по датам
-graphify-out/cache/
-graphify-out/20*/
+# граф знаний: генерируется `graphify update .`, в репо не хранится
+graphify-out/
 
 # собранное ядро: maturin кладёт .so внутрь пакета при develop/build
 ferronit/_core*.so

@@ -6,12 +6,23 @@ import msgspec
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from ferronit import Ferronit, Header
+from ferronit import Body, Ferronit, Header, Query
 
 
 class Item(msgspec.Struct):
     name: str
     price: float
+
+
+class SearchQuery(msgspec.Struct):
+    q: str = ""
+    page: Annotated[int, msgspec.Meta(ge=1)] = 1
+    per_page: Annotated[int, msgspec.Meta(ge=1, le=100)] = 20
+    tags: Annotated[list[str], msgspec.Meta(max_length=3)] = []
+
+
+class RequiredQuery(msgspec.Struct):
+    page: Annotated[int, msgspec.Meta(ge=1)]
 
 
 @pytest.fixture
@@ -64,6 +75,23 @@ def app():
 
     @v.route("/items", methods=["POST"])
     async def create(req, payload: Item):
+        return {"name": payload.name, "price": payload.price}
+
+    @v.route("/filters")
+    def filters(query: Annotated[SearchQuery, Query()]):
+        return {
+            "q": query.q,
+            "page": query.page,
+            "per_page": query.per_page,
+            "tags": query.tags,
+        }
+
+    @v.route("/filters-required")
+    def filters_required(query: Annotated[RequiredQuery, Query()]):
+        return {"page": query.page}
+
+    @v.route("/body-marked", methods=["POST"])
+    async def body_marked(payload: Annotated[Item, Body()]):
         return {"name": payload.name, "price": payload.price}
 
     return v
@@ -182,3 +210,39 @@ async def test_body_model_injection(client):
     r = await client.post("/items", json={"name": "widget", "price": 9.9})
     assert r.status_code == 200
     assert r.json() == {"name": "widget", "price": 9.9}
+
+
+async def test_query_model_basic(client):
+    r = await client.get("/filters?q=x&page=2&per_page=50&tags=a&tags=b")
+    assert r.json() == {"q": "x", "page": 2, "per_page": 50, "tags": ["a", "b"]}
+
+
+async def test_query_model_constraint_falls_back_to_default(client):
+    r = await client.get("/filters?page=0&per_page=500")
+    assert r.json() == {"q": "", "page": 1, "per_page": 20, "tags": []}
+
+
+async def test_query_model_invalid_type_falls_back_to_default(client):
+    r = await client.get("/filters?page=abc&per_page=50")
+    assert r.json() == {"q": "", "page": 1, "per_page": 50, "tags": []}
+
+
+async def test_query_model_list_max_length_falls_back(client):
+    r = await client.get("/filters?tags=a&tags=b&tags=c&tags=d")
+    assert r.json()["tags"] == []
+
+
+async def test_query_model_required_missing_is_400(client):
+    r = await client.get("/filters-required")
+    assert r.status_code == 400
+
+
+async def test_query_model_required_invalid_is_400(client):
+    r = await client.get("/filters-required?page=0")
+    assert r.status_code == 400
+
+
+async def test_body_marker_injection(client):
+    r = await client.post("/body-marked", json={"name": "w", "price": 1.5})
+    assert r.status_code == 200
+    assert r.json() == {"name": "w", "price": 1.5}

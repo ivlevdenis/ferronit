@@ -74,7 +74,7 @@ Ferronit — высокопроизводительный ASGI-фреймвор�
 | Request | `ferronit/core/request.py` | ленивое чтение тела, query/headers, загрузки, ошибки |
 | Response | `ferronit/core/response.py` | `JSONResponse`, `TextResponse`, `StreamingResponse`, `Response` |
 | Роутинг | `ferronit/routing.py` | регистрация HTTP/WS-маршрутов |
-| Binding | `ferronit/binding.py` | привязка параметров хендлера, pre-bind DI |
+| Binding | `ferronit/binding.py` | привязка параметров хендлера, query/body-модели, pre-bind DI |
 | DI | `ferronit/di.py` | `Container` (singleton/factory), `Annotated`-ключи |
 | Middleware | `ferronit/middleware.py` | цепочка middleware, расширения `apply(app)` |
 | DDD | `ferronit/ddd.py` | Command/Query, шины, агрегаты, события, Repository |
@@ -86,8 +86,8 @@ Ferronit — высокопроизводительный ASGI-фреймвор�
 | OpenAPI | `ferronit/openapi.py` | автогенерация схемы по роутам |
 | WebSocket | `ferronit/websocket.py` | WS-эндпоинты, Origin-guard |
 
-Публичное API пакета (см. `ferronit/__init__.py`): `Ferronit`, `Header`,
-`Request`, `Response`, `JSONResponse`, `TextResponse`, `StreamingResponse`,
+Публичное API пакета (см. `ferronit/__init__.py`): `Ferronit`, `Header`, `Query`,
+`Body`, `Request`, `Response`, `JSONResponse`, `TextResponse`, `StreamingResponse`,
 `UploadedFile`, `WebSocket`, `WebSocketState`.
 
 ## Жизненный цикл HTTP-запроса

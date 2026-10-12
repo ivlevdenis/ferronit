@@ -72,6 +72,40 @@ async def create_user(user: NewUser):
     return {"id": 1, "name": user.name}
 ```
 
+Модель без маркера — body; явно её помечают `Body()`:
+
+```python
+async def create_user(user: Annotated[NewUser, Body()]):
+    ...
+```
+
+## Query-модели
+
+Параметр с маркером `Query()` — модель `msgspec.Struct`, чьи поля маппятся на
+query-параметры. Поля поддерживают констрейнты `msgspec.Meta`
+(`ge`/`le`/`min_length`/`max_length`/`pattern` и т.д.).
+
+```python
+from ferronit import Query
+
+class SearchQuery(msgspec.Struct):
+    q: str = ""
+    page: Annotated[int, msgspec.Meta(ge=1)] = 1
+    per_page: Annotated[int, msgspec.Meta(ge=1, le=100)] = 20
+    tags: Annotated[list[str], msgspec.Meta(max_length=5)] = []
+
+@app.route("/search")
+async def search(query: Annotated[SearchQuery, Query()]):
+    return {"page": query.page, "tags": query.tags}
+```
+
+Валидация — **поле за полем**, мягкая: невалидное значение (неверный тип или
+нарушенный констрейнт) откатывается к `default` поля; если default нет —
+`RequestError` → **400**. Пример: `?page=0&per_page=500` → `page=1, per_page=20`
+(оба откатились в default), а `?tags=a&...` из 6 элементов — `[]`.
+
+Query-модель резолвится синхронно (не требует async-хендлера), в отличие от body.
+
 ## Зависимости из контейнера
 
 Параметр, чей тип (или `Annotated`-ключ) зарегистрирован в `app.container`,
@@ -93,9 +127,10 @@ async def get_user(req, users: UserRepository):
 
 1. `req` / `Request` — сам объект запроса;
 2. `Annotated[T, Header(...)]` — заголовок;
-3. модель тела (`msgspec.Struct`/dataclass/Pydantic) — `req.model(...)`;
-4. тип или `Annotated`-ключ из контейнера — `container.get(...)`;
-5. иначе — path/query-параметр.
+3. `Annotated[T, Query()]` — query-модель (`msgspec.Struct` из query-параметров);
+4. `Annotated[T, Body()]` или модель тела — `req.model(...)`;
+5. тип или `Annotated`-ключ из контейнера — `container.get(...)`;
+6. иначе — path/query-параметр.
 
 DI-зависимость резолвится на каждом запросе, поэтому синглтоны (пулы, клиенты)
 должны быть зарегистрированы до первого запроса — обычно в `@app.lifespan`
@@ -107,3 +142,5 @@ DI-зависимость резолвится на каждом запросе,
 - **Invalid** значение (например `page=abc` для `int`) → `RequestError` → **400**
   (path → **404**).
 - Пустая строка `""` откатывается к default, если он объявлен.
+- **Query-модель**: невалидное поле (тип или констрейнт `msgspec.Meta`)
+  откатывается к default; без default — **400**.

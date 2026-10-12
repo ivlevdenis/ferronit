@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import inspect
+import re
 import types
 from typing import Annotated, Any, Union, get_args, get_origin, get_type_hints
 
+import msgspec
+
 from ferronit.core.request import PathParamError, Request, RequestError
 
-__all__ = ["Header", "bind", "build", "plan"]
+__all__ = ["Body", "Header", "Query", "bind", "build", "plan"]
 
 _TRUE = frozenset({"true", "1", "yes", "on"})
 _FALSE = frozenset({"false", "0", "no", "off"})
@@ -26,6 +29,23 @@ class Header:
 
     def __init__(self, name: str | None = None) -> None:
         self.name = name
+
+
+class Query:
+    """Маркер: параметр — query-модель (``msgspec.Struct``), поля маппятся на query-параметры.
+
+    Невалидное значение (тип или констрейнт ``msgspec.Meta``) откатывается к
+    default поля; если default нет — ``RequestError`` (400). Используется через
+    ``typing.Annotated``: ``filters: Annotated[SearchQuery, Query()]``.
+    """
+
+    __slots__ = ()
+
+
+class Body:
+    """Маркер: параметр — body-модель (явное указание; модель без маркера и так body)."""
+
+    __slots__ = ()
 
 
 class _Plan:
@@ -91,11 +111,18 @@ def plan(handler, container=None) -> _Plan:
             continue
         hint = hints.get(name)
         default = defaults.get(name, inspect.Parameter.empty)
-        base, header = _unwrap_annotated(hint)
-        if header is not None:
+        base, marker = _unwrap_annotated(hint)
+        if isinstance(marker, Header):
             resolvers.append((
-                "header", name, _make_coercer(base), default, False, None, header.name or name,
+                "header", name, _make_coercer(base), default, False, None, marker.name or name,
             ))
+            continue
+        if isinstance(marker, Query):
+            resolvers.append(("query_model", name, None, default, False, None, base))
+            continue
+        if isinstance(marker, Body):
+            resolvers.append(("body", name, None, default, False, None, base))
+            body_resolvers.append((name, base))
             continue
         if _is_body_model(base):
             resolvers.append(("body", name, None, default, False, None, base))
@@ -190,12 +217,15 @@ def bind(handler, container=None):
     return build(handler, plan(handler, container), container=container)
 
 
-def _unwrap_annotated(hint: Any) -> tuple[Any, Header | None]:
-    """Развернуть ``Annotated[T, Header(...)]`` → ``(T, Header)`` либо ``(hint, None)``."""
+def _unwrap_annotated(hint: Any) -> tuple[Any, Any]:
+    """Развернуть ``Annotated[T, Маркер(...)]`` → ``(T, маркер)`` либо ``(hint, None)``.
+
+    Маркер — ``Header`` / ``Query`` / ``Body``.
+    """
     if get_origin(hint) is Annotated:
         base = get_args(hint)[0]
         for meta in get_args(hint)[1:]:
-            if isinstance(meta, Header):
+            if isinstance(meta, (Header, Query, Body)):
                 return base, meta
         return base, None
     return hint, None
@@ -286,6 +316,9 @@ def _bind_values(req: Request, resolvers: list, body_values: dict, container=Non
             values.append(r[6])
             continue
         _, name, coercer, default, is_list, element_coercer, extra = r
+        if kind == "query_model":
+            values.append(_resolve_query_model(req, extra))
+            continue
         if kind == "body":
             values.append(body_values[name])
             continue
@@ -340,3 +373,80 @@ def _invalid(name: str, value: Any, source: str):
     if source == "header":
         return RequestError(f"Invalid header parameter '{name}': {value!r}")
     return RequestError(f"Invalid query parameter '{name}': {value!r}")
+
+
+# ── Query-модель (msgspec.Struct → query-параметры) ────────────────────
+
+
+def _split_constraint(t: Any) -> tuple[Any, Any]:
+    """Развернуть ``Annotated[T, msgspec.Meta(...)]`` → ``(T, Meta)`` либо ``(t, None)``."""
+    if get_origin(t) is Annotated:
+        args = get_args(t)
+        base = args[0]
+        for meta in args[1:]:
+            if isinstance(meta, msgspec.Meta):
+                return base, meta
+        return base, None
+    return t, None
+
+
+def _check_constraints(value: Any, meta: Any) -> bool:
+    """Проверить значение против ``msgspec.Meta``-констрейнтов."""
+    if meta is None:
+        return True
+    if meta.ge is not None and value < meta.ge:
+        return False
+    if meta.gt is not None and value <= meta.gt:
+        return False
+    if meta.le is not None and value > meta.le:
+        return False
+    if meta.lt is not None and value >= meta.lt:
+        return False
+    if meta.multiple_of is not None and value % meta.multiple_of != 0:
+        return False
+    if meta.min_length is not None and len(value) < meta.min_length:
+        return False
+    if meta.max_length is not None and len(value) > meta.max_length:
+        return False
+    return meta.pattern is None or re.match(meta.pattern, str(value)) is not None
+
+
+def _coerce_field(raw: list[str], base: Any) -> Any:
+    """Привести список query-значений к базовому типу (скаляр или ``list[T]``)."""
+    element = _element_type(base)
+    if element is not None:
+        coercer = _make_coercer(element)
+        return [coercer(v, "", "query") if coercer is not None else v for v in raw]
+    coercer = _make_coercer(base)
+    v = raw[0]
+    return coercer(v, "", "query") if coercer is not None else v
+
+
+def _resolve_query_model(req: Request, model_cls: type) -> Any:
+    """Построить query-модель из строки запроса, поле за полем.
+
+    Невалидное значение (тип или констрейнт ``msgspec.Meta``) откатывается к
+    default поля; если default нет — ``RequestError`` (400).
+    """
+    values: dict[str, Any] = {}
+    for f in msgspec.structs.fields(model_cls):
+        name = f.name
+        has_default = (
+            f.default is not msgspec.NODEFAULT
+            or f.default_factory is not msgspec.NODEFAULT
+        )
+        if name not in req.query:
+            if not has_default:
+                raise RequestError(f"Missing query parameter '{name}'")
+            continue
+        base, meta = _split_constraint(f.type)
+        try:
+            value = _coerce_field(req.query[name], base)
+        except (RequestError, PathParamError, ValueError, TypeError):
+            value = None
+        if value is None or not _check_constraints(value, meta):
+            if has_default:
+                continue
+            raise RequestError(f"Invalid query parameter '{name}'")
+        values[name] = value
+    return model_cls(**values)

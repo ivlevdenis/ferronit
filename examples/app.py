@@ -20,18 +20,15 @@ try:
 except ImportError:
     pass
 
-from pydantic import BaseModel
+import msgspec
 
 from ferronit import Ferronit
 from ferronit.contrib.cors import cors
-from ferronit.contrib.pydantic.pydantic_codec import install
 from ferronit.contrib.rawdb import Pool, create_pool
 from ferronit.contrib.rawmodel import Model
 from ferronit.contrib.staticfiles import StaticFiles
 from ferronit.ddd import AggregateRoot, Command, Query
 from ferronit.di import Container
-
-install()
 
 DB_URL = os.environ.get("DATABASE_URL", "postgresql://postgres:postgres@127.0.0.1:5432/postgres")
 
@@ -170,14 +167,14 @@ class GetOrderQ(Query):
 
 # ── Response Models ───────────────────────────────────────────────────
 
-class CartResponse(BaseModel):
+class CartResponse(msgspec.Struct):
     cart_id: str
     user_id: str
     items: list[dict]
     total: float
 
 
-class OrderResponse(BaseModel):
+class OrderResponse(msgspec.Struct):
     order_id: str
     user_id: str
     items: list[dict]

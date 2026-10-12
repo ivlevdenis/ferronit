@@ -6,6 +6,8 @@ sdist/Docker-образ. Логика фреймворка от него не з
 
 **Основной конкурент для сравнения — BlackSheep.** Бенчи по умолчанию сравнивают Ferronit
 с BlackSheep (ближайший соперник), остальные (FastAPI/Litestar/Django) — дополнительные точки.
+TurboAPI (`turboapi` из PyPI) меряется как есть: у него собственный Rust-сервер (`app.run`),
+на granian он не работает.
 
 ## Политика: req/s меряем только `ab`
 
@@ -17,23 +19,25 @@ sdist/Docker-образ. Логика фреймворка от него не з
 ## Основное
 
 ```bash
-./bench/run_all_ab.sh                     # вся матрица, ~10 минут, пишет bench/RESULTS_ab.txt
-.venv/bin/python bench/ab_bench.py --server uvicorn --routes 50
-.venv/bin/python bench/ab_bench.py --server granian  --routes 1000 --requests 20000
+./bench/run_all_ab.sh                     # вся матрица (granian), ~5–6 минут, пишет bench/RESULTS_ab.txt
+.venv/bin/python bench/ab_bench.py --server granian --routes 50
+.venv/bin/python bench/ab_bench.py --server granian --routes 1000 --requests 20000
 .venv/bin/python bench/bench_rows.py               # Ferronit-rawmodel vs Litestar/FastAPI/Django: 1/100/1000 строк
 .venv/bin/python bench/bench_granian_bare.py       # потолок чистого granian
 .venv/bin/python bench/plot_rows.py                # → bench_rows.html
 ```
 
-`ab_bench.py` сам генерирует два одинаковых приложения (Ferronit и FastAPI) с N маршрутами,
-поднимает их одним сервером (uvicorn или granian, 1 воркер), греет и меряет по выборке
-маршрутов **первый / средний / последний** — так видно, что FastAPI деградирует при росте
-таблицы маршрутов, а Ferronit нет. Флаги: `--routes`, `--requests`, `--concurrency`, `--runs`,
-`--payload {none,small,medium,big}`, `--no-fastapi`.
+`ab_bench.py` сам генерирует одинаковые приложения (Ferronit, BlackSheep, Litestar, FastAPI,
+TurboAPI) с N маршрутами, поднимает их granian'ом (1 воркер; TurboAPI —
+свой Rust-сервер через `app.run`), греет и меряет по выборке маршрутов **первый / средний /
+последний** — так видно, что FastAPI деградирует при росте таблицы маршрутов, а Ferronit и
+TurboAPI нет. Флаги: `--routes`, `--requests`, `--concurrency`, `--runs`,
+`--payload {none,small,medium,big}`, `--no-fastapi`, `--no-litestar`, `--no-blacksheep`,
+`--no-turboapi`.
 
 | Скрипт | Что мерит |
 |---|---|
-| `ab_bench.py` | маршрутизация и размер ответа, Ferronit vs FastAPI, uvicorn/granian — **на `ab`** |
+| `ab_bench.py` | маршрутизация и размер ответа, Ferronit vs BlackSheep/Litestar/FastAPI/TurboAPI — **на `ab`** |
 | `bench_rows.py`, `plot_rows.py` | Ferronit-rawmodel vs Litestar/FastAPI/Django: 1/100/1000 строк из PostgreSQL — **на `ab`** |
 | `bench_granian_bare.py` | потолок чистого granian (пустое тело / JSON) — **на `ab`** |
 | `pg_wire.py`, `wire_bench.py` | самодельный клиент по проводу PostgreSQL (SCRAM, simple/extended, пайплайн) против asyncpg |

@@ -5,14 +5,16 @@
 не создаёт это бутылочное горлышко.
 
 Что делает: генерирует одинаковые приложения (Ferronit, FastAPI, Litestar,
-BlackSheep) с N маршрутами, поднимает их одним и тем же сервером (uvicorn или
-granian, 1 воркер), прогревает и мерит ab по выборке маршрутов (первый / средний /
-последний) — так видно, кто деградирует с ростом таблицы маршрутов, а кто нет.
+BlackSheep, TurboAPI) с N маршрутами, поднимает их granian'ом (1 воркер),
+прогревает и мерит ab по выборке маршрутов (первый / средний / последний) — так
+видно, кто деградирует с ростом таблицы маршрутов, а кто нет. TurboAPI — особый
+случай: у него собственный Rust-сервер (app.run), на granian он не работает,
+поэтому его сервер меряется как есть.
 
-    python bench/ab_bench.py --server uvicorn --routes 50
-    python bench/ab_bench.py --server granian  --routes 1000 --requests 20000
-    python bench/ab_bench.py --server uvicorn --payload big --requests 5000
-    python bench/ab_bench.py --server uvicorn --routes 50 --no-fastapi --no-litestar
+    python bench/ab_bench.py --routes 50
+    python bench/ab_bench.py --routes 1000 --requests 20000
+    python bench/ab_bench.py --payload big --requests 5000
+    python bench/ab_bench.py --routes 50 --no-fastapi --no-litestar
 
 Результаты — в stdout (таблица); ничего не пишется в файлы, кроме временных приложений.
 """
@@ -107,6 +109,28 @@ for _i in range(__ROUTES__):
 
 __PAYLOAD__
 '''
+
+TURBOAPI_TEMPLATE = '''
+from turboapi import TurboAPI
+
+app = TurboAPI()
+
+
+def _make(i):
+    @app.get(f"/route{i}")
+    async def handler():
+        return {"route": i}
+    return handler
+
+
+for _i in range(__ROUTES__):
+    _make(_i)
+
+__PAYLOAD__
+'''
+
+# turboapi поднимается через app.run() — отдельный launcher, не granian.
+TURBOAPI_RUNNER = "_abrun_turboapi.py"
 
 PAYLOAD_BODY = {
     "none": "",
@@ -211,6 +235,31 @@ async def payload():
 ''',
 }
 
+TURBOAPI_PAYLOAD_BODY = {
+    "none": "",
+    "small": '''
+@app.get("/payload")
+async def payload():
+    return {"ok": True}
+''',
+    "medium": '''
+_ITEMS = [{"id": i, "name": f"item-{i}", "price": i * 10} for i in range(50)]
+
+
+@app.get("/payload")
+async def payload():
+    return {"count": 50, "items": _ITEMS}
+''',
+    "big": '''
+_ITEMS = [{"id": i, "name": f"item-{i}", "price": i * 10} for i in range(500)]
+
+
+@app.get("/payload")
+async def payload():
+    return {"count": 500, "items": _ITEMS}
+''',
+}
+
 RPS_RE = re.compile(r"Requests per second:\s+([\d.]+)")
 FAILED_RE = re.compile(r"Failed requests:\s+(\d+)")
 NON2XX_RE = re.compile(r"Non-2xx responses:\s+(\d+)")
@@ -225,21 +274,27 @@ def write_apps(routes: int, payload: str) -> dict[str, str]:
         ("fastapi", FASTAPI_TEMPLATE, FASTAPI_PAYLOAD_BODY),
         ("litestar", LITESTAR_TEMPLATE, LITESTAR_PAYLOAD_BODY),
         ("blacksheep", BLACKSHEEP_TEMPLATE, BLACKSHEEP_PAYLOAD_BODY),
+        ("turboapi", TURBOAPI_TEMPLATE, TURBOAPI_PAYLOAD_BODY),
     ):
         source = template.replace("__ROUTES__", str(routes)).replace("__PAYLOAD__", payloads[payload])
         path = BENCH_DIR / f"_abgen_{name}.py"
         path.write_text(source, encoding="utf-8")
         written[name] = path.name
+    # turboapi поднимается собственным Rust-сервером (app.run), а не granian.
+    (BENCH_DIR / TURBOAPI_RUNNER).write_text(
+        "import sys\n"
+        "from _abgen_turboapi import app\n"
+        "\n"
+        "app.run(host='127.0.0.1', port=int(sys.argv[1]))\n",
+        encoding="utf-8",
+    )
     return written
 
 
-def server_cmd(server: str, module: str, port: int) -> list[str]:
-    """Build the server command line for the requested backend."""
-    if server == "granian":
-        return [PY, "-m", "granian", "--interface", "asgi", "--host", "127.0.0.1",
-                "--port", str(port), "--workers", "1", "--no-ws", f"{module}:app"]
-    return [PY, "-m", "uvicorn", f"{module}:app", "--host", "127.0.0.1",
-            "--port", str(port), "--log-level", "warning"]
+def server_cmd(module: str, port: int) -> list[str]:
+    """Build the granian server command line."""
+    return [PY, "-m", "granian", "--interface", "asgi", "--host", "127.0.0.1",
+            "--port", str(port), "--workers", "1", "--no-ws", f"{module}:app"]
 
 
 def wait_ready(port: int, timeout: float = 20.0) -> bool:
@@ -308,7 +363,6 @@ def measure(port: int, paths: list[str], requests: int, concurrency: int, runs: 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="Ferronit vs FastAPI/Litestar/BlackSheep — только ApacheBench")
-    ap.add_argument("--server", choices=["uvicorn", "granian"], default="uvicorn")
     ap.add_argument("--routes", type=int, default=50)
     ap.add_argument("--requests", type=int, default=20000)
     ap.add_argument("--concurrency", type=int, default=50)
@@ -317,6 +371,7 @@ def main() -> int:
     ap.add_argument("--no-fastapi", action="store_true", help="пропустить FastAPI")
     ap.add_argument("--no-litestar", action="store_true", help="пропустить Litestar")
     ap.add_argument("--no-blacksheep", action="store_true", help="пропустить BlackSheep")
+    ap.add_argument("--no-turboapi", action="store_true", help="пропустить TurboAPI")
     a = ap.parse_args()
 
     if subprocess.run(["which", "ab"], capture_output=True).returncode != 0:
@@ -332,18 +387,25 @@ def main() -> int:
         apps.append(("litestar", modules["litestar"], 8163))
     if not a.no_fastapi:
         apps.append(("fastapi", modules["fastapi"], 8164))
+    if not a.no_turboapi:
+        apps.append(("turboapi", modules["turboapi"], 8165))
 
     target = "/payload" if a.payload != "none" else None
     paths = [target] if target else sample_routes(a.routes)
 
-    print(f"ab -n {a.requests} -c {a.concurrency} -k · {a.server}, 1 воркер · "
+    print(f"ab -n {a.requests} -c {a.concurrency} -k · granian, 1 воркер · "
           f"{a.routes} маршрутов · payload={a.payload} · медиана из {a.runs} прогонов")
+    if not a.no_turboapi:
+        print("примечание: turboapi меряется на собственном Rust-сервере (app.run), не на granian")
     print(f"маршруты: {', '.join(paths)}\n")
 
     results: dict[str, dict] = {}
     for name, module, port in apps:
-        proc = subprocess.Popen(server_cmd(a.server, module.removesuffix(".py"), port),
-                                cwd=BENCH_DIR, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if name == "turboapi":
+            cmd = [PY, TURBOAPI_RUNNER, str(port)]
+        else:
+            cmd = server_cmd(module.removesuffix(".py"), port)
+        proc = subprocess.Popen(cmd, cwd=BENCH_DIR, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         try:
             if not wait_ready(port):
                 print(f"{name}: сервер не поднялся", file=sys.stderr)
@@ -357,26 +419,39 @@ def main() -> int:
                 proc.kill()
             time.sleep(0.5)
 
-    for name, res in results.items():
-        print(f"--- {name} ---")
+    # Сводка: медиана req/s и во сколько раз Ferronit быстрее
+    base = results.get("ferronit", {}).get("median_rps")
+    print()
+    print(f"  {'Фреймворк':<12}{'req/s':>12}   {'×Ferronit':>8}")
+    print(f"  {'-' * 35}")
+    for name in ("ferronit", "blacksheep", "litestar", "fastapi", "turboapi"):
+        res = results.get(name)
+        if res is None:
+            continue
+        r = res["median_rps"]
+        mult = "—" if (name == "ferronit" or not base) else f"{base / r:.2f}×"
+        tag = ""
+        if name == "blacksheep":
+            tag = "  ← основной конкурент"
+        elif name == "turboapi":
+            tag = "  ← свой Rust-сервер"
+        print(f"  {name:<12}{r:>12,.0f}   {mult:>8}{tag}")
+
+    # Детали по маршрутам: req/s и p50/p95/p99 (мс)
+    print("\nДетали по маршрутам (req/s, p50/p95/p99 мс):")
+    for name in ("ferronit", "blacksheep", "litestar", "fastapi", "turboapi"):
+        res = results.get(name)
+        if res is None:
+            continue
+        parts = []
         for path, data in res["paths"].items():
             if "error" in data:
-                print(f"  {path:<14} ошибка ab: {data['error']}")
+                parts.append(f"{path}=ошибка")
                 continue
-            print(f"  {path:<14} {data['rps']:>9,.0f} req/s   p50={data['p50']} p95={data['p95']} "
-                  f"p99={data['p99']} мс   failed={data['failed']} non2xx={data['non2xx']}")
-        print(f"  медиана: {res['median_rps']:,.0f} req/s")
-
-    if "ferronit" in results:
-        base = results["ferronit"]["median_rps"]
-        print("\nИтого (медиана req/s):")
-        print(f"  {'ferronit':<10} {base:>10,.0f}")
-        for name in ("blacksheep", "litestar", "fastapi"):
-            if name not in results:
-                continue
-            r = results[name]["median_rps"]
-            tag = "  ← основной конкурент" if name == "blacksheep" else ""
-            print(f"  {name:<10} {r:>10,.0f}   Ferronit ×{base / r:.2f}{tag}")
+            lat = f"{data['p50']}/{data['p95']}/{data['p99']}"
+            extra = f" [failed={data['failed']} non2xx={data['non2xx']}]" if (data["failed"] or data["non2xx"]) else ""
+            parts.append(f"{path}={data['rps']:,.0f} ({lat}){extra}")
+        print(f"  {name:<12}" + "  ".join(parts))
     return 0
 
 

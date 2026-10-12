@@ -6,7 +6,9 @@
 нескольких прогонов, keep-alive. Полный стенд: каталог `bench/`.
 
 **Основной конкурент — BlackSheep** (ближайший соперник по маршрутизации);
-Litestar/FastAPI — дополнительные точки отсчёта.
+Litestar/FastAPI — дополнительные точки отсчёта. TurboAPI меряется отдельно —
+у него собственный Rust-сервер (`app.run`), на granian он не работает
+(см. раздел «TurboAPI» ниже).
 
 ## Железо и окружение
 
@@ -16,7 +18,7 @@ Litestar/FastAPI — дополнительные точки отсчёта.
 | RAM | 32 ГБ |
 | ОС | Ubuntu 26.04 LTS, ядро 7.0.0-generic |
 | Диск | NVMe Samsung 970 EVO Plus 1 ТБ |
-| Сервер | granian 2.8.4 / uvicorn, 1 воркер |
+| Сервер | granian 2.8.4, 1 воркер |
 | Клиент | ApacheBench 2.3 |
 | PostgreSQL | postgres:18 в Docker, localhost:5432 |
 
@@ -28,30 +30,48 @@ Litestar/FastAPI — дополнительные точки отсчёта.
 
 ## Маршрутизация
 
+granian, 1 воркер, медиана req/s:
+
 | Сценарий | Ferronit | BlackSheep | Litestar | FastAPI |
 |---|---|---|---|---|
-| uvicorn, 50 маршрутов | 20 979 | 19 955 | 14 329 | 5 632 |
-| uvicorn, 1000 маршрутов | 20 181 | 19 101 | 13 970 | 2 611 |
-| granian, 50 маршрутов | 101 165 | 92 115 | 38 090 | 10 070 |
-| granian, 1000 маршрутов | 97 365 | 89 867 | 37 694 | 3 133 |
+| 50 маршрутов | 102 783 | 92 802 | 38 501 | 10 195 |
+| 1000 маршрутов | 101 419 | 90 902 | 38 376 | 3 226 |
 
 - Ferronit, BlackSheep и Litestar **не деградируют** с ростом таблицы маршрутов;
-  FastAPI проседает до 6× внутри одной таблицы (11.8k → 3.1k → 1.8k на granian/1000).
-- На granian Ferronit быстрее BlackSheep в ~1.1×, Litestar в ~2.6×, FastAPI в ~31×.
-- Granian убирает протокольные накладные uvicorn (Ferronit ×4.8).
+  FastAPI проседает до ~6× внутри одной таблицы (11.9k → 3.2k → 1.9k на 1000 маршрутов).
+- Ferronit быстрее BlackSheep в ~1.1×, Litestar в ~2.6×, FastAPI в ~10–31×.
 
 ## Размер ответа (payload)
 
+granian, 1 воркер, медиана req/s:
+
 | Сценарий | Ferronit | BlackSheep | Litestar | FastAPI |
 |---|---|---|---|---|
-| small (1 объект), uvicorn | 20 049 | 19 208 | 13 753 | 5 363 |
-| medium (50), uvicorn | 18 759 | 14 417 | 13 130 | 2 843 |
-| big (500), uvicorn | 12 733 | 4 953 | 9 706 | 602 |
-| big (500), granian | 29 385 | 6 513 | 19 794 | 622 |
+| small (1 объект) | 98 894 | 87 704 | 38 508 | 9 075 |
+| medium (50) | 74 573 | 35 968 | 33 964 | 3 662 |
+| big (500) | 30 133 | 6 481 | 20 035 | 662 |
 
-- На JSON-тяжёлых ответах (500 объектов) Ferronit быстрее BlackSheep в ×2.6
-  (uvicorn) и ×4.5 (granian) — msgspec C-энкодер против тяжёлого пайплайна
-  BlackSheep. FastAPI отстаёт в ×21–47.
+- На JSON-тяжёлых ответах (500 объектов) Ferronit быстрее BlackSheep в ×4.7 и
+  Litestar в ×1.5 — msgspec C-энкодер против тяжёлого пайплайна BlackSheep.
+  FastAPI отстаёт в ×11–46.
+
+## TurboAPI (собственный Rust-сервер)
+
+`turboapi` (PyPI, justrach/turboAPI) — FastAPI-совместимый фреймворк с Rust HTTP-ядром
+и собственным Tokio-сервером (`app.run()`, ~20 потоков). На granian он не поднимается,
+поэтому `ab_bench.py` запускает его сервер как есть и в таблицах выше его нет. Приложение
+идентично (те же маршруты и payload), но сервер другой — прямое сравнение с ASGI-фреймворками
+некорректно. Цифры шумят ±10% (Tokio под нагрузкой), замерено в сессии 2026-10-12:
+
+- 50 маршрутов: 30 164 req/s против 102 783 у Ferronit — медленнее в ~3.4×.
+- 1000 маршрутов: 30 102 req/s — без просадки относительно 50 маршрутов.
+- payload small: 29 475 (Ferronit — 98 894); medium: 21 724 (74 573) — медленнее Ferronit
+  в ~3.3–3.4×.
+- payload big (500 объектов): 8 274 req/s — медленнее Ferronit (30 133) в ~3.6×.
+
+Итог: TurboAPI не деградирует с ростом таблицы маршрутов, но на всех сценариях медленнее
+Ferronit-на-granian в ~3.4×, а на тяжёлой сериализации отстаёт сильнее всего (сериализация
+не на C-энкодере).
 
 ## Строки из БД: 1 / 100 / 1000
 
@@ -113,12 +133,12 @@ Ferronit грузит связи через `Relation` (2 запроса + по�
 ## Воспроизведение
 
 ```bash
-./bench/run_all_ab.sh                              # маршрутизация + payload (4 фреймворка)
+./bench/run_all_ab.sh                              # маршрутизация + payload (5 фреймворков, вкл. TurboAPI)
 .venv/bin/python bench/bench_rows.py               # строки + записи + связи (по очереди)
 .venv/bin/python bench/bench_granian_bare.py       # потолок чистого granian
 ```
 
-Требуется `ab` (apache2-utils), granian/uvicorn и PostgreSQL на `:5432`
+Требуется `ab` (apache2-utils), granian и PostgreSQL на `:5432`
 (`docker run -d --name ferronit-pg -e POSTGRES_PASSWORD=postgres -e
 POSTGRES_USER=postgres -e POSTGRES_DB=postgres -p 5432:5432 postgres:latest`).
 Перед прогоном остановить ollama и прочих фоновых потребителей CPU.

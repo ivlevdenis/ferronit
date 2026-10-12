@@ -24,7 +24,7 @@
 - DDD: `ferronit.ddd` — `AggregateRoot`, `Command`, `Query`, `CommandBus`, `QueryBus`, `Repository`
 - Порты и адаптеры: `ferronit.hexagonal` — `Port`, `Adapter`, `UnitOfWork`, `ApplicationService`, `Logger`, `Cache`, `MessageBus`, `EventBus`
 - DI: `ferronit.di.Container` (singleton/factory/get/has); привязка параметров — `ferronit.binding`; конфиг: `ferronit.config.EnvConfig`
-- БД: `ferronit.contrib.rawdb` + `rawmodel` (asyncpg без ORM) — `Pool`, `create_pool`, `RawUnitOfWork`, `Model`, query DSL
+- БД: `ferronit.contrib.rawdb` + `rawmodel` (asyncpg без ORM) — `Pool`, `create_pool`, `RawUnitOfWork`, `Model`, `Relation`, query DSL
 - LLM: `ferronit.contrib.llm` — `LlmPort`, `OpenAiAdapter`, `ClaudeAdapter`, `MockLlmAdapter`
 - Векторный поиск: `ferronit.contrib.vectordb` — `VectorDbPort`, `QdrantAdapter`, `ChromaAdapter`, `MockVectorDb`
 - Прочее: `ferronit.contrib.cors`, `security`, `ratelimit`, `staticfiles`, `tracing`, `health`, `kafka`, `pydantic`

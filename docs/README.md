@@ -19,7 +19,7 @@ Ferronit — быстрая замена легаси Python-сервисов, �
 - [OpenAPI](openapi.md) — автоматическая генерация схемы
 
 ## Слой данных
-- [Слой данных](data/overview.md) — rawdb + rawmodel: `RawUnitOfWork`, `Model`, query DSL
+- [Слой данных](data/overview.md) — rawdb + rawmodel: `RawUnitOfWork`, `Model`, `Relation`, query DSL
 
 ## Архитектура
 - [DDD, DI и гексагональная](architecture.md) — порты/адаптеры, шины, контейнер, конфиг, CLI

@@ -42,7 +42,7 @@ ferronit/
 ├── cli.py                 # ferronit new / dev / run + шаблоны scaffold-проекта
 └── contrib/               # инфраструктурные адаптеры (опциональные зависимости)
     ├── rawdb.py           # тонкий слой на asyncpg: RawRepository/RawUnitOfWork (без ORM)
-    ├── rawmodel.py        # декларативные модели + Query/select поверх rawdb (asyncpg)
+    ├── rawmodel.py        # декларативные модели + Query/select + связи (Relation) поверх rawdb (asyncpg)
     ├── llm.py             # LlmPort + OpenAiAdapter, ClaudeAdapter, MockLlmAdapter
     ├── vectordb.py        # VectorDbPort + Qdrant, Chroma, Mock
     ├── kafka.py           # KafkaMessageBus (aiokafka)

@@ -7,7 +7,7 @@ SQL, bound-параметры, максимум throughput.
 | Модуль | Что даёт |
 |---|---|
 | `ferronit.contrib.rawdb` | `Pool`, `create_pool`, `RawUnitOfWork`, `RawRepository`, `Condition` — сырые dict-строки на asyncpg |
-| `ferronit.contrib.rawmodel` | `Model` (неизменяемый msgspec.Struct), `Query`/`select`, `RawModelRepository` — типизированные модели и DSL |
+| `ferronit.contrib.rawmodel` | `Model` (неизменяемый msgspec.Struct), `Query`/`select`, `Relation` (связи), `RawModelRepository` — типизированные модели, DSL и связи |
 
 Правило большого пальца: `pool.uow(readonly=True)` для чтений (пропускает `BEGIN`,
 экономит round-trip), `uow.model(User)` для типизированного доступа к строкам.

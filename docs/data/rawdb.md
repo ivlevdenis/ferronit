@@ -132,6 +132,10 @@ fresh = await repo.update(1, {"name": "Grace"})
 await repo.delete(1)
 ```
 
+SQL-строки репозитория (`INSERT`/`SELECT`/`DELETE` и `list` без фильтров) собираются
+один раз на `(модель, таблица, pk)` и кэшируются (`lru_cache`) — на каждый запрос
+остаётся только выполнение, без пересборки строк.
+
 ### Unit of work и identity map
 
 ```python

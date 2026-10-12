@@ -30,13 +30,15 @@ PORTS = {
     "django-orm": 8236,
     "litestar-asyncpg": 8238,
     "blacksheep": 8243,
+    "litestar-core": 8244,
+    "blacksheep-core": 8245,
 }
 SERVER = os.environ.get("BENCH_SERVER", "granian")
 REQUESTS = 5000
 PING_REQUESTS = 10000
 RUNS = 2
 WRITE_REQUESTS = {1: 3000, 100: 800, 1000: 150}
-WRITE_APPS = ("ferronit-model", "blacksheep", "litestar-msgspec")
+WRITE_APPS = ("ferronit-model", "blacksheep", "litestar-msgspec", "litestar-core", "blacksheep-core")
 
 
 def bulk_body(op: str, n: int) -> str:
@@ -481,6 +483,151 @@ async def ping() -> dict:
 app = Litestar(route_handlers=[rows, ping])
 '''
 
+LITESTAR_CORE_APP = '''
+import os
+
+from litestar import Litestar, Request, get, post, put
+from sqlalchemy import Column, Integer, MetaData, String, Table, bindparam, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.ext.asyncio import create_async_engine
+
+DSN = "postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/postgres"
+ROWS = int(os.environ.get("BENCH_ROWS", "100"))
+
+metadata = MetaData()
+bench_rows = Table(
+    "bench_rows", metadata,
+    Column("id", Integer, primary_key=True),
+    Column("name", String),
+    Column("email", String),
+)
+
+engine = create_async_engine(DSN)
+
+
+@get("/rows")
+async def rows() -> dict:
+    async with engine.connect() as conn:
+        result = await conn.execute(select(bench_rows).limit(ROWS))
+        records = result.mappings().all()
+    return {"rows": [dict(r) for r in records]}
+
+
+@post("/rows")
+async def insert_rows(request: Request) -> dict:
+    data = await request.json()
+    rows = data["rows"]
+    async with engine.begin() as conn:
+        await conn.execute(bench_rows.insert(), rows)
+    return {"count": len(rows)}
+
+
+@put("/rows")
+async def update_rows(request: Request) -> dict:
+    data = await request.json()
+    rows = data["rows"]
+    async with engine.begin() as conn:
+        await conn.execute(
+            bench_rows.update().where(bench_rows.c.id == bindparam("b_id")),
+            [{"b_id": r["id"], "name": r["name"], "email": r["email"]} for r in rows],
+        )
+    return {"count": len(rows)}
+
+
+@post("/rows/upsert")
+async def upsert_rows(request: Request) -> dict:
+    data = await request.json()
+    rows = data["rows"]
+    stmt = pg_insert(bench_rows).values(rows)
+    stmt = stmt.on_conflict_do_update(
+        index_elements=[bench_rows.c.id],
+        set_={"name": stmt.excluded.name, "email": stmt.excluded.email},
+    )
+    async with engine.begin() as conn:
+        await conn.execute(stmt)
+    return {"count": len(rows)}
+
+
+@get("/ping")
+async def ping() -> dict:
+    return {"ok": True}
+
+
+app = Litestar(route_handlers=[rows, insert_rows, update_rows, upsert_rows, ping])
+'''
+
+BLACKSHEEP_CORE_APP = '''
+import os
+
+from blacksheep import Application, Request
+from sqlalchemy import Column, Integer, MetaData, String, Table, bindparam, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.ext.asyncio import create_async_engine
+
+DSN = "postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/postgres"
+ROWS = int(os.environ.get("BENCH_ROWS", "100"))
+
+metadata = MetaData()
+bench_rows = Table(
+    "bench_rows", metadata,
+    Column("id", Integer, primary_key=True),
+    Column("name", String),
+    Column("email", String),
+)
+
+engine = create_async_engine(DSN)
+
+app = Application()
+
+
+@app.router.get("/rows")
+async def rows():
+    async with engine.connect() as conn:
+        result = await conn.execute(select(bench_rows).limit(ROWS))
+        records = result.mappings().all()
+    return {"rows": [dict(r) for r in records]}
+
+
+@app.router.post("/rows")
+async def insert_rows(request: Request):
+    data = await request.json()
+    rows = data["rows"]
+    async with engine.begin() as conn:
+        await conn.execute(bench_rows.insert(), rows)
+    return {"count": len(rows)}
+
+
+@app.router.put("/rows")
+async def update_rows(request: Request):
+    data = await request.json()
+    rows = data["rows"]
+    async with engine.begin() as conn:
+        await conn.execute(
+            bench_rows.update().where(bench_rows.c.id == bindparam("b_id")),
+            [{"b_id": r["id"], "name": r["name"], "email": r["email"]} for r in rows],
+        )
+    return {"count": len(rows)}
+
+
+@app.router.post("/rows/upsert")
+async def upsert_rows(request: Request):
+    data = await request.json()
+    rows = data["rows"]
+    stmt = pg_insert(bench_rows).values(rows)
+    stmt = stmt.on_conflict_do_update(
+        index_elements=[bench_rows.c.id],
+        set_={"name": stmt.excluded.name, "email": stmt.excluded.email},
+    )
+    async with engine.begin() as conn:
+        await conn.execute(stmt)
+    return {"count": len(rows)}
+
+
+@app.router.get("/ping")
+async def ping():
+    return {"ok": True}
+'''
+
 APPS = {
     "ferronit-model": FERRONIT_APP,
     "litestar-msgspec": LITESTAR_MSGSEC_APP,
@@ -488,6 +635,8 @@ APPS = {
     "litestar-orm": LITESTAR_ORM_APP,
     "litestar-asyncpg": LITESTAR_ASYNCPG_APP,
     "blacksheep": BLACKSHEEP_APP,
+    "litestar-core": LITESTAR_CORE_APP,
+    "blacksheep-core": BLACKSHEEP_CORE_APP,
 }
 
 

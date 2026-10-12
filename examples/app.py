@@ -5,6 +5,7 @@ Endpoints:
   GET  /cart            — view cart
   POST /orders          — place order from cart
   GET  /orders/{id}     — view order
+  POST /orders/{id}/cancel — cancel order (UPDATE статуса)
   GET  /openapi.json    — API spec
   GET  /static/*        — static files
 """
@@ -75,6 +76,12 @@ class Order(AggregateRoot):
         self.user_id = user_id
         self.items = items
         self.total = sum(i.price * i.qty for i in items)
+        self.status = "created"
+
+    def cancel(self):
+        if self.status == "shipped":
+            raise ValueError("Cannot cancel shipped order")
+        self.status = "cancelled"
 
 
 # ── DB Models (rawmodel) ───────────────────────────────────────────────
@@ -94,6 +101,7 @@ class OrderModel(Model):
     id: str = ""
     user_id: str = ""
     total: float = 0.0
+    status: str = "created"
 
 
 # ── Repositories (порты, зависят от конкретного пула) ──────────────────
@@ -123,6 +131,10 @@ class OrderRepository:
         async with self._pool.uow(readonly=True) as uow:
             return await uow.model(OrderModel).get(order_id)
 
+    async def update_status(self, order_id: str, status: str) -> OrderModel | None:
+        async with self._pool.uow() as uow:
+            return await uow.model(OrderModel).update(order_id, {"status": status})
+
 
 # ── Commands / Queries ────────────────────────────────────────────────
 
@@ -146,6 +158,11 @@ class PlaceOrderCmd(Command):
     def __init__(self, user_id): self.user_id = user_id
 
 
+class CancelOrderCmd(Command):
+    __slots__ = ("order_id",)
+    def __init__(self, order_id): self.order_id = order_id
+
+
 class GetOrderQ(Query):
     __slots__ = ("order_id",)
     def __init__(self, order_id): self.order_id = order_id
@@ -165,6 +182,7 @@ class OrderResponse(BaseModel):
     user_id: str
     items: list[dict]
     total: float
+    status: str
 
 
 # ── Application Services ──────────────────────────────────────────────
@@ -215,7 +233,19 @@ class OrderService:
         row = await self._orders.get(q.order_id)
         if not row:
             return None
-        return Order(row.id, row.user_id, [])
+        order = Order(row.id, row.user_id, [])
+        order.status = row.status
+        return order
+
+    async def cancel(self, cmd: CancelOrderCmd) -> Order | None:
+        row = await self._orders.get(cmd.order_id)
+        if not row:
+            return None
+        order = Order(row.id, row.user_id, [])
+        order.status = row.status
+        order.cancel()
+        await self._orders.update_status(order.id, order.status)
+        return order
 
 
 # ── DI wiring ──────────────────────────────────────────────────────────
@@ -240,7 +270,8 @@ async def lifespan():
         )
         await uow.connection.execute(
             "CREATE TABLE IF NOT EXISTS orders ("
-            "id text PRIMARY KEY, user_id text NOT NULL, total double precision NOT NULL)"
+            "id text PRIMARY KEY, user_id text NOT NULL, total double precision NOT NULL, "
+            "status text NOT NULL DEFAULT 'created')"
         )
     yield
     await pool.close()
@@ -310,6 +341,7 @@ async def place_order(req, orders: OrderService):
         user_id=order.user_id,
         items=[{"product_id": i.product_id, "name": i.name, "price": i.price, "qty": i.qty} for i in order.items],
         total=order.total,
+        status=order.status,
     )
 
 
@@ -323,6 +355,21 @@ async def get_order(req, orders: OrderService) -> OrderResponse:
         user_id=order.user_id,
         items=[{"product_id": i.product_id, "name": i.name, "price": i.price, "qty": i.qty} for i in order.items],
         total=order.total,
+        status=order.status,
+    )
+
+
+@app.route("/orders/{order_id}/cancel", methods=["POST"], summary="Cancel order")
+async def cancel_order(req, orders: OrderService) -> OrderResponse:
+    order = await orders.cancel(CancelOrderCmd(req.params["order_id"]))
+    if order is None:
+        return {"error": "not found"}, 404
+    return OrderResponse(
+        order_id=order.id,
+        user_id=order.user_id,
+        items=[{"product_id": i.product_id, "name": i.name, "price": i.price, "qty": i.qty} for i in order.items],
+        total=order.total,
+        status=order.status,
     )
 
 

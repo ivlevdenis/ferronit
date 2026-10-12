@@ -7,9 +7,13 @@ use std::collections::HashMap;
 
 // ── Router ────────────────────────────────────────────────────────────
 
+/// Роутер, разбитый по HTTP-методу: у каждого метода свой matchit-роутер по
+/// путям (без префикса метода). Метод резолвится в готовый роутер за O(1),
+/// поэтому в горячем пути `lookup` не склеивает ``"METHOD /path"`` в новую
+/// строку на каждый запрос — идёт чистый ``at(path)`` без аллокации.
 #[pyclass]
 pub struct Router {
-    inner: MatchitRouter<PyObject>,
+    inner: HashMap<String, MatchitRouter<PyObject>>,
 }
 
 #[pymethods]
@@ -17,13 +21,16 @@ impl Router {
     #[new]
     fn new() -> Self {
         Router {
-            inner: MatchitRouter::new(),
+            inner: HashMap::new(),
         }
     }
 
     fn add(&mut self, method: String, pattern: String, handler: PyObject) -> PyResult<()> {
-        let key = format!("{} {}", method, pattern);
-        self.inner.insert(key, handler).map_err(|e| {
+        let router = self
+            .inner
+            .entry(method)
+            .or_insert_with(|| MatchitRouter::new());
+        router.insert(pattern, handler).map_err(|e| {
             pyo3::exceptions::PyValueError::new_err(format!("Invalid route: {}", e))
         })?;
         Ok(())
@@ -38,8 +45,11 @@ impl Router {
         method: &str,
         path: &str,
     ) -> PyResult<Option<(PyObject, Option<HashMap<String, String>>)>> {
-        let key = format!("{} {}", method, path);
-        match self.inner.at(&key) {
+        let router = match self.inner.get(method) {
+            Some(router) => router,
+            None => return Ok(None),
+        };
+        match router.at(path) {
             Ok(matched) => {
                 let handler = matched.value.clone_ref(py);
                 if matched.params.is_empty() {

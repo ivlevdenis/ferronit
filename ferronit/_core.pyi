@@ -9,11 +9,11 @@ from typing import Any
 __all__ = ["FerronitApp", "Request", "Response", "Router"]
 
 class Router:
-    """Conflict-free router over method+path patterns (matchit under the hood)."""
+    """Router split by HTTP method (a matchit router per method)."""
 
     def __init__(self) -> None: ...
     def add(self, method: str, pattern: str, handler: Any) -> None:
-        """Register ``handler`` for ``"{METHOD} {pattern}"``; raises ValueError on a bad pattern."""
+        """Register ``handler`` for ``method``/``pattern``; raises ValueError on a bad pattern."""
 
     def lookup(
         self, method: str, path: str

@@ -430,7 +430,8 @@ def _to_response(result) -> Response:
     """Normalise a handler return value into a :class:`Response`.
 
     Recognised types, in order: a ``msgspec.Struct`` or a list of them (JSON 200
-    via msgspec's C encoder); ``dict`` or ``list`` (JSON 200, encoded in Rust); a
+    via msgspec's C encoder); ``dict`` or ``list`` (JSON 200 via msgspec's C
+    encoder, Rust fallback for unsupported types); a
     ``(payload, status)`` tuple whose second item is an int; an existing
     :class:`Response`; ``str``
     (text/plain); any object with ``model_dump`` or ``__dataclass_fields__``
@@ -448,6 +449,9 @@ def _to_response(result) -> Response:
         if body is not None:
             return Response(body=body, status=200, content_type="application/json; charset=utf-8")
     if isinstance(result, (dict, list)):
+        body = _msgspec_json(result)
+        if body is not None:
+            return Response(body=body, status=200, content_type="application/json; charset=utf-8")
         r = RustResp.json(result, 200)
         return Response(body=bytes(r.body), status=r.status, content_type=r.content_type)
     # (payload, status) — документированный паттерн: `return {"error": "..."}, 404`
@@ -460,6 +464,11 @@ def _to_response(result) -> Response:
                     body=body, status=tuple_status, content_type="application/json; charset=utf-8"
                 )
         if isinstance(payload, (dict, list)):
+            body = _msgspec_json(payload)
+            if body is not None:
+                return Response(
+                    body=body, status=tuple_status, content_type="application/json; charset=utf-8"
+                )
             r = RustResp.json(payload, tuple_status)
             return Response(body=bytes(r.body), status=r.status, content_type=r.content_type)
         if isinstance(payload, str):

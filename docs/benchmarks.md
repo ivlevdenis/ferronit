@@ -19,22 +19,36 @@
   замедляется до 4× *внутри одной* таблицы маршрутов.
 - Granian убирает протокольные накладные uvicorn: Ferronit ×4.8, FastAPI ×1.8.
 
-## Строки: Ferronit против Litestar/FastAPI/Django
+## Строки: Ferronit против Litestar/FastAPI/Django/BlackSheep
 
 Тот же PostgreSQL, granian, 1 воркер, `ab -c 50 -k` (1 / 100 / 1000 строк):
 
 | Вариант | 1 строка | 100 строк | 1000 строк | /ping |
 |---|---|---|---|---|
-| Ferronit + rawmodel (lifespan+DI) | 20 102 | 17 097 | 10 275 | 148 410 |
-| Litestar + msgspec | 12 197 | 8 562 | 2 161 | 37 017 |
-| Litestar + asyncpg | 11 754 | 7 231 | 1 636 | 37 647 |
-| Litestar + ORM | 2 493 | 1 423 | 271 | 37 192 |
-| FastAPI + ORM | 2 207 | 986 | 147 | 19 836 |
-| Django + ORM | 494 | 479 | 497 | 1 790 |
+| Ferronit + rawmodel (lifespan+DI) | 11 795 | 8 121 | 2 033 | 87 246 |
+| BlackSheep + msgspec | 13 598 | 9 154 | 2 129 | 85 529 |
+| Litestar + msgspec | 11 059 | 7 671 | 1 957 | 36 135 |
+| Litestar + asyncpg | 10 936 | 6 228 | 1 413 | 35 689 |
+| Litestar + ORM | 2 525 | 1 348 | 279 | 35 935 |
+| FastAPI + ORM | 2 240 | 895 | 142 | 19 583 |
+| Django + ORM | 510 | 520 | 537 | 1 770 |
 
-- `/ping` (чистый фреймворк) — Ferronit **×4.0** к Litestar, **×7.5** к FastAPI.
-- Абсолютные req/s пляшут ±10–20% между сессиями (фон машины, частота CPU) —
-  сравнивать стоит только соотношения внутри одного прогона.
+- `/ping` — Ferronit и BlackSheep вровень (~85–87k), **×2.4** к Litestar, **×4.5** к FastAPI.
+- Абсолютные req/s пляшут ±10–20% между сессиями — сравнивать соотношения внутри прогона.
+
+## Записи: INSERT / UPDATE / UPSERT
+
+Тот же стенд, батч-операции на 1 / 100 / 1000 строк (`ab -c 50 -k`, req/s):
+
+| Операция | Ferronit rawmodel | BlackSheep | Litestar msgspec |
+|---|---|---|---|
+| INSERT | 5 811 / 3 078 / 514 | 7 533 / 4 589 / 619 | 6 885 / 3 880 / 631 |
+| UPDATE | 867 / 225 / 33 | 1 040 / 259 / 31 | 1 063 / 309 / 32 |
+| UPSERT | 897 / 211 / 36 | 559 / 229 / 35 | 385 / 214 / 34 |
+
+- На записи Ferronit **на ~20–25% медленнее** BlackSheep — это цена явной транзакции UoW
+  (`BEGIN`/`COMMIT`, 2 лишних round-trip ≈ 60 мкс), дающей атомарность и rollback.
+  BlackSheep/Litestar пишут авто-коммитом — без отката. На чтении разницы нет.
 
 ## Потолок: чистый Granian
 

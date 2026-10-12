@@ -34,6 +34,7 @@ bench/go_pg_orm/ent/
 
 # генерируемые стендом приложения и результаты
 bench/_bench_*.py
+bench/_bench_*.json
 bench/_bench_rows_*.py
 bench/_bench_pg_*.py
 bench/_bench_db_*.py

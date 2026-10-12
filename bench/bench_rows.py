@@ -11,6 +11,7 @@ granian, 1 воркер, лучшее из прогонов.
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import re
 import subprocess
@@ -34,6 +35,17 @@ SERVER = os.environ.get("BENCH_SERVER", "granian")
 REQUESTS = 5000
 PING_REQUESTS = 10000
 RUNS = 2
+WRITE_REQUESTS = {1: 3000, 100: 800, 1000: 150}
+WRITE_APPS = ("ferronit-model", "blacksheep", "litestar-msgspec")
+
+
+def bulk_body(op: str, n: int) -> str:
+    """JSON-тело батч-записи на ``n`` строк."""
+    if op == "insert":
+        rows = [{"name": f"n{i}", "email": f"e{i}@x.io"} for i in range(n)]
+    else:
+        rows = [{"id": i + 1, "name": f"n{i}", "email": f"e{i}@x.io"} for i in range(n)]
+    return json.dumps({"rows": rows})
 
 FERRONIT_APP = '''
 import os
@@ -48,6 +60,12 @@ from ferronit.di import Container
 DSN = "postgresql://postgres:postgres@127.0.0.1:5432/postgres"
 ROWS = int(os.environ.get("BENCH_ROWS", "100"))
 ShopPool = Annotated[Pool, "shop"]
+
+UPSERT_SQL = (
+    "INSERT INTO bench_rows (id, name, email) VALUES ($1, $2, $3) "
+    "ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, email = EXCLUDED.email "
+    "RETURNING id, name, email"
+)
 
 
 class BenchRow(Model):
@@ -65,6 +83,33 @@ class BenchRepo:
         async with self._pool.uow(readonly=True) as uow:
             return await uow.model(BenchRow).list(limit=ROWS)
 
+    async def bulk_insert(self, rows):
+        placeholders = ", ".join(f"(${i * 2 + 1}, ${i * 2 + 2})" for i in range(len(rows)))
+        params = [v for r in rows for v in (r["name"], r["email"])]
+        sql = f"INSERT INTO bench_rows (name, email) VALUES {placeholders}"
+        async with self._pool.uow() as uow:
+            await uow.connection.execute(sql, *params)
+        return len(rows)
+
+    async def bulk_update(self, rows):
+        async with self._pool.uow() as uow:
+            await uow.connection.executemany(
+                "UPDATE bench_rows SET name = $2, email = $3 WHERE id = $1",
+                [(r["id"], r["name"], r["email"]) for r in rows],
+            )
+        return len(rows)
+
+    async def bulk_upsert(self, rows):
+        placeholders = ", ".join(f"(${i * 3 + 1}, ${i * 3 + 2}, ${i * 3 + 3})" for i in range(len(rows)))
+        params = [v for r in rows for v in (r["id"], r["name"], r["email"])]
+        sql = (
+            f"INSERT INTO bench_rows (id, name, email) VALUES {placeholders} "
+            "ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, email = EXCLUDED.email"
+        )
+        async with self._pool.uow() as uow:
+            await uow.connection.execute(sql, *params)
+        return len(rows)
+
 
 container = Container()
 app = Ferronit(container=container)
@@ -79,11 +124,36 @@ async def lifespan():
     await pool.close()
 
 
+def _encode(row):
+    return Response(
+        msgspec.json.encode({"id": row.id, "name": row.name, "email": row.email}),
+        content_type="application/json",
+    )
+
+
 @app.route("/rows")
 async def rows(repo: BenchRepo):
     models = await repo.list_rows()
     body = msgspec.json.encode({"rows": models})
     return Response(body, content_type="application/json")
+
+
+@app.route("/rows", methods=["POST"])
+async def insert_rows(req, repo: BenchRepo):
+    body = await req.json()
+    return {"count": await repo.bulk_insert(body["rows"])}
+
+
+@app.route("/rows", methods=["PUT"])
+async def update_rows(req, repo: BenchRepo):
+    body = await req.json()
+    return {"count": await repo.bulk_update(body["rows"])}
+
+
+@app.route("/rows/upsert", methods=["POST"])
+async def upsert_rows(req, repo: BenchRepo):
+    body = await req.json()
+    return {"count": await repo.bulk_upsert(body["rows"])}
 
 
 @app.route("/ping")
@@ -97,10 +167,15 @@ import os
 
 import asyncpg
 import msgspec
-from litestar import Litestar, get
+from litestar import Litestar, Request, get, post, put
 
 DSN = "postgresql://postgres:postgres@127.0.0.1:5432/postgres"
 ROWS = int(os.environ.get("BENCH_ROWS", "100"))
+UPSERT_SQL = (
+    "INSERT INTO bench_rows (id, name, email) VALUES ($1, $2, $3) "
+    "ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, email = EXCLUDED.email "
+    "RETURNING id, name, email"
+)
 
 
 class BenchRow(msgspec.Struct):
@@ -131,12 +206,54 @@ async def rows() -> dict:
     return {"rows": [BenchRow(*record) for record in records]}
 
 
+@post("/rows")
+async def insert_rows(request: Request) -> dict:
+    data = await request.json()
+    rows = data["rows"]
+    placeholders = ", ".join(f"(${i * 2 + 1}, ${i * 2 + 2})" for i in range(len(rows)))
+    params = [v for r in rows for v in (r["name"], r["email"])]
+    sql = f"INSERT INTO bench_rows (name, email) VALUES {placeholders}"
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(sql, *params)
+    return {"count": len(rows)}
+
+
+@put("/rows")
+async def update_rows(request: Request) -> dict:
+    data = await request.json()
+    rows = data["rows"]
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.executemany(
+            "UPDATE bench_rows SET name = $2, email = $3 WHERE id = $1",
+            [(r["id"], r["name"], r["email"]) for r in rows],
+        )
+    return {"count": len(rows)}
+
+
+@post("/rows/upsert")
+async def upsert_rows(request: Request) -> dict:
+    data = await request.json()
+    rows = data["rows"]
+    placeholders = ", ".join(f"(${i * 3 + 1}, ${i * 3 + 2}, ${i * 3 + 3})" for i in range(len(rows)))
+    params = [v for r in rows for v in (r["id"], r["name"], r["email"])]
+    sql = (
+        f"INSERT INTO bench_rows (id, name, email) VALUES {placeholders} "
+        "ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, email = EXCLUDED.email"
+    )
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(sql, *params)
+    return {"count": len(rows)}
+
+
 @get("/ping")
 async def ping() -> dict:
     return {"ok": True}
 
 
-app = Litestar(route_handlers=[rows, ping])
+app = Litestar(route_handlers=[rows, insert_rows, update_rows, upsert_rows, ping])
 '''
 
 LITESTAR_ASYNCPG_APP = '''
@@ -185,11 +302,16 @@ import os
 
 import asyncpg
 import msgspec
-from blacksheep import Application, Response
+from blacksheep import Application, Request, Response
 from blacksheep.contents import Content
 
 DSN = "postgresql://postgres:postgres@127.0.0.1:5432/postgres"
 ROWS = int(os.environ.get("BENCH_ROWS", "100"))
+UPSERT_SQL = (
+    "INSERT INTO bench_rows (id, name, email) VALUES ($1, $2, $3) "
+    "ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, email = EXCLUDED.email "
+    "RETURNING id, name, email"
+)
 
 
 class BenchRow(msgspec.Struct):
@@ -211,6 +333,10 @@ async def get_pool():
     return _pool
 
 
+def _json(data):
+    return Response(200, content=Content(b"application/json", msgspec.json.encode(data)))
+
+
 app = Application()
 
 
@@ -221,6 +347,48 @@ async def rows():
         records = await conn.fetch("SELECT id, name, email FROM bench_rows LIMIT $1", ROWS)
     body = msgspec.json.encode({"rows": [BenchRow(*record) for record in records]})
     return Response(200, content=Content(b"application/json", body))
+
+
+@app.router.post("/rows")
+async def insert_rows(request: Request):
+    data = await request.json()
+    rows = data["rows"]
+    placeholders = ", ".join(f"(${i * 2 + 1}, ${i * 2 + 2})" for i in range(len(rows)))
+    params = [v for r in rows for v in (r["name"], r["email"])]
+    sql = f"INSERT INTO bench_rows (name, email) VALUES {placeholders}"
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(sql, *params)
+    return {"count": len(rows)}
+
+
+@app.router.put("/rows")
+async def update_rows(request: Request):
+    data = await request.json()
+    rows = data["rows"]
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.executemany(
+            "UPDATE bench_rows SET name = $2, email = $3 WHERE id = $1",
+            [(r["id"], r["name"], r["email"]) for r in rows],
+        )
+    return {"count": len(rows)}
+
+
+@app.router.post("/rows/upsert")
+async def upsert_rows(request: Request):
+    data = await request.json()
+    rows = data["rows"]
+    placeholders = ", ".join(f"(${i * 3 + 1}, ${i * 3 + 2}, ${i * 3 + 3})" for i in range(len(rows)))
+    params = [v for r in rows for v in (r["id"], r["name"], r["email"])]
+    sql = (
+        f"INSERT INTO bench_rows (id, name, email) VALUES {placeholders} "
+        "ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, email = EXCLUDED.email"
+    )
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(sql, *params)
+    return {"count": len(rows)}
 
 
 @app.router.get("/ping")
@@ -399,6 +567,23 @@ def ab_reqs(port: int, path: str, n: int) -> float:
     return float(match.group(1))
 
 
+def ab_write(port: int, path: str, method: str, body: str, n: int) -> float:
+    """req/s по ApacheBench для POST/PUT с JSON-телом."""
+    body_file = HERE / "_bench_write.json"
+    body_file.write_text(body)
+    cmd = ["ab", "-n", str(n), "-c", "50", "-k", "-T", "application/json"]
+    if method == "POST":
+        cmd += ["-p", str(body_file)]
+    elif method == "PUT":
+        cmd += ["-u", str(body_file)]
+    cmd.append(f"http://127.0.0.1:{port}{path}")
+    out = subprocess.run(cmd, capture_output=True, text=True, timeout=300).stdout
+    match = re.search(r"Requests per second:\s+([\d.]+)", out)
+    if not match:
+        raise RuntimeError(f"ab не дал результат для {method} {path}:\n{out[-400:]}")
+    return float(match.group(1))
+
+
 def run_case(rows: int) -> dict[str, dict[str, float]]:
     """Один замер на фиксированном числе строк; возвращает лучшее из ``RUNS``."""
     procs = {name: start(name, port, rows) for name, port in PORTS.items()}
@@ -420,6 +605,40 @@ def run_case(rows: int) -> dict[str, dict[str, float]]:
             proc.wait()
 
 
+def run_writes() -> None:
+    """Замеры записи батчами 1/100/1000 строк: INSERT / UPDATE / UPSERT."""
+    ops = {
+        "INSERT": ("POST", "/rows", "insert"),
+        "UPDATE": ("PUT", "/rows", "update"),
+        "UPSERT": ("POST", "/rows/upsert", "upsert"),
+    }
+    print("\nЗаписи, батч 1/100/1000 строк (granian, 1 воркер, ab -c 50 -k, req/s):")
+    for op, (method, path, body_op) in ops.items():
+        header = f"{op:>7} {'строк':>6} | " + " | ".join(f"{name:>17}" for name in WRITE_APPS)
+        print(header)
+        print("-" * len(header))
+        for rows in ROWS_LIST:
+            procs = {name: start(name, PORTS[name], rows) for name in WRITE_APPS}
+            try:
+                for name in WRITE_APPS:
+                    wait_ready(PORTS[name])
+                body = bulk_body(body_op, rows)
+                for name in WRITE_APPS:
+                    ab_write(PORTS[name], path, method, body, 50)
+                best = {name: 0.0 for name in WRITE_APPS}
+                for _ in range(RUNS):
+                    for name in WRITE_APPS:
+                        rps = ab_write(PORTS[name], path, method, body, WRITE_REQUESTS[rows])
+                        best[name] = max(best[name], rps)
+            finally:
+                for proc in procs.values():
+                    proc.terminate()
+                for proc in procs.values():
+                    proc.wait()
+            cells = " | ".join(f"{best[name]:>17,.0f}" for name in WRITE_APPS)
+            print(f"       {rows:>6} | {cells}")
+
+
 def main() -> None:
     seed()
     names = list(PORTS)
@@ -438,6 +657,8 @@ def main() -> None:
     print("\n/ping, req/s (тот же путь, без БД):")
     for name in names:
         print(f"  {name:22s} {pings[ROWS_LIST[0]][name]:>12,.0f}")
+
+    run_writes()
 
 
 if __name__ == "__main__":

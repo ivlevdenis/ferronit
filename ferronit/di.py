@@ -96,6 +96,12 @@ class Container:
                 if param.default is not inspect.Parameter.empty:
                     continue
                 raise TypeError(f"Cannot resolve {name} for {concrete.__name__}")
+            # Атрибут класса с тем же именем — более конкретный ключ DI
+            # (например, ``pool = ShopPool`` в репозитории из generic).
+            cls_attr = getattr(concrete, name, None)
+            if cls_attr is not None and cls_attr is not ann and self.has(cls_attr):
+                kwargs[name] = self.get(cls_attr)
+                continue
             try:
                 kwargs[name] = self.get(ann)
             except KeyError:

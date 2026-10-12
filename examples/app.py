@@ -1,13 +1,16 @@
-"""Ferronit E-Commerce API — full DDD + Hexagonal + Postgres (rawmodel + DI).
+"""Ferronit — гексагональный пример: агрегат Order + Mapper + Repository.
+
+Заказ — агрегат (header + позиции), хранится в двух таблицах, но сервис и
+маршруты работают только с доменным ``Order``. Маппинг сосредоточен в одном
+адаптере ``OrderMapper``; ``OrderRepository`` — порт над агрегатом.
 
 Endpoints:
-  POST /cart/items      — add item to cart
-  GET  /cart            — view cart
-  POST /orders          — place order from cart
-  GET  /orders/{id}     — view order
-  POST /orders/{id}/cancel — cancel order (UPDATE статуса)
-  GET  /openapi.json    — API spec
-  GET  /static/*        — static files
+  POST /orders              — создать заказ (агрегат + позиции)
+  GET  /orders              — список заказов
+  GET  /orders/{id}         — заказ со всеми позициями
+  POST /orders/{id}/cancel  — отменить заказ (UPDATE статуса)
+  GET  /openapi.json
+  GET  /ping
 """
 
 import asyncio
@@ -23,40 +26,20 @@ except ImportError:
 import msgspec
 
 from ferronit import Ferronit
-from ferronit.contrib.cors import cors
 from ferronit.contrib.rawdb import Pool, create_pool
-from ferronit.contrib.rawmodel import Model
-from ferronit.contrib.staticfiles import StaticFiles
-from ferronit.ddd import AggregateRoot, Command, Query
+from ferronit.contrib.rawmodel import Mapper, Model, Relation, Repository
+from ferronit.ddd import AggregateRoot
 from ferronit.di import Container
 
 DB_URL = os.environ.get("DATABASE_URL", "postgresql://postgres:postgres@127.0.0.1:5432/postgres")
 
-# Единый пул магазина — маркер различает несколько пулов одного типа.
 ShopPool = Annotated[Pool, "shop"]
 
 container = Container()
 app = Ferronit(debug=True, container=container)
-app.use(cors())
-app.mount("/static", StaticFiles("./public"))
 
 
-# ── Domain Models ──────────────────────────────────────────────────────
-
-class Cart(AggregateRoot):
-    def __init__(self, cart_id: str, user_id: str):
-        super().__init__()
-        self.id = cart_id
-        self.user_id = user_id
-        self.items: list[CartItem] = []
-
-    def add(self, product_id: str, name: str, price: float, qty: int = 1):
-        self.items.append(CartItem(product_id, name, price, qty))
-
-    @property
-    def total(self) -> float:
-        return sum(i.price * i.qty for i in self.items)
-
+# ── Домен (без SQL) ────────────────────────────────────────────────────
 
 class CartItem:
     def __init__(self, product_id: str, name: str, price: float, qty: int):
@@ -81,12 +64,12 @@ class Order(AggregateRoot):
         self.status = "cancelled"
 
 
-# ── DB Models (rawmodel) ───────────────────────────────────────────────
+# ── Персистентность (rawmodel) — чистые модели строк ───────────────────
 
-class CartItemModel(Model):
-    __table__ = "cart_items"
+class OrderItemModel(Model):
+    __table__ = "order_items"
     id: int = 0
-    cart_id: str = ""
+    order_id: str = ""
     product_id: str = ""
     name: str = ""
     price: float = 0.0
@@ -99,157 +82,62 @@ class OrderModel(Model):
     user_id: str = ""
     total: float = 0.0
     status: str = "created"
+    items: Annotated[list[OrderItemModel], Relation("order_id")] = []
 
 
-# ── Repositories (порты, зависят от конкретного пула) ──────────────────
+# ── Адаптер: маппер (единственное место, где домен встречается с БД) ───
 
-class CartRepository:
-    def __init__(self, pool: ShopPool):
-        self._pool = pool
+class OrderMapper(Mapper[Order, OrderModel]):
+    def to_aggregate(self, m: OrderModel) -> Order:
+        return Order(
+            m.id, m.user_id,
+            [CartItem(i.product_id, i.name, i.price, i.qty) for i in m.items],
+        )
 
-    async def add(self, item: CartItemModel) -> CartItemModel:
-        async with self._pool.uow() as uow:
-            return await uow.model(CartItemModel).save(item)
-
-    async def list_by_cart(self, cart_id: str) -> list[CartItemModel]:
-        async with self._pool.uow(readonly=True) as uow:
-            return await uow.model(CartItemModel).list(CartItemModel.c.cart_id == cart_id)
-
-
-class OrderRepository:
-    def __init__(self, pool: ShopPool):
-        self._pool = pool
-
-    async def save(self, order: OrderModel) -> OrderModel:
-        async with self._pool.uow() as uow:
-            return await uow.model(OrderModel).save(order)
-
-    async def get(self, order_id: str) -> OrderModel | None:
-        async with self._pool.uow(readonly=True) as uow:
-            return await uow.model(OrderModel).get(order_id)
-
-    async def update_status(self, order_id: str, status: str) -> OrderModel | None:
-        async with self._pool.uow() as uow:
-            return await uow.model(OrderModel).update(order_id, {"status": status})
+    def from_aggregate(self, o: Order) -> OrderModel:
+        return OrderModel(
+            id=o.id, user_id=o.user_id, total=o.total, status=o.status,
+            items=[OrderItemModel(order_id=o.id, product_id=i.product_id,
+                                  name=i.name, price=i.price, qty=i.qty)
+                   for i in o.items],
+        )
 
 
-# ── Commands / Queries ────────────────────────────────────────────────
+# ── Репозиторий (порт над агрегатом, не над таблицей) ─────────────────
 
-class AddToCartCmd(Command):
-    __slots__ = ("name", "price", "product_id", "qty", "user_id")
-    def __init__(self, user_id, product_id, name, price, qty=1):
-        self.user_id = user_id
-        self.product_id = product_id
-        self.name = name
-        self.price = price
-        self.qty = qty
+class OrderRepository(Repository[Order, OrderModel, OrderMapper, ShopPool]):
+    async def by_user(self, user_id: str) -> list[Order]:
+        return await self.list(OrderModel.c.user_id == user_id)
 
 
-class GetCartQ(Query):
-    __slots__ = ("user_id",)
-    def __init__(self, user_id): self.user_id = user_id
-
-
-class PlaceOrderCmd(Command):
-    __slots__ = ("user_id",)
-    def __init__(self, user_id): self.user_id = user_id
-
-
-class CancelOrderCmd(Command):
-    __slots__ = ("order_id",)
-    def __init__(self, order_id): self.order_id = order_id
-
-
-class GetOrderQ(Query):
-    __slots__ = ("order_id",)
-    def __init__(self, order_id): self.order_id = order_id
-
-
-# ── Response Models ───────────────────────────────────────────────────
-
-class CartResponse(msgspec.Struct):
-    cart_id: str
-    user_id: str
-    items: list[dict]
-    total: float
-
-
-class OrderResponse(msgspec.Struct):
-    order_id: str
-    user_id: str
-    items: list[dict]
-    total: float
-    status: str
-
-
-# ── Application Services ──────────────────────────────────────────────
-
-class CartService:
-    def __init__(self, carts: CartRepository):
-        self._carts = carts
-
-    async def add_item(self, cmd: AddToCartCmd) -> Cart:
-        cart = Cart(f"cart-{cmd.user_id}", cmd.user_id)
-        cart.add(cmd.product_id, cmd.name, cmd.price, cmd.qty)
-        for item in cart.items:
-            await self._carts.add(CartItemModel(
-                id=0,
-                cart_id=cart.id,
-                product_id=item.product_id,
-                name=item.name,
-                price=item.price,
-                qty=item.qty,
-            ))
-        return cart
-
-    async def get_cart(self, q: GetCartQ) -> Cart | None:
-        rows = await self._carts.list_by_cart(f"cart-{q.user_id}")
-        if not rows:
-            return None
-        cart = Cart(f"cart-{q.user_id}", q.user_id)
-        for row in rows:
-            cart.add(row.product_id, row.name, row.price, row.qty)
-        return cart
-
+# ── Application service ────────────────────────────────────────────────
 
 class OrderService:
-    def __init__(self, cart_service: CartService, orders: OrderRepository):
-        self._cart_service = cart_service
+    def __init__(self, orders: OrderRepository):
         self._orders = orders
 
-    async def place_order(self, cmd: PlaceOrderCmd) -> Order | None:
-        cart = await self._cart_service.get_cart(GetCartQ(cmd.user_id))
-        if not cart or not cart.items:
+    async def place_order(self, user_id: str, items: list[CartItem]) -> Order | None:
+        if not items:
             return None
-
-        order = Order(f"ord-{cmd.user_id}-{len(cart.items)}", cmd.user_id, cart.items)
-        await self._orders.save(OrderModel(id=order.id, user_id=order.user_id, total=order.total))
+        order = Order(f"ord-{user_id}-{len(items)}", user_id, items)
+        await self._orders.save(order)          # агрегат + позиции в одной UoW
         return order
 
-    async def get_order(self, q: GetOrderQ) -> Order | None:
-        row = await self._orders.get(q.order_id)
-        if not row:
-            return None
-        order = Order(row.id, row.user_id, [])
-        order.status = row.status
-        return order
+    async def get_order(self, order_id: str) -> Order | None:
+        return await self._orders.get(order_id)
 
-    async def cancel(self, cmd: CancelOrderCmd) -> Order | None:
-        row = await self._orders.get(cmd.order_id)
-        if not row:
+    async def cancel(self, order_id: str) -> Order | None:
+        order = await self._orders.get(order_id)
+        if order is None:
             return None
-        order = Order(row.id, row.user_id, [])
-        order.status = row.status
         order.cancel()
-        await self._orders.update_status(order.id, order.status)
+        await self._orders.save(order)          # замена агрегата целиком
         return order
 
 
 # ── DI wiring ──────────────────────────────────────────────────────────
 
-container.factory(CartRepository)
 container.factory(OrderRepository)
-container.factory(CartService)
 container.factory(OrderService)
 
 
@@ -261,113 +149,83 @@ async def lifespan():
     container.singleton(ShopPool, pool)
     async with pool.uow() as uow:
         await uow.connection.execute(
-            "CREATE TABLE IF NOT EXISTS cart_items ("
-            "id serial PRIMARY KEY, cart_id text NOT NULL, product_id text NOT NULL, "
-            "name text NOT NULL, price double precision NOT NULL, qty integer NOT NULL)"
-        )
-        await uow.connection.execute(
             "CREATE TABLE IF NOT EXISTS orders ("
             "id text PRIMARY KEY, user_id text NOT NULL, total double precision NOT NULL, "
             "status text NOT NULL DEFAULT 'created')"
+        )
+        await uow.connection.execute(
+            "CREATE TABLE IF NOT EXISTS order_items ("
+            "id serial PRIMARY KEY, order_id text NOT NULL REFERENCES orders(id), "
+            "product_id text NOT NULL, name text NOT NULL, "
+            "price double precision NOT NULL, qty integer NOT NULL)"
         )
     yield
     await pool.close()
 
 
-# ── Middleware ─────────────────────────────────────────────────────────
+# ── Response model ─────────────────────────────────────────────────────
 
-async def request_logger(req, next_handler):
-    import time
-    start = time.perf_counter()
-    result = next_handler(req)
-    if hasattr(result, "__await__"):
-        result = await result
-    elapsed = (time.perf_counter() - start) * 1000
-    print(f"  {req.method} {req.path} → {elapsed:.1f}ms")
-    return result
+class OrderResponse(msgspec.Struct):
+    order_id: str
+    user_id: str
+    items: list[dict]
+    total: float
+    status: str
 
-app.use(request_logger)
+
+def _to_response(o: Order) -> OrderResponse:
+    return OrderResponse(
+        order_id=o.id,
+        user_id=o.user_id,
+        items=[{"product_id": i.product_id, "name": i.name,
+                "price": i.price, "qty": i.qty} for i in o.items],
+        total=o.total,
+        status=o.status,
+    )
 
 
 # ── Routes ─────────────────────────────────────────────────────────────
+
+@app.route("/orders", methods=["POST"], summary="Create order")
+async def create_order(req, orders: OrderService):
+    body = await req.json()
+    items = [CartItem(i["product_id"], i.get("name", "Unknown"),
+                      i.get("price", 0), i.get("qty", 1)) for i in body["items"]]
+    order = await orders.place_order(body.get("user_id", "user-1"), items)
+    if order is None:
+        return {"error": "items required"}, 400
+    return _to_response(order)
+
+
+@app.route("/orders", summary="List orders")
+async def list_orders(req, orders: OrderRepository) -> list[OrderResponse]:
+    return [_to_response(o) for o in await orders.by_user("user-1")]
+
+
+@app.route("/orders/{order_id}", summary="Get order")
+async def get_order(req, orders: OrderService):
+    order = await orders.get_order(req.params["order_id"])
+    if order is None:
+        return {"error": "not found"}, 404
+    return _to_response(order)
+
+
+@app.route("/orders/{order_id}/cancel", methods=["POST"], summary="Cancel order")
+async def cancel_order(req, orders: OrderService):
+    order = await orders.cancel(req.params["order_id"])
+    if order is None:
+        return {"error": "not found"}, 404
+    return _to_response(order)
+
 
 @app.route("/openapi.json")
 def openapi_spec(req):
     return app.openapi.build()
 
 
-@app.route("/cart", summary="View cart")
-async def view_cart(req, carts: CartService) -> CartResponse:
-    cart = await carts.get_cart(GetCartQ("user-1"))
-    if cart is None:
-        return CartResponse(cart_id="", user_id="user-1", items=[], total=0)
-    return CartResponse(
-        cart_id=cart.id,
-        user_id=cart.user_id,
-        items=[{"product_id": i.product_id, "name": i.name, "price": i.price, "qty": i.qty} for i in cart.items],
-        total=cart.total,
-    )
-
-
-@app.route("/cart/items", methods=["POST"], summary="Add item to cart")
-async def add_item(req, carts: CartService) -> CartResponse:
-    body = await req.json()
-    cmd = AddToCartCmd(
-        user_id="user-1",
-        product_id=body["product_id"],
-        name=body.get("name", "Unknown"),
-        price=body.get("price", 0),
-        qty=body.get("qty", 1),
-    )
-    cart = await carts.add_item(cmd)
-    return CartResponse(
-        cart_id=cart.id,
-        user_id=cart.user_id,
-        items=[{"product_id": i.product_id, "name": i.name, "price": i.price, "qty": i.qty} for i in cart.items],
-        total=cart.total,
-    )
-
-
-@app.route("/orders", methods=["POST"], summary="Place order")
-async def place_order(req, orders: OrderService):
-    order = await orders.place_order(PlaceOrderCmd("user-1"))
-    if order is None:
-        return {"error": "Cart is empty"}
-    return OrderResponse(
-        order_id=order.id,
-        user_id=order.user_id,
-        items=[{"product_id": i.product_id, "name": i.name, "price": i.price, "qty": i.qty} for i in order.items],
-        total=order.total,
-        status=order.status,
-    )
-
-
-@app.route("/orders/{order_id}", summary="Get order")
-async def get_order(req, orders: OrderService) -> OrderResponse:
-    order = await orders.get_order(GetOrderQ(req.params["order_id"]))
-    if order is None:
-        return {"error": "not found"}, 404
-    return OrderResponse(
-        order_id=order.id,
-        user_id=order.user_id,
-        items=[{"product_id": i.product_id, "name": i.name, "price": i.price, "qty": i.qty} for i in order.items],
-        total=order.total,
-        status=order.status,
-    )
-
-
-@app.route("/orders/{order_id}/cancel", methods=["POST"], summary="Cancel order")
-async def cancel_order(req, orders: OrderService) -> OrderResponse:
-    order = await orders.cancel(CancelOrderCmd(req.params["order_id"]))
-    if order is None:
-        return {"error": "not found"}, 404
-    return OrderResponse(
-        order_id=order.id,
-        user_id=order.user_id,
-        items=[{"product_id": i.product_id, "name": i.name, "price": i.price, "qty": i.qty} for i in order.items],
-        total=order.total,
-        status=order.status,
-    )
+@app.route("/ping")
+async def ping():
+    return {"ok": True}
 
 
 if __name__ == "__main__":

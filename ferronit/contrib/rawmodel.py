@@ -39,16 +39,18 @@ import msgspec
 from msgspec.structs import StructMeta  # type: ignore[attr-defined]
 from msgspec.structs import fields as struct_fields
 
-from ferronit.contrib.rawdb import Condition, _merge_filters
+from ferronit.contrib.rawdb import Condition, Pool, RawUnitOfWork, _merge_filters
 from ferronit.hexagonal import Adapter
 
 __all__ = [
     "Column",
     "IdentityMap",
+    "Mapper",
     "Model",
     "Query",
     "RawModelRepository",
     "Relation",
+    "Repository",
     "select",
 ]
 
@@ -601,18 +603,26 @@ def _repo_sql(model_cls: type[Model], table: str, pk: str) -> tuple:
     columns = model_cls.__columns__
     select_columns = model_cls.__select_columns__
     insert_columns = tuple(c for c in columns if c != pk)
-    cols = ", ".join(insert_columns)
+    insert_cols = ", ".join(insert_columns)
     placeholders = ", ".join(f"${i}" for i in range(1, len(insert_columns) + 1))
     insert_sql = (
-        f"INSERT INTO {table} ({cols}) VALUES ({placeholders})"
+        f"INSERT INTO {table} ({insert_cols}) VALUES ({placeholders})"
+        f" RETURNING {select_columns}"
+    )
+    all_cols = ", ".join(columns)
+    all_placeholders = ", ".join(f"${i}" for i in range(1, len(columns) + 1))
+    update_set = ", ".join(f"{c} = EXCLUDED.{c}" for c in insert_columns)
+    upsert_sql = (
+        f"INSERT INTO {table} ({all_cols}) VALUES ({all_placeholders})"
+        f" ON CONFLICT ({pk}) DO UPDATE SET {update_set}"
         f" RETURNING {select_columns}"
     )
     select_pk_sql = f"SELECT {select_columns} FROM {table} WHERE {pk} = $1"
     delete_sql = f"DELETE FROM {table} WHERE {pk} = $1"
     list_sql = f"SELECT {select_columns} FROM {table} LIMIT $1 OFFSET $2"
     return (
-        table, columns, select_columns, insert_columns,
-        insert_sql, select_pk_sql, delete_sql, list_sql,
+        table, columns, select_columns, insert_columns, insert_cols,
+        insert_sql, upsert_sql, select_pk_sql, delete_sql, list_sql,
     )
 
 
@@ -636,6 +646,7 @@ class RawModelRepository[M: Model](Adapter):
         "_conn",
         "_delete_sql",
         "_identity_map",
+        "_insert_cols",
         "_insert_columns",
         "_insert_sql",
         "_list_sql",
@@ -644,6 +655,7 @@ class RawModelRepository[M: Model](Adapter):
         "_select_columns",
         "_select_pk_sql",
         "_table",
+        "_upsert_sql",
     )
 
     def __init__(
@@ -660,7 +672,8 @@ class RawModelRepository[M: Model](Adapter):
         self._identity_map = identity_map
         (
             self._table, self._columns, self._select_columns, self._insert_columns,
-            self._insert_sql, self._select_pk_sql, self._delete_sql, self._list_sql,
+            self._insert_cols, self._insert_sql, self._upsert_sql,
+            self._select_pk_sql, self._delete_sql, self._list_sql,
         ) = _repo_sql(model_cls, table or _resolve_table(model_cls), pk)
 
     async def _materialize(self, rows) -> list[M]:
@@ -795,6 +808,42 @@ class RawModelRepository[M: Model](Adapter):
         row = await self._conn.fetchrow(self._insert_sql, *values)
         return self._model(*row) if row is not None else obj
 
+    async def upsert(self, obj: M) -> M:
+        """Insert or replace a row by primary key (client-provided identity).
+
+        Unlike :meth:`save`, the primary key is part of the ``INSERT``; on a
+        key conflict every non-key column is overwritten from the new row.
+        """
+        values = tuple(getattr(obj, name) for name in self._columns)
+        row = await self._conn.fetchrow(self._upsert_sql, *values)
+        return self._model(*row) if row is not None else obj
+
+    async def save_many(self, objs: Sequence[M]) -> builtins.list[M]:
+        """Bulk-insert rows in one statement and return the server-side rows."""
+        if not objs:
+            return []
+        n = len(self._insert_columns)
+        groups: builtins.list[str] = []
+        values: builtins.list[Any] = []
+        for k, obj in enumerate(objs):
+            start = k * n
+            groups.append(
+                "(" + ", ".join(f"${start + i}" for i in range(1, n + 1)) + ")"
+            )
+            values.extend(getattr(obj, name) for name in self._insert_columns)
+        sql = (
+            f"INSERT INTO {self._table} ({self._insert_cols})"
+            f" VALUES {', '.join(groups)} RETURNING {self._select_columns}"
+        )
+        rows = await self._conn.fetch(sql, *values)
+        return [self._model(*row) for row in rows]
+
+    async def delete_by(self, column: str, value: Any) -> None:
+        """Delete rows where ``column = value`` (child-table sync for aggregates)."""
+        await self._conn.execute(
+            f"DELETE FROM {self._table} WHERE {column} = $1", value
+        )
+
     async def update(self, id: Any, data: dict[str, Any]) -> M | None:
         """Update a row by primary key and return the fresh model instance.
 
@@ -828,3 +877,108 @@ class RawModelRepository[M: Model](Adapter):
             id: Primary key value of the row to delete.
         """
         await self._conn.execute(self._delete_sql, id)
+
+
+
+
+class Mapper[A, M]:
+    """Перевод «агрегат ↔ модель строки» (адаптерный слой гексагона).
+
+    Модель строки остаётся тупой схемой таблицы; весь маппинг домена
+    сосредоточен в одном маппере. Переопредели оба метода.
+    """
+
+    def to_aggregate(self, model: M) -> A:
+        """Собрать доменный агрегат из модели строки (со всеми связями)."""
+        raise NotImplementedError
+
+    def from_aggregate(self, aggregate: A) -> M:
+        """Разложить агрегат в модель строки (+ дочерние модели)."""
+        raise NotImplementedError
+
+
+class Repository[A, M: Model, MAP: Mapper[Any, Any], P: Pool]:
+    """Агрегатный репозиторий — порт над агрегатом, а не над таблицей.
+
+    ``Repository[Order, OrderModel, OrderMapper, ShopPool]``: агрегат, модель
+    строки, маппер и тип пула — всё из generic (``__init_subclass__``).
+
+    Example:
+        class OrderMapper(Mapper[Order, OrderModel]):
+            def to_aggregate(self, m): ...
+            def from_aggregate(self, a): ...
+
+        class OrderRepository(Repository[Order, OrderModel, OrderMapper, ShopPool]):
+            async def by_user(self, user_id):
+                return await self.list(OrderModel.c.user_id == user_id)
+
+    ``save`` кладёт агрегат целиком (header + дочерние таблицы) в одну
+    транзакцию; ``get``/``list`` возвращают агрегаты со всеми связями.
+    """
+
+    aggregate: type[A]
+    model: type[M]
+    mapper_cls: type[MAP]
+    pool: P
+    _mapper: Mapper[A, M]
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        for base in getattr(cls, "__orig_bases__", ()):
+            if get_origin(base) is Repository:
+                args = get_args(base)
+                if len(args) != 4:
+                    raise TypeError(
+                        f"{cls.__name__}: Repository[A, M, MAP, P] — укажи все 4 "
+                        f"параметра (агрегат, модель, маппер, пул), получено {len(args)}"
+                    )
+                cls.aggregate = args[0]
+                cls.model = args[1]
+                cls.mapper_cls = args[2]
+                cls.pool = args[3]
+
+    def __init__(self, pool: Pool) -> None:
+        self._pool = pool
+        self._mapper = self.mapper_cls()
+
+    def uow(self, *, readonly: bool = False) -> RawUnitOfWork:
+        """Открыть UoW для сценария из нескольких операций."""
+        return self._pool.uow(readonly=readonly)
+
+    async def get(self, id: Any) -> A | None:
+        """Загрузить агрегат по id (со всеми объявленными связями)."""
+        async with self._pool.uow(readonly=True) as uow:
+            model = await uow.model(self.model).get(id)
+        return self._mapper.to_aggregate(model) if model is not None else None
+
+    async def list(
+        self, *filters: Condition, limit: int = 100, offset: int = 0
+    ) -> builtins.list[A]:
+        """Список агрегатов, опционально с фильтром и пагинацией."""
+        async with self._pool.uow(readonly=True) as uow:
+            rows = await uow.model(self.model).list(*filters, limit=limit, offset=offset)
+        return [self._mapper.to_aggregate(m) for m in rows]
+
+    async def save(self, aggregate: A) -> A:
+        """Сохранить агрегат целиком: header (upsert) + дочерние в одной UoW."""
+        model = self._mapper.from_aggregate(aggregate)
+        async with self._pool.uow() as uow:
+            repo = uow.model(self.model)
+            saved = await repo.upsert(model)
+            for field, (child, fk, pk, _many) in self.model.__relations__.items():
+                parent_pk = getattr(saved, pk)
+                await uow.model(child).delete_by(fk, parent_pk)
+                children = getattr(model, field)
+                if children:
+                    fixed = [
+                        msgspec.structs.replace(c, **{fk: parent_pk}) for c in children
+                    ]
+                    await uow.model(child).save_many(fixed)
+        return aggregate
+
+    async def delete(self, id: Any) -> None:
+        """Удалить агрегат: дочерние таблицы по FK, затем header."""
+        async with self._pool.uow() as uow:
+            for child, fk, _pk, _many in self.model.__relations__.values():
+                await uow.model(child).delete_by(fk, id)
+            await uow.model(self.model).delete(id)

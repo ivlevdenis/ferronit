@@ -14,12 +14,14 @@ from typing import Annotated
 
 import pytest
 
-from ferronit.contrib.rawdb import RawUnitOfWork, create_raw_pool
+from ferronit.contrib.rawdb import Pool, RawUnitOfWork, create_raw_pool
 from ferronit.contrib.rawmodel import (
     IdentityMap,
+    Mapper,
     Model,
     RawModelRepository,
     Relation,
+    Repository,
     select,
 )
 
@@ -533,3 +535,155 @@ async def test_relations_always_loaded(pool) -> None:
         parents = await uow.model(RelParent).list()
         assert [i.name for i in parents[0].items] == ["a", "b"]
         assert [i.name for i in parents[1].items] == ["c"]
+
+
+# ── базовый репозиторий ────────────────────────────────────────────────────
+
+UsersPool = Annotated[Pool, "users"]
+
+
+class UserAgg:
+    """Доменный объект (не модель строки)."""
+
+    def __init__(self, id: int, name: str, email: str):
+        self.id = id
+        self.name = name
+        self.email = email
+
+
+class UserMapper(Mapper[UserAgg, User]):
+    def to_aggregate(self, m: User) -> UserAgg:
+        return UserAgg(m.id, m.name, m.email)
+
+    def from_aggregate(self, a: UserAgg) -> User:
+        return User(id=a.id, name=a.name, email=a.email)
+
+
+class UserRepo(Repository[UserAgg, User, UserMapper, UsersPool]):
+    pass
+
+
+def test_repository_extracts_generic_params() -> None:
+    assert UserRepo.aggregate is UserAgg
+    assert UserRepo.model is User
+    assert UserRepo.mapper_cls is UserMapper
+    assert UserRepo.pool is UsersPool
+
+
+def test_repository_di_resolves_pool_from_generic() -> None:
+    from ferronit.di import Container
+
+    dummy = object()
+    c = Container()
+    c.singleton(UsersPool, dummy)
+    c.factory(UserRepo)
+
+    repo = c.get(UserRepo)
+    assert repo._pool is dummy
+
+
+async def test_repository_crud_roundtrip() -> None:
+    try:
+        pool = await create_raw_pool(DSN, min_size=1, max_size=4)
+    except Exception as exc:  # pragma: no cover
+        pytest.skip(f"PostgreSQL недоступен: {type(exc).__name__}")
+
+    wrapped = Pool(pool)
+    try:
+        async with RawUnitOfWork(pool) as uow:
+            await uow.connection.execute("DROP TABLE IF EXISTS users")
+            await uow.connection.execute(
+                "CREATE TABLE users (id int PRIMARY KEY, name text NOT NULL, email text NOT NULL)"
+            )
+        repo = UserRepo(wrapped)
+        await repo.save(UserAgg(id=1, name="A", email="a@x.io"))
+
+        fetched = await repo.get(1)
+        assert isinstance(fetched, UserAgg)
+        assert fetched.name == "A"
+
+        # повторный save по тому же id — замена (upsert), а не вставка
+        await repo.save(UserAgg(id=1, name="B", email="a@x.io"))
+        assert (await repo.get(1)).name == "B"
+
+        assert len(await repo.list()) == 1
+
+        await repo.delete(1)
+        assert await repo.get(1) is None
+    finally:
+        await pool.close()
+
+
+class AggItem(Model):
+    __table__ = "agg_items"
+    id: int = 0
+    parent_id: int = 0
+    name: str = ""
+
+
+class AggParent(Model):
+    __table__ = "agg_parents"
+    id: int = 0
+    title: str = ""
+    items: Annotated[list[AggItem], Relation("parent_id")] = []
+
+
+class ParentAgg:
+    def __init__(self, id: int, title: str, names: list[str]):
+        self.id = id
+        self.title = title
+        self.names = names
+
+
+class ParentMapper(Mapper[ParentAgg, AggParent]):
+    def to_aggregate(self, m: AggParent) -> ParentAgg:
+        return ParentAgg(m.id, m.title, [i.name for i in m.items])
+
+    def from_aggregate(self, a: ParentAgg) -> AggParent:
+        return AggParent(
+            id=a.id, title=a.title,
+            items=[AggItem(parent_id=a.id, name=n) for n in a.names],
+        )
+
+
+class ParentRepo(Repository[ParentAgg, AggParent, ParentMapper, UsersPool]):
+    pass
+
+
+async def test_repository_save_loads_aggregate_with_relations() -> None:
+    try:
+        pool = await create_raw_pool(DSN, min_size=1, max_size=4)
+    except Exception as exc:  # pragma: no cover
+        pytest.skip(f"PostgreSQL недоступен: {type(exc).__name__}")
+
+    wrapped = Pool(pool)
+    try:
+        async with RawUnitOfWork(pool) as uow:
+            await uow.connection.execute("DROP TABLE IF EXISTS agg_items, agg_parents")
+            await uow.connection.execute(
+                "CREATE TABLE agg_parents (id int PRIMARY KEY, title text NOT NULL)"
+            )
+            await uow.connection.execute(
+                "CREATE TABLE agg_items (id serial PRIMARY KEY, parent_id int NOT NULL, name text NOT NULL)"
+            )
+        repo = ParentRepo(wrapped)
+        await repo.save(ParentAgg(id=1, title="t", names=["a", "b"]))
+
+        agg = await repo.get(1)
+        assert isinstance(agg, ParentAgg)
+        assert agg.names == ["a", "b"]
+
+        # save по тому же id заменяет и header, и дочерние строки
+        await repo.save(ParentAgg(id=1, title="t2", names=["c"]))
+        agg = await repo.get(1)
+        assert agg is not None
+        assert agg.title == "t2"
+        assert agg.names == ["c"]
+
+        await repo.delete(1)
+        assert await repo.get(1) is None
+        async with RawUnitOfWork(pool) as uow:
+            n = await uow.connection.fetchval("SELECT count(*) FROM agg_items")
+        assert n == 0
+    finally:
+        await pool.close()

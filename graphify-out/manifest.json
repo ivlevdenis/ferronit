@@ -25,8 +25,8 @@
     "semantic_hash": ""
   },
   "bench/bench_rows.py": {
-    "mtime": 1791795359.322042,
-    "ast_hash": "14cccc4d01162c1b904b3037fc4ced61",
+    "mtime": 1791820980.344703,
+    "ast_hash": "1c6a0265bcb2abfc8bc9abf0e07a2b62",
     "semantic_hash": ""
   },
   "bench/django_bench/__init__.py": {
@@ -510,8 +510,8 @@
     "semantic_hash": ""
   },
   "ferronit-rs/src/lib.rs": {
-    "mtime": 1791713351.4665706,
-    "ast_hash": "f09518c845f7381b71e0d565aa1d8c19",
+    "mtime": 1791816036.7747147,
+    "ast_hash": "8c815ba194ff38db0f2ec1e0d890d126",
     "semantic_hash": ""
   },
   "ferronit/__init__.py": {
@@ -605,8 +605,8 @@
     "semantic_hash": ""
   },
   "ferronit/core/app.py": {
-    "mtime": 1791749800.986279,
-    "ast_hash": "d9320d5d682bb3d0ea8269e0f803d6b5",
+    "mtime": 1791816653.3201723,
+    "ast_hash": "373c2381732656c07e440c804c1b3992",
     "semantic_hash": ""
   },
   "ferronit/core/request.py": {
@@ -670,8 +670,8 @@
     "semantic_hash": ""
   },
   "docs/benchmarks.md": {
-    "mtime": 1791815383.901299,
-    "ast_hash": "3dc6d4c8288fe170b6f4ef717478ba6d",
+    "mtime": 1791821695.6436892,
+    "ast_hash": "eb29f4e0299120ddca414f8f710d78b3",
     "semantic_hash": ""
   },
   "docs/data/overview.md": {

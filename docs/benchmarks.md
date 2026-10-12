@@ -5,113 +5,120 @@
 клиент, а не фреймворк. Все приложения — на одном сервере, 1 воркер, лучший из
 нескольких прогонов, keep-alive. Полный стенд: каталог `bench/`.
 
-## Маршрутизация: Ferronit против BlackSheep/FastAPI/Litestar
+**Основной конкурент — BlackSheep** (ближайший соперник по маршрутизации);
+Litestar/FastAPI — дополнительные точки отсчёта.
 
-Основной конкурент — **BlackSheep** (ближайший соперник по маршрутизации). Базовая
-матрица против FastAPI:
+## Железо и окружение
 
-| Сценарий | Ferronit | FastAPI | Разрыв |
-|---|---|---|---|
-| uvicorn, 50 маршрутов | 20 060 | 6 589 | ×3.0 |
-| uvicorn, 1000 маршрутов | 20 216 | 2 817 | ×7.2 |
-| granian, 50 маршрутов | 96 298 | 12 135 | ×7.9 |
-| granian, 1000 маршрутов | 94 873 | 3 416 | ×27.8 |
+| Параметр | Значение |
+|---|---|
+| CPU | Intel Core i7-12700H (12th Gen), 14 ядер / 20 потоков, до 4.7 ГГц |
+| RAM | 32 ГБ |
+| ОС | Ubuntu 26.04 LTS, ядро 7.0.0-generic |
+| Диск | NVMe Samsung 970 EVO Plus 1 ТБ |
+| Сервер | granian 2.8.4 / uvicorn, 1 воркер |
+| Клиент | ApacheBench 2.3 |
+| PostgreSQL | postgres:18 в Docker, localhost:5432 |
 
-- Ferronit **не деградирует** с ростом таблицы маршрутов (20 060 → 20 216 на
-  uvicorn; 96 298 → 94 873 на granian при переходе 50 → 1000). FastAPI
-  замедляется до 4× *внутри одной* таблицы маршрутов.
-- Granian убирает протокольные накладные uvicorn: Ferronit ×4.8, FastAPI ×1.8.
+Цифры сняты `2026-10-12`, ollama остановлен (фоновый шум — hiddify ~10% CPU,
+агент ~9%, load ~0.4). БД-варианты меряются **по очереди** (один сервер за раз) —
+при одновременном запуске всех серверов они конкурируют за CPU и соединения БД,
+цифры искажаются. Абсолюты шумят ±2–3% между сессиями, сравнивать стоит
+соотношения внутри одного прогона.
 
-### Granian, 1000 маршрутов: сводно против всех
+## Маршрутизация
 
-**BlackSheep — основной конкурент** (единственный близкий к Ferronit по маршрутизации).
-granian, 1000 маршрутов, `ab -c 50 -k`, медиана из 3 (маршруты /route0 /route500 /route999):
+| Сценарий | Ferronit | BlackSheep | Litestar | FastAPI |
+|---|---|---|---|---|
+| uvicorn, 50 маршрутов | 20 979 | 19 955 | 14 329 | 5 632 |
+| uvicorn, 1000 маршрутов | 20 181 | 19 101 | 13 970 | 2 611 |
+| granian, 50 маршрутов | 101 165 | 92 115 | 38 090 | 10 070 |
+| granian, 1000 маршрутов | 97 365 | 89 867 | 37 694 | 3 133 |
 
-| Фреймворк | req/s | Ferronit быстрее |
-|---|---|---|
-| Ferronit | 98 940 | — |
-| BlackSheep | 90 252 | ×1.10 |
-| Litestar | 39 210 | ×2.52 |
-| FastAPI | 3 139 | ×31.5 |
+- Ferronit, BlackSheep и Litestar **не деградируют** с ростом таблицы маршрутов;
+  FastAPI проседает до 6× внутри одной таблицы (11.8k → 3.1k → 1.8k на granian/1000).
+- На granian Ferronit быстрее BlackSheep в ~1.1×, Litestar в ~2.6×, FastAPI в ~31×.
+- Granian убирает протокольные накладные uvicorn (Ferronit ×4.8).
 
-- Ferronit, BlackSheep и Litestar не деградируют с позицией маршрута; FastAPI проседает
-  в 6× внутри одной таблицы (11 696 → 3 139 → 1 897).
+## Размер ответа (payload)
 
-## Строки: Ferronit против Litestar/FastAPI/Django/BlackSheep
+| Сценарий | Ferronit | BlackSheep | Litestar | FastAPI |
+|---|---|---|---|---|
+| small (1 объект), uvicorn | 20 049 | 19 208 | 13 753 | 5 363 |
+| medium (50), uvicorn | 18 759 | 14 417 | 13 130 | 2 843 |
+| big (500), uvicorn | 12 733 | 4 953 | 9 706 | 602 |
+| big (500), granian | 29 385 | 6 513 | 19 794 | 622 |
 
-Тот же PostgreSQL, granian, 1 воркер, `ab -c 50 -k` (1 / 100 / 1000 строк):
+- На JSON-тяжёлых ответах (500 объектов) Ferronit быстрее BlackSheep в ×2.6
+  (uvicorn) и ×4.5 (granian) — msgspec C-энкодер против тяжёлого пайплайна
+  BlackSheep. FastAPI отстаёт в ×21–47.
+
+## Строки из БД: 1 / 100 / 1000
+
+`GET /rows`, granian, 1 воркер, `ab -c 50 -k`, req/s:
 
 | Вариант | 1 строка | 100 строк | 1000 строк | /ping |
 |---|---|---|---|---|
-| Ferronit + rawmodel (lifespan+DI) | 13 783 | 8 752 | 2 127 | 90 720 |
-| BlackSheep + asyncpg | 15 359 | 9 215 | 2 154 | 88 546 |
-| BlackSheep + SQLAlchemy Core | 3 387 | 1 886 | 376 | 88 548 |
-| Litestar + msgspec | 10 985 | 7 862 | 2 062 | 36 772 |
-| Litestar + asyncpg | 10 781 | 6 939 | 1 538 | 36 611 |
-| Litestar + SQLAlchemy Core | 3 076 | 1 866 | 418 | 36 357 |
-| Litestar + ORM | 2 616 | 1 415 | 289 | 35 028 |
-| FastAPI + ORM | 2 228 | 922 | 147 | 19 784 |
-| Django + ORM | 518 | 523 | 520 | 1 772 |
+| Ferronit rawmodel | 33 196 | 32 947 | 28 480 | 185 360 |
+| BlackSheep (asyncpg+msgspec) | 15 396 | 9 563 | 2 268 | 91 616 |
+| Litestar msgspec | 10 894 | 7 708 | 2 247 | 38 166 |
+| Litestar asyncpg | 10 094 | 6 410 | 1 610 | 37 173 |
+| BlackSheep SQLAlchemy Core | 3 480 | 1 904 | 405 | 91 613 |
+| Litestar SQLAlchemy Core | 3 312 | 2 028 | 450 | 38 310 |
+| Litestar ORM | 2 718 | 1 439 | 301 | 37 545 |
+| FastAPI ORM | 2 360 | 966 | 157 | 20 403 |
+| Django ORM | 583 | 585 | 584 | 1 911 |
 
-- `/ping` — Ferronit и BlackSheep вровень (~88–90k), **×2.5** к Litestar, **×4.6** к FastAPI.
-- **SQLAlchemy Core в ~4–5 раз медленнее rawmodel** на чтении (3.1–3.4k против 13.8k на 1 строке,
-  418 против 2 127 на 1000) — это цена `select()` + `mappings()` + `dict(r)`.
-- Абсолютные req/s пляшут ±10–20% между сессиями — сравнивать соотношения внутри прогона.
+- Ferronit почти не проседает с ростом числа строк (33.2k → 28.5k) — узкое место
+  в общей части (asyncpg + msgspec), а не в фреймворке; потолок одного процесса
+  asyncpg ~33k req/s (см. `bench/README.md`).
+- BlackSheep на 1000 строк отстаёт в ×12.6; SQLAlchemy Core в ~4–5× медленнее
+  rawmodel; Django упирается в threadpool.
 
 ## Записи: INSERT / UPDATE / UPSERT
 
-Тот же стенд, батч-операции на 1 / 100 / 1000 строк (`ab -c 50 -k`, req/s):
+Батч-операции на 1 / 100 / 1000 строк, `ab -c 50 -k`, req/s:
 
-| Операция | Ferronit rawmodel | BlackSheep asyncpg | BlackSheep Core | Litestar Core |
-|---|---|---|---|---|
-| INSERT | 5 153 / 3 264 / 522 | 8 504 / 4 567 / 753 | 2 366 / 1 640 / 387 | 2 379 / 1 546 / 365 |
-| UPDATE | 878 / 304 / 32 | 1 043 / 264 / 31 | 825 / 282 / 33 | 811 / 278 / 33 |
-| UPSERT | 903 / 398 / 35 | 1 038 / 421 / 45 | 806 / 218 / 27 | 816 / 219 / 26 |
+| Операция | Ferronit | BlackSheep | Litestar msgspec | BlackSheep Core | Litestar Core |
+|---|---|---|---|---|---|
+| INSERT | 14 939 / 4 657 / 717 | 8 366 / 5 144 / 837 | 7 386 / 4 713 / 795 | 2 696 / 1 710 / 419 | 2 523 / 1 826 / 436 |
+| UPDATE | 876 / 274 / 34 | 1 063 / 352 / 36 | 1 070 / 262 / 36 | 862 / 225 / 35 | 867 / 218 / 35 |
+| UPSERT | 883 / 343 / 41 | 1 082 / 428 / 43 | 1 084 / 347 / 36 | 861 / 246 / 30 | 479 / 232 / 27 |
 
-- На записи Ferronit **на ~20–25% медленнее** BlackSheep-asyncpg — это цена явной транзакции UoW
-  (`BEGIN`/`COMMIT`, 2 лишних round-trip ≈ 60 мкс), дающей атомарность и rollback.
-  BlackSheep/Litestar пишут авто-коммитом — без отката. На INSERT rawmodel в ~2 раза быстрее
-  SQLAlchemy Core; на UPDATE/UPSERT все упираются в fsync и сходятся.
+- На INSERT Ferronit впереди (×1.8 на одиночной строке — bulk-вставка + RETURNING);
+  на UPDATE/UPSERT Ferronit на ~15–20% медленнее конкурентов — цена явной
+  транзакции UoW (`BEGIN`/`COMMIT`, ~60 мкс) ради атомарности и rollback.
+  SQLAlchemy Core на INSERT в ~5–6× медленнее rawmodel.
 
 ## Связи: GET /parents (N родителей × 3 ребёнка)
 
-Тот же стенд, `ab -c 50 -k`, req/s. Ferronit грузит связи через `Relation` (2 запроса +
-позиционный маппинг + msgspec), конкуренты — вручную (dict + авто-JSON):
+Ferronit грузит связи через `Relation` (2 запроса + позиционный маппинг + msgspec),
+конкуренты — вручную. `ab -c 50 -k`, req/s:
 
-| Родителей | Ferronit rawmodel | BlackSheep | Litestar msgspec |
+| Родителей | Ferronit | BlackSheep | Litestar msgspec |
 |---|---|---|---|
-| 1 | 16 674 | 8 615 | 6 903 |
-| 100 | 14 654 | 2 010 | 2 490 |
-| 1000 | 13 553 | 253 | 360 |
+| 1 | 16 930 | 8 741 | 7 547 |
+| 100 | 15 732 | 2 079 | 2 556 |
+| 1000 | 16 522 | 272 | 381 |
 
-- Разрыв растёт с числом родителей: **×2 на 1, ×7 на 100, ×53 на 1000**. На вложенных ответах
-  доминирует сериализация: msgspec (Ferronit) на порядок быстрее JSON-сериализатора
-  BlackSheep/Litestar, плюс позиционный маппинг против `dict(c)`.
+- Разрыв растёт с числом родителей: ×1.9 на 1, ×7.6 на 100, ×61 на 1000 —
+  msgspec C-сериализация + позиционный маппинг против dict-обхода конкурентов.
 
 ## Потолок: чистый Granian
 
-Совсем **без фреймворка** тот же сервер выдаёт:
-
-```
-Совсем **без фреймворка** тот же сервер выдаёт (границы замера, цифры шумят ±20%):
-
-granian, пустое тело     ~120 000–185 000 req/s
-granian, {"ok": true}    ~135 000–170 000 req/s
-```
-
-`/ping` у Ferronit из матрицы выше — 128 192 req/s; строгие проценты к потолку
-не выводим — абсолюты между сессиями несравнимы.
+Без фреймворка тот же сервер выдаёт ~120 000–185 000 req/s (границы замера,
+цифры шумят ±20%). Ferronit `/ping` в матрицах выше — 101–185k; строгие проценты
+к потолку не выводим — абсолюты между сессиями несравнимы.
 
 ## Воспроизведение
 
 ```bash
-./bench/run_all_ab.sh                              # вся матрица маршрутизации/payload
-.venv/bin/python bench/ab_bench.py --server granian --routes 1000 --requests 20000
-.venv/bin/python bench/bench_rows.py               # матрица строк (6 вариантов)
+./bench/run_all_ab.sh                              # маршрутизация + payload (4 фреймворка)
+.venv/bin/python bench/bench_rows.py               # строки + записи + связи (по очереди)
 .venv/bin/python bench/bench_granian_bare.py       # потолок чистого granian
-.venv/bin/python bench/plot_rows.py                # → bench_rows.html
 ```
 
-Требуется `ab` (apache2-utils) и, для БД-бенчей, PostgreSQL на `:5432`
+Требуется `ab` (apache2-utils), granian/uvicorn и PostgreSQL на `:5432`
 (`docker run -d --name ferronit-pg -e POSTGRES_PASSWORD=postgres -e
 POSTGRES_USER=postgres -e POSTGRES_DB=postgres -p 5432:5432 postgres:latest`).
+Перед прогоном остановить ollama и прочих фоновых потребителей CPU.

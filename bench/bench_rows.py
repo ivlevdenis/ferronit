@@ -41,6 +41,15 @@ WRITE_REQUESTS = {1: 3000, 100: 800, 1000: 150}
 WRITE_APPS = ("ferronit-model", "blacksheep", "litestar-msgspec", "litestar-core", "blacksheep-core")
 RELATION_APPS = ("ferronit-model", "blacksheep", "litestar-msgspec")
 
+# BENCH_APPS=ferronit-model,blacksheep — прогнать только выбранные варианты
+# (строки + записи + связи, чьи списки непусты после фильтра).
+_BENCH_APPS = os.environ.get("BENCH_APPS")
+if _BENCH_APPS:
+    _wanted = {n.strip() for n in _BENCH_APPS.split(",") if n.strip()}
+    PORTS = {k: v for k, v in PORTS.items() if k in _wanted}
+    WRITE_APPS = tuple(a for a in WRITE_APPS if a in _wanted)
+    RELATION_APPS = tuple(a for a in RELATION_APPS if a in _wanted)
+
 
 def bulk_body(op: str, n: int) -> str:
     """JSON-тело батч-записи на ``n`` строк."""
@@ -805,28 +814,32 @@ def ab_write(port: int, path: str, method: str, body: str, n: int) -> float:
 
 
 def run_case(rows: int) -> dict[str, dict[str, float]]:
-    """Один замер на фиксированном числе строк; возвращает лучшее из ``RUNS``."""
-    procs = {name: start(name, port, rows) for name, port in PORTS.items()}
-    try:
-        for port in PORTS.values():
+    """Один замер на фиксированном числе строк; возвращает лучшее из ``RUNS``.
+
+    Каждый вариант меряется по очереди (один сервер за раз), чтобы серверы не
+    конкурировали за CPU и соединения БД.
+    """
+    best: dict[str, dict[str, float]] = {name: {} for name in PORTS}
+    for name, port in PORTS.items():
+        proc = start(name, port, rows)
+        try:
             wait_ready(port)
-        best: dict[str, dict[str, float]] = {name: {} for name in PORTS}
-        for _ in range(RUNS):
-            for name, port in PORTS.items():
+            for _ in range(RUNS):
                 rows_rps = ab_reqs(port, "/rows", REQUESTS)
                 ping_rps = ab_reqs(port, "/ping", PING_REQUESTS)
                 best[name]["rows"] = max(best[name].get("rows", 0.0), rows_rps)
                 best[name]["ping"] = max(best[name].get("ping", 0.0), ping_rps)
-        return best
-    finally:
-        for proc in procs.values():
+        finally:
             proc.terminate()
-        for proc in procs.values():
             proc.wait()
+    return best
 
 
 def run_writes() -> None:
-    """Замеры записи батчами 1/100/1000 строк: INSERT / UPDATE / UPSERT."""
+    """Замеры записи батчами 1/100/1000 строк: INSERT / UPDATE / UPSERT.
+
+    Варианты меряются по очереди (один сервер за раз).
+    """
     ops = {
         "INSERT": ("POST", "/rows", "insert"),
         "UPDATE": ("PUT", "/rows", "update"),
@@ -838,49 +851,44 @@ def run_writes() -> None:
         print(header)
         print("-" * len(header))
         for rows in ROWS_LIST:
-            procs = {name: start(name, PORTS[name], rows) for name in WRITE_APPS}
-            try:
-                for name in WRITE_APPS:
+            body = bulk_body(body_op, rows)
+            best = {name: 0.0 for name in WRITE_APPS}
+            for name in WRITE_APPS:
+                proc = start(name, PORTS[name], rows)
+                try:
                     wait_ready(PORTS[name])
-                body = bulk_body(body_op, rows)
-                for name in WRITE_APPS:
                     ab_write(PORTS[name], path, method, body, 50)
-                best = {name: 0.0 for name in WRITE_APPS}
-                for _ in range(RUNS):
-                    for name in WRITE_APPS:
+                    for _ in range(RUNS):
                         rps = ab_write(PORTS[name], path, method, body, WRITE_REQUESTS[rows])
                         best[name] = max(best[name], rps)
-            finally:
-                for proc in procs.values():
+                finally:
                     proc.terminate()
-                for proc in procs.values():
                     proc.wait()
             cells = " | ".join(f"{best[name]:>17,.0f}" for name in WRITE_APPS)
             print(f"       {rows:>6} | {cells}")
 
 
 def run_relations() -> None:
-    """Замеры связей: GET /parents (N родителей × 3 ребёнка) на 1/100/1000."""
+    """Замеры связей: GET /parents (N родителей × 3 ребёнка) на 1/100/1000.
+
+    Варианты меряются по очереди (один сервер за раз).
+    """
     print("\nСвязи (GET /parents, N родителей × 3 ребёнка, ab -c 50 -k, req/s):")
     header = f"{'родителей':>9} | " + " | ".join(f"{name:>17}" for name in RELATION_APPS)
     print(header)
     print("-" * len(header))
     for rows in ROWS_LIST:
-        procs = {name: start(name, PORTS[name], rows) for name in RELATION_APPS}
-        try:
-            for name in RELATION_APPS:
+        best = {name: 0.0 for name in RELATION_APPS}
+        for name in RELATION_APPS:
+            proc = start(name, PORTS[name], rows)
+            try:
                 wait_ready(PORTS[name])
-            for name in RELATION_APPS:
                 ab_reqs(PORTS[name], "/parents", 100)
-            best = {name: 0.0 for name in RELATION_APPS}
-            for _ in range(RUNS):
-                for name in RELATION_APPS:
+                for _ in range(RUNS):
                     rps = ab_reqs(PORTS[name], "/parents", REQUESTS)
                     best[name] = max(best[name], rps)
-        finally:
-            for proc in procs.values():
+            finally:
                 proc.terminate()
-            for proc in procs.values():
                 proc.wait()
         cells = " | ".join(f"{best[name]:>17,.0f}" for name in RELATION_APPS)
         print(f"{rows:>9} | {cells}")
@@ -905,8 +913,10 @@ def main() -> None:
     for name in names:
         print(f"  {name:22s} {pings[ROWS_LIST[0]][name]:>12,.0f}")
 
-    run_writes()
-    run_relations()
+    if WRITE_APPS:
+        run_writes()
+    if RELATION_APPS:
+        run_relations()
 
 
 if __name__ == "__main__":

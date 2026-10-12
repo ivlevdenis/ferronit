@@ -29,7 +29,7 @@ Cargo.lock.bak
 # Rust/Go артефакты и бинарники стенда
 bench/**/target/
 bench/go_pg_orm/go_pg_bench
-bench/go_pg_orm_10col/pgx10
+bench/go_pg_1row/pgx10
 bench/go_pg_orm/ent/
 
 # генерируемые стендом приложения и результаты

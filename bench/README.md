@@ -105,23 +105,14 @@ pgbench, инстанс `postgres:18.6` (дефолтный конфиг Docker,
 
 ## HTTP-сравнение фреймворков (`bench_rows.py`)
 
-Ferronit-rawmodel против Litestar/FastAPI/Django, 1 / 100 / 1000 строк, `ab -c 50 -k`,
-granian, 1 воркер, лучшее из 2 (req/s):
+Канонические цифры (строки из БД, записи, связи) — в [`docs/benchmarks.md`](../docs/benchmarks.md),
+они датированы прогоном и не дублируются здесь, чтобы не было двух расходящихся источников.
+Воспроизведение (`GET /rows`, 1 / 100 / 1000 строк, `ab -c 50 -k`, granian, 1 воркер, по очереди):
 
-| вариант | 1 строка | 100 строк | 1000 строк | /ping |
-|---|---|---|---|---|
-| ferronit-rawmodel (lifespan+DI) | **20 102** | **17 097** | **10 275** | **148 410** |
-| litestar-msgspec | 12 197 | 8 562 | 2 161 | 37 017 |
-| litestar-asyncpg | 11 754 | 7 231 | 1 636 | 37 647 |
-| litestar-orm | 2 493 | 1 423 | 271 | 37 192 |
-| fastapi-orm | 2 207 | 986 | 147 | 19 836 |
-| django-orm | 494 | 479 | 497 | 1 790 |
-
-* **Ferronit быстрее Litestar во всём.** `/ping` (чистый фреймворк) — **×4.0**; на строках
-  разрыв ×1.4–4.8 на 100–1000, потому что там доминирует общая часть (PostgreSQL + asyncpg +
-  msgspec), а не роутер. FastAPI — ×7.5 на `/ping` и ×10–14 на строках (сверху ORM).
-  Django — sync-view под ASGI, упирается в threadpool (1 790 на `/ping`).
-* График — `.venv/bin/python bench/plot_rows.py` → `bench_rows.html`.
+```bash
+.venv/bin/python bench/bench_rows.py
+.venv/bin/python bench/plot_rows.py   # → bench_rows.html
+```
 
 ## Протокол замера (иначе цифры не сравнимы между сессиями)
 
@@ -143,6 +134,6 @@ Docker с контейнером `ferronit-pg` на :5432.
 
 ## Helper-приложения (`_`-префикс)
 
-`_bench_rows_*.py`, `_bench_granian_*.py`, `_bench_di_app.py` — минимальные приложения,
+`_bench_rows_*.py`, `_bench_granian_*.py` — минимальные приложения,
 которые запускают основные скрипты как отдельные серверы. Имена собираются динамически,
 поэтому поиск по имени их «не находит». Не удаляй, не проверив `bench_*.py`.

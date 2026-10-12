@@ -144,3 +144,35 @@ async with RawUnitOfWork(pool, readonly=True) as uow:
 
 `get()` наполняет identity map; `list()`/`fetch()` намеренно нет (избегаем
 лишних ~50 µs на 1000 строк). Карта живёт в рамках одного unit of work.
+
+### Связи
+
+Связь объявляется полем с `Annotated[..., Relation(fk)]` — и грузится **всегда**
+при чтении модели (без lazy/eager: раз поле есть, оно нужно). Одна связь = один
+дополнительный запрос `WHERE fk = ANY($1)` на всех родителей — N+1 не возникает.
+
+```python
+from typing import Annotated
+from ferronit.contrib.rawmodel import Model, Relation
+
+class OrderItem(Model):
+    __table__ = "order_items"
+    id: int = 0
+    order_id: int = 0
+    name: str = ""
+
+class Order(Model):
+    __table__ = "orders"
+    id: int = 0
+    user_id: int = 0
+    items: Annotated[list[OrderItem], Relation("order_id")] = []   # 1:N
+
+async with RawUnitOfWork(pool, readonly=True) as uow:
+    orders = await uow.model(Order).list()
+    for o in orders:
+        print(o.items)   # уже подтянуты
+```
+
+- `list[T]` → один-ко-многим (поле-список), голый `T` → один-к-одному (один объект).
+- `Relation("order_id", pk="id")` — FK в дочерней таблице и PK родителя (по умолчанию `id`).
+- Связь сериализуется в JSON как вложенный объект/список (msgspec).

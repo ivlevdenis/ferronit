@@ -10,6 +10,8 @@
 
 from __future__ import annotations
 
+from typing import Annotated
+
 import pytest
 
 from ferronit.contrib.rawdb import RawUnitOfWork, create_raw_pool
@@ -17,6 +19,7 @@ from ferronit.contrib.rawmodel import (
     IdentityMap,
     Model,
     RawModelRepository,
+    Relation,
     select,
 )
 
@@ -491,3 +494,42 @@ async def test_integration_unit_of_work_commits_and_rolls_back(pool) -> None:
     async with RawUnitOfWork(pool) as uow:
         names = [user.name for user in await uow.model(RawUser).list()]
     assert names == ["keep"]
+
+
+# ── связи ────────────────────────────────────────────────────────────────────
+
+class RelItem(Model):
+    __table__ = "rel_items"
+    id: int = 0
+    parent_id: int = 0
+    name: str = ""
+
+
+class RelParent(Model):
+    __table__ = "rel_parents"
+    id: int = 0
+    items: Annotated[list[RelItem], Relation("parent_id")] = []
+
+
+async def test_relations_always_loaded(pool) -> None:
+    """Объявленная связь грузится всегда: get() и list() подтягивают детей."""
+    async with RawUnitOfWork(pool) as uow:
+        await uow.connection.execute("DROP TABLE IF EXISTS rel_items, rel_parents")
+        await uow.connection.execute("CREATE TABLE rel_parents (id serial PRIMARY KEY)")
+        await uow.connection.execute(
+            "CREATE TABLE rel_items (id serial PRIMARY KEY, parent_id int NOT NULL, name text NOT NULL)"
+        )
+        await uow.connection.execute(
+            "INSERT INTO rel_parents (id) VALUES (1), (2)"
+        )
+        await uow.connection.execute(
+            "INSERT INTO rel_items (parent_id, name) VALUES (1, 'a'), (1, 'b'), (2, 'c')"
+        )
+
+    async with RawUnitOfWork(pool, readonly=True) as uow:
+        parent = await uow.model(RelParent).get(1)
+        assert [i.name for i in parent.items] == ["a", "b"]
+
+        parents = await uow.model(RelParent).list()
+        assert [i.name for i in parents[0].items] == ["a", "b"]
+        assert [i.name for i in parents[1].items] == ["c"]

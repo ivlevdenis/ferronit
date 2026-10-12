@@ -32,7 +32,7 @@ import builtins
 import re
 from collections.abc import Sequence
 from functools import lru_cache
-from typing import Any
+from typing import Annotated, Any, ClassVar, get_args, get_origin
 
 import asyncpg
 import msgspec
@@ -48,6 +48,7 @@ __all__ = [
     "Model",
     "Query",
     "RawModelRepository",
+    "Relation",
     "select",
 ]
 
@@ -105,15 +106,61 @@ def _resolve_table(model: type[Model]) -> str:
     return _pluralize(model.__name__.lower())
 
 
+class Relation:
+    """Декларация связи модели чтения — поле грузится отдельным запросом.
+
+    Объявляется через ``Annotated``: ``items: Annotated[list[OrderItem], Relation("order_id")]``.
+    Связь всегда грузится при чтении модели (без lazy/eager — поле есть, значит нужно).
+
+    Args:
+        fk: Колонка в дочерней таблице, ссылающаяся на ``pk`` родителя.
+        pk: Колонка в родительской таблице (по умолчанию ``"id"``).
+    """
+
+    __slots__ = ("fk", "pk")
+
+    def __init__(self, fk: str, *, pk: str = "id") -> None:
+        self.fk = fk
+        self.pk = pk
+
+
+def _unwrap_relation(t: Any) -> tuple[Any, Relation | None]:
+    """Развернуть ``Annotated[T, Relation(...)]`` → ``(T, Relation)`` либо ``(t, None)``."""
+    if get_origin(t) is Annotated:
+        base = get_args(t)[0]
+        for meta in get_args(t)[1:]:
+            if isinstance(meta, Relation):
+                return base, meta
+        return base, None
+    return t, None
+
+
+def _relation_target(base: Any) -> tuple[type[Model], bool]:
+    """Из ``list[Child]``/``Child`` → ``(Child, many)``."""
+    if get_origin(base) is list:
+        return get_args(base)[0], True
+    return base, False
+
+
 class ModelMeta(StructMeta):
     """Metaclass: каждый подкласс ``Model`` — ``msgspec.Struct`` + колонки по порядку."""
 
     def __new__(mcs, name, bases, ns, **kw: Any):
         cls = super().__new__(mcs, name, bases, ns, **kw)
         if name != "Model":
-            cls.__columns__ = tuple(f.name for f in struct_fields(cls))
-            cls.__select_columns__ = ", ".join(cls.__columns__)
-            cls.c = _Columns({name: Column(name) for name in cls.__columns__})
+            columns: list[str] = []
+            relations: dict[str, tuple[type[Model], str, str, bool]] = {}
+            for f in struct_fields(cls):
+                base, rel = _unwrap_relation(f.type)
+                if rel is not None:
+                    child, many = _relation_target(base)
+                    relations[f.name] = (child, rel.fk, rel.pk, many)
+                else:
+                    columns.append(f.name)
+            cls.__columns__ = tuple(columns)
+            cls.__select_columns__ = ", ".join(columns)
+            cls.__relations__ = relations
+            cls.c = _Columns({name: Column(name) for name in columns})
         return cls
 
 
@@ -126,6 +173,7 @@ class Model(msgspec.Struct, metaclass=ModelMeta):
     """
 
     __table__ = None
+    __relations__: ClassVar[dict] = {}
 
     @classmethod
     def from_row(cls, row: Any) -> Any:
@@ -615,6 +663,43 @@ class RawModelRepository[M: Model](Adapter):
             self._insert_sql, self._select_pk_sql, self._delete_sql, self._list_sql,
         ) = _repo_sql(model_cls, table or _resolve_table(model_cls), pk)
 
+    async def _materialize(self, rows) -> list[M]:
+        """Построить модели из строк, подтянув объявленные связи.
+
+        Каждая связь грузится одним запросом на всех родителей
+        (``WHERE fk = ANY($1)``), поэтому N+1 не возникает.
+        """
+        if not rows:
+            return []
+        relations = self._model.__relations__
+        if not relations:
+            return [self._model(*row) for row in rows]
+        pk_index = self._columns.index(self._pk)
+        pks = [row[pk_index] for row in rows]
+        rel_data: dict[str, tuple[dict[Any, list], bool]] = {}
+        for field, (child, fk, _pk, many) in relations.items():
+            child_rows = await self._conn.fetch(
+                f"SELECT {child.__select_columns__} FROM {child.__table__} WHERE {fk} = ANY($1)",
+                pks,
+            )
+            fk_index = child.__columns__.index(fk)
+            grouped: dict[Any, list] = {}
+            for crow in child_rows:
+                grouped.setdefault(crow[fk_index], []).append(child(*crow))
+            rel_data[field] = (grouped, many)
+        models = []
+        for row in rows:
+            kwargs = {c: row[i] for i, c in enumerate(self._columns)}
+            pk_val = kwargs[self._pk]
+            for field, (grouped, many) in rel_data.items():
+                if many:
+                    kwargs[field] = grouped.get(pk_val, [])
+                else:
+                    items = grouped.get(pk_val)
+                    kwargs[field] = items[0] if items else None
+            models.append(self._model(**kwargs))
+        return models
+
     async def get(self, id: Any) -> M | None:
         """Fetch a single row by primary key.
 
@@ -631,7 +716,7 @@ class RawModelRepository[M: Model](Adapter):
         row = await self._conn.fetchrow(self._select_pk_sql, id)
         if row is None:
             return None
-        obj = self._model(*row)
+        obj = (await self._materialize([row]))[0]
         if self._identity_map is not None:
             self._identity_map.put(self._model, id, obj)
         return obj
@@ -661,7 +746,7 @@ class RawModelRepository[M: Model](Adapter):
             rows = await self._conn.fetch(self._list_sql, limit, offset)
         # Identity-map наполняется только из get(): на list() карта почти никогда
         # не пригождается, а класть каждую строку в неё — лишние ~50 µs на 1000 строк.
-        return [self._model(*row) for row in rows]
+        return await self._materialize(rows)
 
     async def fetch(self, query: Query) -> builtins.list[M]:
         """Run a compiled ``Query`` and return model instances.
@@ -675,7 +760,7 @@ class RawModelRepository[M: Model](Adapter):
         """
         sql, params = query.compile()
         rows = await self._conn.fetch(sql, *params)
-        return [self._model(*row) for row in rows]
+        return await self._materialize(rows)
 
     async def fetch_one(self, query: Query) -> M | None:
         """Fetch the first matching row, or ``None``.
@@ -687,7 +772,9 @@ class RawModelRepository[M: Model](Adapter):
             query = query.limit(1)
         sql, params = query.compile()
         row = await self._conn.fetchrow(sql, *params)
-        return self._model(*row) if row is not None else None
+        if row is None:
+            return None
+        return (await self._materialize([row]))[0]
 
     async def fetch_value(self, query: Query) -> Any | None:
         """Fetch the first column of the first row — for ``count()``/``aggregate()``."""

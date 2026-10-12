@@ -31,6 +31,7 @@ from __future__ import annotations
 import builtins
 import re
 from collections.abc import Sequence
+from functools import lru_cache
 from typing import Any
 
 import asyncpg
@@ -541,6 +542,32 @@ class IdentityMap:
         self._map[(model, pk)] = obj
 
 
+@lru_cache(maxsize=256)
+def _repo_sql(model_cls: type[Model], table: str, pk: str) -> tuple:
+    """Pre-compute the connection-independent SQL for ``(model, table, pk)``.
+
+    These strings depend only on the model's columns and the table/primary-key
+    names, so they are built once and reused by every repository instance —
+    which keeps the hot read path free of per-request string formatting.
+    """
+    columns = model_cls.__columns__
+    select_columns = model_cls.__select_columns__
+    insert_columns = tuple(c for c in columns if c != pk)
+    cols = ", ".join(insert_columns)
+    placeholders = ", ".join(f"${i}" for i in range(1, len(insert_columns) + 1))
+    insert_sql = (
+        f"INSERT INTO {table} ({cols}) VALUES ({placeholders})"
+        f" RETURNING {select_columns}"
+    )
+    select_pk_sql = f"SELECT {select_columns} FROM {table} WHERE {pk} = $1"
+    delete_sql = f"DELETE FROM {table} WHERE {pk} = $1"
+    list_sql = f"SELECT {select_columns} FROM {table} LIMIT $1 OFFSET $2"
+    return (
+        table, columns, select_columns, insert_columns,
+        insert_sql, select_pk_sql, delete_sql, list_sql,
+    )
+
+
 class RawModelRepository[M: Model](Adapter):
     """Repository over one table returning model instances instead of dicts.
 
@@ -563,6 +590,7 @@ class RawModelRepository[M: Model](Adapter):
         "_identity_map",
         "_insert_columns",
         "_insert_sql",
+        "_list_sql",
         "_model",
         "_pk",
         "_select_columns",
@@ -581,21 +609,11 @@ class RawModelRepository[M: Model](Adapter):
         self._conn = connection
         self._model = model_cls
         self._pk = pk
-        self._table = table or _resolve_table(model_cls)
         self._identity_map = identity_map
-        self._columns = model_cls.__columns__
-        self._select_columns = model_cls.__select_columns__
-        self._insert_columns = tuple(c for c in self._columns if c != pk)
-        columns = ", ".join(self._insert_columns)
-        placeholders = ", ".join(f"${i}" for i in range(1, len(self._insert_columns) + 1))
-        self._insert_sql = (
-            f"INSERT INTO {self._table} ({columns}) VALUES ({placeholders})"
-            f" RETURNING {self._select_columns}"
-        )
-        self._select_pk_sql = (
-            f"SELECT {self._select_columns} FROM {self._table} WHERE {self._pk} = $1"
-        )
-        self._delete_sql = f"DELETE FROM {self._table} WHERE {self._pk} = $1"
+        (
+            self._table, self._columns, self._select_columns, self._insert_columns,
+            self._insert_sql, self._select_pk_sql, self._delete_sql, self._list_sql,
+        ) = _repo_sql(model_cls, table or _resolve_table(model_cls), pk)
 
     async def get(self, id: Any) -> M | None:
         """Fetch a single row by primary key.
@@ -631,13 +649,16 @@ class RawModelRepository[M: Model](Adapter):
         Returns:
             A list of model instances (possibly empty).
         """
-        where, params = _merge_filters(filters)
-        clause = f" WHERE {where}" if where else ""
-        sql = (
-            f"SELECT {self._select_columns} FROM {self._table}{clause}"
-            f" LIMIT ${len(params) + 1} OFFSET ${len(params) + 2}"
-        )
-        rows = await self._conn.fetch(sql, *params, limit, offset)
+        if filters:
+            where, params = _merge_filters(filters)
+            clause = f" WHERE {where}"
+            sql = (
+                f"SELECT {self._select_columns} FROM {self._table}{clause}"
+                f" LIMIT ${len(params) + 1} OFFSET ${len(params) + 2}"
+            )
+            rows = await self._conn.fetch(sql, *params, limit, offset)
+        else:
+            rows = await self._conn.fetch(self._list_sql, limit, offset)
         # Identity-map наполняется только из get(): на list() карта почти никогда
         # не пригождается, а класть каждую строку в неё — лишние ~50 µs на 1000 строк.
         return [self._model(*row) for row in rows]

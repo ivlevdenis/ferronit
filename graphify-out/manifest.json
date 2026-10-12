@@ -14,21 +14,6 @@
     "ast_hash": "8d4563c50a29501d1aa0105c0bb3dc0c",
     "semantic_hash": ""
   },
-  "bench/bench_db.py": {
-    "mtime": 1791565157.38457,
-    "ast_hash": "b664eed42d949f76ebe632917f224c14",
-    "semantic_hash": ""
-  },
-  "bench/bench_db_pool.py": {
-    "mtime": 1791565157.3846452,
-    "ast_hash": "7266862f1a97f0a82f11fcba1c20af4c",
-    "semantic_hash": ""
-  },
-  "bench/bench_db_variants.py": {
-    "mtime": 1791565157.3846977,
-    "ast_hash": "5bbf10a60f5946559d05d29d9f31efa8",
-    "semantic_hash": ""
-  },
   "bench/bench_logic.py": {
     "mtime": 1791565157.3847759,
     "ast_hash": "7b287b38fcc1dee1a4565c1c2055fd28",
@@ -39,19 +24,9 @@
     "ast_hash": "119b8ad4510916a97cf136682980ef1e",
     "semantic_hash": ""
   },
-  "bench/bench_postgres.py": {
-    "mtime": 1791565157.384908,
-    "ast_hash": "e1e124687df5ec44b1852f36c5da7215",
-    "semantic_hash": ""
-  },
   "bench/bench_rows.py": {
-    "mtime": 1791565157.3849914,
-    "ast_hash": "e656d75bf2f880cc6d698cf452042e14",
-    "semantic_hash": ""
-  },
-  "bench/bench_rustdb.py": {
-    "mtime": 1791565157.3850272,
-    "ast_hash": "6ba98079603a44c50068fdd82cc5b929",
+    "mtime": 1791760788.1023161,
+    "ast_hash": "902069b79170c84c38acd590dfbd62a7",
     "semantic_hash": ""
   },
   "bench/django_bench/__init__.py": {
@@ -159,11 +134,6 @@
     "ast_hash": "a049ddbba1bc29732e0ebd85bbcf8e89",
     "semantic_hash": ""
   },
-  "bench/micro_bench_db.py": {
-    "mtime": 1791565157.3856444,
-    "ast_hash": "52f55e621f08de47f179dfc335d1b08b",
-    "semantic_hash": ""
-  },
   "bench/micro_bench_json.py": {
     "mtime": 1791565157.3856785,
     "ast_hash": "e5dfb9302d12f9ede2ea3b9f71a4ca6f",
@@ -177,11 +147,6 @@
   "bench/micro_bench_response.py": {
     "mtime": 1791565157.3857546,
     "ast_hash": "59b5e7a42da4c2b8655f679a85557768",
-    "semantic_hash": ""
-  },
-  "bench/pg_direct.py": {
-    "mtime": 1791565157.385805,
-    "ast_hash": "ff916eec26360c20671cded731aec62f",
     "semantic_hash": ""
   },
   "bench/pg_wire.py": {
@@ -212,11 +177,6 @@
   "bench/prof_send.py": {
     "mtime": 1791565157.386025,
     "ast_hash": "bf626a3c0e7cde2f57b07a793008fbb9",
-    "semantic_hash": ""
-  },
-  "bench/profile_db_path.py": {
-    "mtime": 1791565157.386086,
-    "ast_hash": "8f7887778c2976fec7c6f96b2f4086c3",
     "semantic_hash": ""
   },
   "bench/run_all_ab.sh": {
@@ -260,13 +220,13 @@
     "semantic_hash": ""
   },
   "docker/demo_app.py": {
-    "mtime": 1791747904.061201,
-    "ast_hash": "5654f0bc2dcde0aad561439592853d6d",
+    "mtime": 1791752510.3558342,
+    "ast_hash": "befb34e67aee21a5f610e1306537dcac",
     "semantic_hash": ""
   },
   "docker/entrypoint.sh": {
-    "mtime": 1791747904.061257,
-    "ast_hash": "8604e823c01c59dfda59b998fbad4287",
+    "mtime": 1791752510.355893,
+    "ast_hash": "729edf559d2b2334359ff4d6120c5038",
     "semantic_hash": ""
   },
   "examples/app.py": {
@@ -330,8 +290,8 @@
     "semantic_hash": ""
   },
   "scripts/docker_smoke.sh": {
-    "mtime": 1791747904.0613818,
-    "ast_hash": "60b57f5bb51585a40feff2911c7dce34",
+    "mtime": 1791752510.3561037,
+    "ast_hash": "031532258d3754c03a2fdf9f1f462e2a",
     "semantic_hash": ""
   },
   "tests/security/test_asvs_l1.py": {
@@ -495,8 +455,8 @@
     "semantic_hash": ""
   },
   "AGENTS.md": {
-    "mtime": 1791747904.05364,
-    "ast_hash": "c6acab1491eb7ee3574a123e00fe2243",
+    "mtime": 1791752510.3554354,
+    "ast_hash": "2b3d095094a5296d1d25e24342c661ba",
     "semantic_hash": ""
   },
   "CLAUDE.md": {
@@ -505,18 +465,18 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1791747904.0537267,
-    "ast_hash": "f498e24a893ec04b02ed9ba441e3ac10",
+    "mtime": 1791752510.3556244,
+    "ast_hash": "e52ceddf5f9917f63743ef2b6c27249b",
     "semantic_hash": ""
   },
   "bench/README.md": {
-    "mtime": 1791565157.3834574,
-    "ast_hash": "7c77d7cb0b7e6fdb546df6cf7c7bc041",
+    "mtime": 1791756030.4024415,
+    "ast_hash": "c75e1475fdf47cd9d00ca1c8149ac963",
     "semantic_hash": ""
   },
   "docker-compose.yml": {
-    "mtime": 1791747904.053792,
-    "ast_hash": "7ddc3b5bccc2103fe6c9c2a7a38c9316",
+    "mtime": 1791752510.3557682,
+    "ast_hash": "0f727b751edcbc06da94620c810dffa1",
     "semantic_hash": ""
   },
   "docs/architecture.html": {
@@ -535,8 +495,8 @@
     "semantic_hash": ""
   },
   "llms.txt": {
-    "mtime": 1791747904.0613408,
-    "ast_hash": "60f7e96a8e40650f5d58f4f70e731fca",
+    "mtime": 1791752510.3560333,
+    "ast_hash": "c68555dcaa5b2f9ea0e072748227dc56",
     "semantic_hash": ""
   },
   "public/hello.txt": {
@@ -555,8 +515,8 @@
     "semantic_hash": ""
   },
   "ferronit/__init__.py": {
-    "mtime": 1791747904.053338,
-    "ast_hash": "82ea4c6393e93a9b6ab8c7b3837744aa",
+    "mtime": 1791752510.3548865,
+    "ast_hash": "3c95e1254a9f1d5bc4ac2c29388428b4",
     "semantic_hash": ""
   },
   "ferronit/cli.py": {
@@ -615,8 +575,8 @@
     "semantic_hash": ""
   },
   "ferronit/contrib/rawmodel.py": {
-    "mtime": 1791565157.3890233,
-    "ast_hash": "8c94072b806110ab1b9d16a45c209ac0",
+    "mtime": 1791781040.4150262,
+    "ast_hash": "a9e038142d94ea58840ce336cf451276",
     "semantic_hash": ""
   },
   "ferronit/contrib/security.py": {
@@ -695,8 +655,8 @@
     "semantic_hash": ""
   },
   ".github/workflows/release.yml": {
-    "mtime": 1791747904.053582,
-    "ast_hash": "20745c84ed406011abcff23b704162ac",
+    "mtime": 1791752510.3553236,
+    "ast_hash": "69ec1b0ca8e5bd2268f1e0e6cee9889c",
     "semantic_hash": ""
   },
   "docs/README.md": {
@@ -710,8 +670,8 @@
     "semantic_hash": ""
   },
   "docs/benchmarks.md": {
-    "mtime": 1791714777.7532692,
-    "ast_hash": "c3b14ecec9c94dfd0f5eb1c3febf25b1",
+    "mtime": 1791756023.466392,
+    "ast_hash": "6a9e2fc1b73d06fe7c543cebfaecf001",
     "semantic_hash": ""
   },
   "docs/data/overview.md": {
@@ -725,8 +685,8 @@
     "semantic_hash": ""
   },
   "docs/getting-started.md": {
-    "mtime": 1791747904.0612984,
-    "ast_hash": "d7e122bc0063abfaceedb0d2b2bb14a7",
+    "mtime": 1791752510.3559628,
+    "ast_hash": "23050ea18d3de90b42111897c22d818c",
     "semantic_hash": ""
   },
   "docs/middleware.md": {
@@ -790,8 +750,8 @@
     "semantic_hash": ""
   },
   "README.ru.md": {
-    "mtime": 1791747904.0537593,
-    "ast_hash": "da43a1db16695341dc5053cfda5c5a3d",
+    "mtime": 1791752510.3556967,
+    "ast_hash": "f8a12f844e99e9fa5d067ed9a1972f5c",
     "semantic_hash": ""
   },
   "ferronit/binding.py": {

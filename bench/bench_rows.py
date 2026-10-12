@@ -1,4 +1,4 @@
-"""Ferronit-rawmodel vs Litestar/FastAPI/Django: ответ с 1 / 100 / 1000 строками.
+"""Ferronit-rawmodel vs Litestar/FastAPI/Django/BlackSheep: ответ с 1 / 100 / 1000 строками.
 
 Ferronit представлен единственным слоем данных — rawmodel (asyncpg + msgspec);
 конкуренты — своими ORM/msgspec-путями. Замер только через `ab` (политика стенда),
@@ -28,6 +28,7 @@ PORTS = {
     "litestar-orm": 8234,
     "django-orm": 8236,
     "litestar-asyncpg": 8238,
+    "blacksheep": 8243,
 }
 SERVER = os.environ.get("BENCH_SERVER", "granian")
 REQUESTS = 5000
@@ -178,6 +179,55 @@ async def ping() -> dict:
 app = Litestar(route_handlers=[rows, ping])
 '''
 
+BLACKSHEEP_APP = '''
+import asyncio
+import os
+
+import asyncpg
+import msgspec
+from blacksheep import Application, Response
+from blacksheep.contents import Content
+
+DSN = "postgresql://postgres:postgres@127.0.0.1:5432/postgres"
+ROWS = int(os.environ.get("BENCH_ROWS", "100"))
+
+
+class BenchRow(msgspec.Struct):
+    id: int
+    name: str
+    email: str
+
+
+_pool = None
+_lock = asyncio.Lock()
+
+
+async def get_pool():
+    global _pool
+    if _pool is None:
+        async with _lock:
+            if _pool is None:
+                _pool = await asyncpg.create_pool(DSN, min_size=1, max_size=16)
+    return _pool
+
+
+app = Application()
+
+
+@app.router.get("/rows")
+async def rows():
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        records = await conn.fetch("SELECT id, name, email FROM bench_rows LIMIT $1", ROWS)
+    body = msgspec.json.encode({"rows": [BenchRow(*record) for record in records]})
+    return Response(200, content=Content(b"application/json", body))
+
+
+@app.router.get("/ping")
+async def ping():
+    return {"ok": True}
+'''
+
 FASTAPI_ORM_APP = '''
 import os
 
@@ -269,6 +319,7 @@ APPS = {
     "fastapi-orm": FASTAPI_ORM_APP,
     "litestar-orm": LITESTAR_ORM_APP,
     "litestar-asyncpg": LITESTAR_ASYNCPG_APP,
+    "blacksheep": BLACKSHEEP_APP,
 }
 
 

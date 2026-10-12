@@ -127,4 +127,4 @@ PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 poetry run maturin develop --release
 ## Что дальше
 
 - [Маршрутизация](routing.md) → [Запросы](requests.md) → [Ответы](responses.md)
-- [Слой данных](data/overview.md) — когда какой из трёх слоёв брать
+- [Слой данных](data/overview.md) — rawdb + rawmodel (asyncpg, без ORM)

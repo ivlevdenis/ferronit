@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-import json as _json
+import msgspec
 
+from ferronit._core import Response as RustResp
 from ferronit.contrib.pydantic import encode_json
 
 __all__ = ["JSONResponse", "Response", "StreamingResponse", "TextResponse"]
@@ -16,6 +17,29 @@ def _clean_header(value: str) -> str:
         if idx != -1:
             value = value[:idx]
     return value
+
+
+def _escape_html(body: bytes) -> bytes:
+    """Escape ``<``, ``>``, ``&`` as ``\\uXXXX`` in an already-serialised JSON body.
+
+    Mirrors ``escape_html`` in the Rust core so the msgspec fast path keeps the
+    same XSS guard as the Rust ``Response.json`` path. The three bytes never
+    occur in JSON structural syntax, so a byte-level replace only touches string
+    contents.
+    """
+    return body.replace(b"&", b"\\u0026").replace(b"<", b"\\u003c").replace(b">", b"\\u003e")
+
+
+def _msgspec_json(data) -> bytes | None:
+    """Encode with msgspec's C encoder.
+
+    Returns ``None`` when msgspec refuses the data (``TypeError``), so the
+    caller can fall back to the Rust serialiser.
+    """
+    try:
+        return _escape_html(msgspec.json.encode(data))
+    except TypeError:
+        return None
 
 
 class Response:
@@ -83,11 +107,9 @@ class JSONResponse(Response):
         status: int = 200,
         headers: dict[str, str] | None = None,
     ) -> None:
-        body = _json.dumps(
-            data,
-            ensure_ascii=False,
-            separators=(",", ":"),
-        )
+        body = _msgspec_json(data)
+        if body is None:
+            body = bytes(RustResp.json(data, status).body)
         super().__init__(
             body=body,
             status=status,

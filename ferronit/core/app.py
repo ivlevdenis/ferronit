@@ -5,14 +5,12 @@ from __future__ import annotations
 import inspect
 from contextlib import asynccontextmanager
 
-import msgspec
-
 from ferronit._core import FerronitApp as RustApp
 from ferronit._core import Response as RustResp
 from ferronit.contrib.tracing import current_trace_id
 from ferronit.core.request import BodyTooLarge, PathParamError, RequestError, UnsupportedMediaType
 from ferronit.core.request import Request as PyRequest
-from ferronit.core.response import JSONResponse, Response, StreamingResponse, TextResponse
+from ferronit.core.response import JSONResponse, Response, StreamingResponse, TextResponse, _msgspec_json
 from ferronit.di import Container
 from ferronit.middleware import Middleware
 from ferronit.openapi import OpenAPI
@@ -389,29 +387,6 @@ def _scope_header(scope: dict, name: str) -> str | None:
         if k.lower() == needle:
             return v.decode("latin-1")
     return None
-
-
-def _msgspec_json(data) -> bytes | None:
-    """Encode with msgspec's C encoder.
-
-    Returns ``None`` when msgspec refuses the data (``TypeError``), so the
-    caller can fall back to the Rust serialiser.
-    """
-    try:
-        return _escape_html(msgspec.json.encode(data))
-    except TypeError:
-        return None
-
-
-def _escape_html(body: bytes) -> bytes:
-    """Escape ``<``, ``>``, ``&`` as ``\\uXXXX`` in an already-serialised JSON body.
-
-    Mirrors ``escape_html`` in the Rust core so the msgspec fast path keeps the
-    same XSS guard as the Rust ``Response.json`` path. The three bytes never
-    occur in JSON structural syntax, so a byte-level replace only touches string
-    contents.
-    """
-    return body.replace(b"&", b"\\u0026").replace(b"<", b"\\u003c").replace(b">", b"\\u003e")
 
 
 def _is_struct(obj) -> bool:

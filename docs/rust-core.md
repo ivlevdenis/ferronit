@@ -28,9 +28,13 @@ app = FerronitApp()
 app.add_route(method, path, handler)
 handler, params = app.resolve(method, path)     # None, если роута нет
 app.set_cors(origins, methods, headers, max_age)
+app.has_cors()                                  # bool — включён ли CORS
+app.cors_allows(origin)                         # bool — разрешён ли origin
+app.cors_is_wildcard()                          # bool — разрешён ли "*"
 app.cors_preflight_headers(origin)              # dict | None
-app.cors_origin(origin)                          # значение allow-origin | None
+app.cors_origin(origin)                         # значение allow-origin | None
 app.gzip_compress(data: bytes) -> bytes
+app.handle_request(method, path, query_string, raw_headers, body)  # Response (бенчи)
 ```
 
 ### `Request` / `Response`

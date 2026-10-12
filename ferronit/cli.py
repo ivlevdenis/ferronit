@@ -178,6 +178,29 @@ if __name__ == "__main__":
     uvicorn.run(app, port={port})
 '''
 
+MINIMAL_APP_TEMPLATE = '''\
+"""Minimal Ferronit application."""
+
+from ferronit import Ferronit
+
+app = Ferronit()
+
+
+@app.route("/")
+async def index():
+    return {{"service": "{name}", "ok": True}}
+'''
+
+MINIMAL_MAIN_TEMPLATE = '''\
+"""Entry point — {name}."""
+
+import uvicorn
+from app import app
+
+if __name__ == "__main__":
+    uvicorn.run(app, port={port})
+'''
+
 CONFIG_TEMPLATE = '''\
 """Configuration — env-based."""
 
@@ -204,7 +227,7 @@ granian = ["granian[reload]"]
 README = '''
 # {name}
 
-Ferronit DDD application.
+Ferronit {kind} application.
 
 ```bash
 uv pip install -e .
@@ -216,14 +239,17 @@ ferronit run                # production (Granian by default, falls back to uvic
 
 
 def cmd_new(args: argparse.Namespace) -> None:
-    """Scaffold a new DDD project directory.
+    """Scaffold a new project directory.
 
-    Creates the ``domain``, ``application``, ``infrastructure`` and
-    ``interfaces`` layers together with ``pyproject.toml``, ``README.md``,
-    ``config.py``, ``main.py`` and a sample Order aggregate.
+    By default generates a minimal single-file application (``app.py`` +
+    ``main.py``). With ``--ddd`` it creates the full DDD layout — ``domain``,
+    ``application``, ``infrastructure`` and ``interfaces`` layers, a sample
+    Order aggregate and ``config.py`` — plus ``pyproject.toml`` and
+    ``README.md`` in both cases.
 
     Args:
-        args: Parsed CLI arguments; ``args.name`` is the project name.
+        args: Parsed CLI arguments; ``args.name`` is the project name and
+            ``args.ddd`` selects the DDD template.
     """
     name = args.name
     root = os.path.join(os.getcwd(), name)
@@ -232,48 +258,45 @@ def cmd_new(args: argparse.Namespace) -> None:
         sys.exit(1)
 
     os.makedirs(root)
-    subdirs = {
-        "domain": "",
-        "application": "",
-        "infrastructure": "",
-        "interfaces": "",
-    }
-    for sub in subdirs:
-        d = os.path.join(root, sub)
-        os.makedirs(d)
-        with open(os.path.join(d, "__init__.py"), "w") as f:
-            f.write(f'""" {sub} layer. """\n')
 
-    # pyproject.toml
+    # Общие файлы для обоих шаблонов.
     with open(os.path.join(root, "pyproject.toml"), "w") as f:
         f.write(PYPROJECT_BASE.format(name=name))
-
     with open(os.path.join(root, "README.md"), "w") as f:
-        f.write(README.format(name=name))
+        f.write(README.format(name=name, kind="DDD" if args.ddd else "minimal"))
 
-    # config.py
-    with open(os.path.join(root, "config.py"), "w") as f:
-        f.write(CONFIG_TEMPLATE)
+    if not args.ddd:
+        # Минимальный каркас: один app.py + entry point.
+        with open(os.path.join(root, "app.py"), "w") as f:
+            f.write(MINIMAL_APP_TEMPLATE.format(name=name))
+        with open(os.path.join(root, "main.py"), "w") as f:
+            f.write(MINIMAL_MAIN_TEMPLATE.format(name=name, port=8000))
+    else:
+        # Полная DDD-раскладка + пример агрегата Order.
+        subdirs = {
+            "domain": "",
+            "application": "",
+            "infrastructure": "",
+            "interfaces": "",
+        }
+        for sub in subdirs:
+            d = os.path.join(root, sub)
+            os.makedirs(d)
+            with open(os.path.join(d, "__init__.py"), "w") as f:
+                f.write(f'""" {sub} layer. """\n')
 
-    # Domain — Orders aggregate
-    with open(os.path.join(root, "domain", "orders.py"), "w") as f:
-        f.write(DOMAIN_TEMPLATE)
-
-    # Application — OrderService
-    with open(os.path.join(root, "application", "services.py"), "w") as f:
-        f.write(APP_TEMPLATE)
-
-    # Infrastructure — DB + DI
-    with open(os.path.join(root, "infrastructure", "db.py"), "w") as f:
-        f.write(INFRA_TEMPLATE)
-
-    # Interfaces — HTTP
-    with open(os.path.join(root, "interfaces", "api.py"), "w") as f:
-        f.write(INTERFACES_TEMPLATE.format(name=name))
-
-    # main.py
-    with open(os.path.join(root, "main.py"), "w") as f:
-        f.write(MAIN_TEMPLATE.format(name=name, port=8000))
+        with open(os.path.join(root, "config.py"), "w") as f:
+            f.write(CONFIG_TEMPLATE)
+        with open(os.path.join(root, "domain", "orders.py"), "w") as f:
+            f.write(DOMAIN_TEMPLATE)
+        with open(os.path.join(root, "application", "services.py"), "w") as f:
+            f.write(APP_TEMPLATE)
+        with open(os.path.join(root, "infrastructure", "db.py"), "w") as f:
+            f.write(INFRA_TEMPLATE)
+        with open(os.path.join(root, "interfaces", "api.py"), "w") as f:
+            f.write(INTERFACES_TEMPLATE.format(name=name))
+        with open(os.path.join(root, "main.py"), "w") as f:
+            f.write(MAIN_TEMPLATE.format(name=name, port=8000))
 
     print(f"Created {name}/")
     print(f"  cd {name} && pip install -e . && python main.py")

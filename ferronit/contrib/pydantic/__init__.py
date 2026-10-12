@@ -1,7 +1,8 @@
 """Serialization layer — protocol-based codecs for request/response bodies.
 
 Supported codecs: Pydantic v2 (pydantic), attrs (attrs + cattrs).
-All are optional — Ferronit core has zero dependencies.
+The codecs are optional (imported only when used); the core itself requires
+``msgspec`` and ``asyncpg``.
 """
 
 from __future__ import annotations

@@ -66,7 +66,7 @@ class User(Model):
 ```python
 q = select(User).where(User.c.age > 18).order_by(User.c.name).limit(50)
 sql, params = q.compile()
-# ("SELECT id, name, age FROM users WHERE (age > $1) ORDER BY name ASC LIMIT $2", [18, 50])
+# ("SELECT id, name, age FROM users WHERE (age > $1) ORDER BY name LIMIT $2", [18, 50])
 ```
 
 | Метод | Значение |
@@ -136,6 +136,11 @@ SQL-строки репозитория (`INSERT`/`SELECT`/`DELETE` и `list` б
 один раз на `(модель, таблица, pk)` и кэшируются (`lru_cache`) — на каждый запрос
 остаётся только выполнение, без пересборки строк.
 
+Дополнительные операции: `upsert(obj)` (вставить или перезаписать строку по
+первичному ключу — `ON CONFLICT ... DO UPDATE`), `save_many(objs)` (bulk-insert
+одним оператором) и `delete_by(column, value)` (удалить строки по произвольной
+колонке — её использует агрегатный репозиторий для синхронизации дочерних таблиц).
+
 ### Unit of work и identity map
 
 ```python
@@ -180,3 +185,36 @@ async with RawUnitOfWork(pool, readonly=True) as uow:
 - `list[T]` → один-ко-многим (поле-список), голый `T` → один-к-одному (один объект).
 - `Relation("order_id", pk="id")` — FK в дочерней таблице и PK родителя (по умолчанию `id`).
 - Связь сериализуется в JSON как вложенный объект/список (msgspec).
+
+### Агрегатный репозиторий — Mapper + Repository
+
+Чтобы сохранять доменный агрегат целиком (заголовок + дочерние таблицы) в одну
+транзакцию, есть пара `Mapper` и обобщённый `Repository`:
+
+```python
+from ferronit.contrib.rawmodel import Mapper, Repository
+
+class OrderMapper(Mapper[Order, OrderModel]):
+    def to_aggregate(self, m):
+        return Order(m.id, m.user_id, m.items)          # из модели строки + связей
+    def from_aggregate(self, a):
+        return OrderModel(id=a.id, user_id=a.user_id, items=a.items)
+
+class OrderRepository(Repository[Order, OrderModel, OrderMapper, ShopPool]):
+    async def by_user(self, user_id):
+        return await self.list(OrderModel.c.user_id == user_id)
+```
+
+Generic `Repository[A, M, MAP, P]` — агрегат `A`, модель строки `M`, маппер `MAP` и
+тип пула `P`. Классы `aggregate` / `model` / `mapper_cls` / `pool` извлекаются из
+`__orig_bases__` автоматически (`__init_subclass__`); инстанс создаётся от пула:
+`repo = OrderRepository(shop_pool)`.
+
+Поведение:
+
+- `get(id)` / `list(*filters)` — читают через `uow(readonly=True)` и переводят
+  строки в агрегаты через `mapper.to_aggregate` (связи уже подтянуты моделью).
+- `save(aggregate)` — `mapper.from_aggregate` → `upsert` заголовка, затем
+  `delete_by(fk, parent_pk)` дочерних и `save_many` новых — всё в одной UoW.
+- `delete(id)` — удаляет дочерние строки по FK, затем заголовок.
+- `uow(*, readonly=False)` — открыть UoW для сценария из нескольких операций.

@@ -1,162 +1,215 @@
-# Архитектура: DDD, DI и гексагональная
+# Архитектура Ferronit
 
-## Зачем
+Единый обзор архитектуры: как устроен фреймворк целиком, куда идёт запрос и где
+лежат строительные блоки. Детали каждого слоя вынесены в отдельные доки — ссылки
+в конце. Этот файл — карта, а не дубль тех доков.
 
-Ferronit — не только быстрый ASGI-движок. Он поставляет строительные блоки
-DDD/CQRS/гексагональной архитектуры, чтобы доменная логика жила отдельно от
-HTTP и БД. Это осознанный выбор: фреймворк рассчитан на сервисы, где бизнес-
-логика растёт, а не на прототипы из одного файла.
+## Обзор
 
-## Гексагональные порты и адаптеры
+Ferronit — высокопроизводительный ASGI-фреймворк с поддержкой DDD. Горячий путь
+живёт в Rust, доменная логика — в Python.
 
-```python
-from ferronit.hexagonal import (
-    Port, Adapter, Logger, Cache, MessageBus, EventBus, UnitOfWork, ApplicationService,
-)
+| Слой | Технология | Зачем |
+|---|---|---|
+| Сервер | granian (uvicorn — fallback) | продакшен-ASGI, 1 воркер ~100k req/s |
+| Rust-ядро | `ferronit._core` (maturin, `ferronit-rs/`) | radix-роутинг, JSON, gzip, CORS, multipart |
+| Ядро Python | `ferronit/core/` | ASGI-диспетчер, Request/Response |
+| Сериализация | Rust `serde_json` + msgspec (C fast-path) | stdlib `json` выпилен полностью |
+| БД | asyncpg + rawdb/rawmodel | явный SQL, типизированные модели, без ORM |
+| Домен | `ddd.py`, `hexagonal.py` | Command/Query, агрегаты, порты/адаптеры, UoW |
+| Конфиг/CLI | `config.py`, `cli.py` | EnvConfig, генератор проекта, dev/run |
+
+**Принципы:**
+
+1. **Горячий путь — на Rust.** Маршрутизация, разбор запроса, JSON, gzip, CORS и
+   multipart не проходят через Python на каждый запрос.
+2. **Python — только бизнес-логика.** Хендлер получает уже распарсенный запрос и
+   возвращает данные; dict/list и msgspec-модели сериализует msgspec (C fast-path),
+   а Rust (`serde_json`) — fallback для dataclass/rawmodel и неподдерживаемых типов.
+3. **Явный SQL вместо ORM.** rawdb/rawmodel на asyncpg — максимум throughput и
+   предсказуемость.
+4. **Домен отделён от HTTP.** DDD/гексагональные блоки поставляются из коробки,
+   но не навязываются — можно писать и простые хендлеры.
+
+## Слои
+
+```
+              ┌───────────────────────────────┐
+              │   granian (uvicorn fallback)  │   ASGI-сервер
+              └───────────────┬───────────────┘
+                              │ scope/receive/send
+              ┌───────────────▼───────────────┐
+              │    Ferronit  (core/app.py)    │   Python-диспетчер: lifespan,
+              └───────┬──────────────┬────────┘   WS, HTTP, ошибки
+                      │              │
+   ┌──────────────────▼───┐   ┌──────▼───────────────┐
+   │   ferronit._core     │   │  middleware-цепочка   │
+   │   radix-роутер       │   │  (use / apply(app))   │
+   │   JSON / gzip / CORS │   └──────┬───────────────┘
+   │   multipart          │          │
+   └──────────────────────┘   ┌──────▼───────────────┐
+                              │      handler         │
+                              │  binding + DI        │
+                              └──────┬───────────────┘
+                                     │
+          ┌──────────────────────────┼──────────────────────────┐
+          │                          │                          │
+   ┌──────▼──────┐          ┌────────▼────────┐          ┌──────▼──────┐
+   │ ddd.py      │          │ data: rawdb /    │          │ contrib/*   │
+   │ hexagonal.py│          │ rawmodel         │          │ cors, health│
+   └─────────────┘          └────────┬────────┘          │ kafka, ...  │
+                                     │                   └─────────────┘
+                              ┌──────▼──────┐
+                              │   asyncpg   │
+                              │  PostgreSQL │
+                              └─────────────┘
 ```
 
-- **`Port`** — интерфейс (граница инверсии зависимостей).
-- **`Adapter`** — конкретная реализация порта.
-- Стандартные порты: `Logger`, `Cache`, `MessageBus`, `EventBus`.
-- In-memory адаптеры: `PrintLogger`, `InMemoryCache`, `InMemoryEventBus`.
-- **`UnitOfWork`** — транзакционная граница с `commit`/`rollback` и
-  контекстным менеджером `async with uow.transaction():`.
-- **`ApplicationService`** — базовый класс, держащий unit of work.
+## Компоненты
 
-```python
-class PaymentService(ApplicationService):
-    def __init__(self, uow, bus, logger):
-        super().__init__(uow)
-        self._bus = bus
-        self._logger = logger
+| Компонент | Модуль | Назначение |
+|---|---|---|
+| Приложение | `ferronit/core/app.py` | класс `Ferronit` — ASGI-диспетчер, lifespan, WS, HTTP |
+| Rust-ядро | `ferronit._core` (`ferronit-rs/`) | radix-роутинг, разбор запроса, JSON, gzip, CORS, multipart |
+| Request | `ferronit/core/request.py` | ленивое чтение тела, query/headers, загрузки, ошибки |
+| Response | `ferronit/core/response.py` | `JSONResponse`, `TextResponse`, `StreamingResponse`, `Response` |
+| Роутинг | `ferronit/routing.py` | регистрация HTTP/WS-маршрутов |
+| Binding | `ferronit/binding.py` | привязка параметров хендлера, pre-bind DI |
+| DI | `ferronit/di.py` | `Container` (singleton/factory), `Annotated`-ключи |
+| Middleware | `ferronit/middleware.py` | цепочка middleware, расширения `apply(app)` |
+| DDD | `ferronit/ddd.py` | Command/Query, шины, агрегаты, события, Repository |
+| Гексагон | `ferronit/hexagonal.py` | Port/Adapter, UnitOfWork, ApplicationService |
+| Данные | `ferronit/contrib/rawdb.py`, `rawmodel.py` | Pool, RawRepository, Model/select/Relation, RawModelRepository |
+| Contrib | `ferronit/contrib/*` | cors, health, kafka, llm, ratelimit, security, staticfiles, tracing, vectordb |
+| Конфиг | `ferronit/config.py` | `EnvConfig` |
+| CLI | `ferronit/cli.py` | `new` / `dev` / `run` |
+| OpenAPI | `ferronit/openapi.py` | автогенерация схемы по роутам |
+| WebSocket | `ferronit/websocket.py` | WS-эндпоинты, Origin-guard |
 
-    async def charge(self, order_id):
-        async with self.uow.transaction():
-            ...
-            await self._bus.publish("payments", {"order_id": order_id})
-```
+Публичное API пакета (см. `ferronit/__init__.py`): `Ferronit`, `Header`,
+`Request`, `Response`, `JSONResponse`, `TextResponse`, `StreamingResponse`,
+`UploadedFile`, `WebSocket`, `WebSocketState`.
 
-## Блоки DDD
+## Жизненный цикл HTTP-запроса
 
-```python
-from ferronit.ddd import (
-    Command, Query, CommandBus, QueryBus, AggregateRoot, DomainEvent, Repository,
-)
-```
+1. ASGI-сервер вызывает `Ferronit.__call__(scope, receive, send)`.
+2. **Lifespan** (`_run_lifespan`): setup до `yield`, teardown после; на старте
+   вызывается `_flush_deferred()` — DI-зависимости хендлеров резолвятся **один
+   раз** и pre-bind, а не на каждый запрос.
+3. **Маршрутизация в Rust**: `self._app.resolve(method, path)` по radix-дереву —
+   без Python и regex. Нет роута → `404`.
+4. **CORS preflight в Rust**: `OPTIONS` с валидным Origin обслуживается без
+   входа в Python (`204` + заголовки).
+5. **Тело не читается заранее** — в `Request` прокидывается только
+   `max_body_size`; чтение ленивое (по `await req.json()` и т.п.).
+6. **Middleware**: хендлер оборачивается цепочкой один раз и кэшируется
+   (`_mw_cache`).
+7. **Выполнение** хендлера (sync или async), результат нормализуется
+   `_to_response()` (dict/Response/кортеж `(body, status)`).
+8. **CORS-заголовок ответа** и **X-Trace-Id** добавляются после нормализации —
+   выживают при любом типе возврата.
+9. **gzip в Rust** с учётом q-факторов `Accept-Encoding` (`gzip;q=0` = не сжимать).
+10. `resp._send(send)` — отправка ASGI-сообщений.
 
-```python
-class PlaceOrder(Command):
-    __slots__ = ("order_id", "user_id")
-    def __init__(self, order_id, user_id):
-        self.order_id = order_id
-        self.user_id = user_id
+**Маппинг ошибок**: `PathParamError` → 404, `RequestError` → 400,
+`UnsupportedMediaType` → 415, `BodyTooLarge` → 413, прочее → 500
+(при `debug=True` исключение пробрасывается как есть).
 
-class OrderPlaced(DomainEvent):
-    __slots__ = ("order_id",)
-    def __init__(self, order_id):
-        self.order_id = order_id
+## Rust-ядро (`ferronit._core`)
 
-class Order(AggregateRoot):
-    def __init__(self, order_id):
-        super().__init__()
-        self.order_id = order_id
+Собирается maturin-ом из `ferronit-rs/` (крейт с `abi3-py312` — один wheel на
+все CPython 3.12+). Публичная поверхность: `FerronitApp`, `Request`, `Response`,
+`Router`. Стабы типов — `ferronit/_core.pyi`.
 
-    def place(self):
-        self.record(OrderPlaced(self.order_id))
-```
+| Задача | Реализация |
+|---|---|
+| Маршрутизация | radix-дерево `matchit` — O(1), без regex |
+| Разбор запроса | method/path/query/headers нативно |
+| JSON | `serde_json` + экранирование HTML-символов |
+| gzip | сжатие в Rust, q-факторы |
+| CORS | preflight и origin в Rust |
+| Multipart | нативный парсер form-data |
 
-Шины диспетчеризуют по конкретному типу сообщения:
+Подробно — [rust-core.md](rust-core.md).
 
-```python
-bus = CommandBus()
-bus.register(PlaceOrder, handle_place_order)     # sync- или async-хендлер
-result = await bus.dispatch(PlaceOrder("1", "u1"))
+## DDD, DI и гексагональная
 
-qb = QueryBus()
-qb.register(GetOrder, get_order)
-order = await qb.ask(GetOrder("1"))
-```
+Ferronit поставляет строительные блоки, чтобы доменная логика жила отдельно от
+HTTP и БД. Это опционально: минимальное приложение — один `@app.route`.
 
-Агрегаты буферизуют `DomainEvent` через `record()` и отдают их через
-`pull_events()`.
+- **`ferronit.ddd`** — `Command`/`Query`, `CommandBus`/`QueryBus` (диспетчеризация
+  по конкретному типу), `AggregateRoot` (буферизует `DomainEvent` через
+  `record()`/`pull_events()`), `DomainEvent`, `Repository`.
+- **`ferronit.hexagonal`** — `Port`/`Adapter`, стандартные порты (`Logger`,
+  `Cache`, `MessageBus`, `EventBus`), `UnitOfWork` (транзакционная граница
+  `async with uow.transaction()`), `ApplicationService`.
+- **DI** — `Container` с `singleton()`/`factory()`; factory резолвит зависимости
+  конструктора рекурсивно по type-аннотациям (PEP 563 обрабатывается). Несколько
+  экземпляров одного типа различаются через `Annotated[Pool, "shop"]`.
+- **Lifespan** — одна async-генераторная функция (`@app.lifespan`): ресурсы
+  (пул asyncpg и т.п.) создаются до `yield`, кладутся в `app.container`, на
+  shutdown закрываются.
+- **Binding** — параметры хендлера привязываются автоматически: path/query/
+  headers/`Request`, а DI-параметры pre-bind на старте. Подробно —
+  [binding.md](binding.md).
 
-## DI-контейнер
+Примеры и разбор — в [ddd.md](ddd.md) и [binding.md](binding.md).
 
-```python
-from ferronit import Ferronit
-from ferronit.di import Container
+## Слой данных — rawdb + rawmodel
 
-app = Ferronit(container=Container())
-app.container.singleton(Logger, PrintLogger())
-app.container.factory(UserRepository)     # создаётся лениво при первом get()
-```
+Единственный путь к PostgreSQL: тонкий `rawdb` на asyncpg + типизированные модели
+и query DSL `rawmodel`. Никакого ORM — явный SQL, bound-параметры, максимум
+throughput.
 
-`factory` разрешает зависимости конструктора по type-аннотациям рекурсивно
-через контейнер (строковые аннотации по PEP 563 обрабатываются). Несколько
-экземпляров одного типа различаются через `Annotated`:
+| Модуль | Что даёт |
+|---|---|
+| `contrib.rawdb` | `Pool`, `create_pool`, `RawUnitOfWork`, `RawRepository`, `Condition` — сырые dict-строки на asyncpg |
+| `contrib.rawmodel` | `Model` (неизменяемый `msgspec.Struct`), `Query`/`select`, `Relation`, `RawModelRepository`, `IdentityMap` |
 
-```python
-from typing import Annotated
-from ferronit.contrib.rawdb import Pool
+- `pool.uow(readonly=True)` для чтений — пропускает `BEGIN`, экономит round-trip.
+- `uow.model(User)` — типизированный доступ к строкам.
+- `RawModelRepository` маппит строку **позиционно** (`cls(*row)`) без словаря —
+  дешевле dict в ~1.85–1.9× (см. `bench/README.md`).
 
-ShopPool = Annotated[Pool, "shop"]
+Подробно — [data/overview.md](data/overview.md) и [data/rawdb.md](data/rawdb.md).
 
-class UserRepository:
-    def __init__(self, pool: ShopPool):
-        ...
-```
+## Contrib
 
-## Жизненный цикл
+Готовые модули поверх ядра: `cors`, `health`, `kafka` (MessageBus-адаптер),
+`llm` (LLM-порты/адаптеры), `ratelimit`, `security` (ASVS-совместимые проверки),
+`staticfiles`, `tracing` (`X-Trace-Id`), `vectordb` (векторные порты/адаптеры).
 
-`@app.lifespan` — одна async-генераторная функция: setup до `yield`, teardown
-после. Здесь создают ресурсы и кладут их в контейнер:
+## Конфигурация и CLI
 
-```python
-from ferronit.contrib.rawdb import create_pool
+- `EnvConfig(prefix="APP_")` — `get/int/bool/list` из переменных окружения.
+- CLI: `ferronit new <name>` (генерация DDD-проекта), `ferronit dev` (reload),
+  `ferronit run` (granian, fallback на uvicorn), `--workers N`.
 
-@app.lifespan
-async def lifespan():
-    pool = await create_pool(DSN, min_size=1, max_size=16)
-    app.container.singleton(ShopPool, pool)
-    yield
-    await pool.close()
-```
+## Ключевые решения (ADR-стиль)
 
-Пул создаётся в цикле событий сервера (asyncpg привязан к циклу), доступен
-хендлерам через `app.container`, на shutdown закрывается.
+| Решение | Причина |
+|---|---|
+| Горячий путь в Rust | radix-роутинг O(1), JSON/gzip/CORS/multipart без Python на запрос |
+| JSON в Rust | `serde_json` в `ferronit._core` (fallback / dataclass / парсинг) + msgspec C fast-path (dict/list/Struct и `JSONResponse`); stdlib `json` выпилен |
+| asyncpg + явный SQL | максимум throughput, предсказуемость, без ORM-накладных |
+| Позиционный маппинг rawmodel | `cls(*row)` дешевле dict-маппинга |
+| granian как сервер | ~4× быстрее uvicorn на этом фреймворке; uvicorn — fallback |
+| Pre-bind DI на старте | зависимости резолвятся один раз, а не на каждый запрос |
+| `abi3-py312` | один нативный wheel на все CPython 3.12+, цена ~1% throughput |
 
-## Конфигурация
+## Навигация по докам
 
-```python
-from ferronit.config import EnvConfig
-
-config = EnvConfig(prefix="APP_")
-db    = config.get("DATABASE_URL")
-port  = config.int("PORT", 8000)
-debug = config.bool("DEBUG")
-hosts = config.list("ALLOWED_HOSTS")       # через запятую
-```
-
-## CLI
-
-```bash
-ferronit new my_service         # сгенерировать DDD-проект
-ferronit dev                    # dev-сервер (uvicorn, reload)
-ferronit dev --server granian   # granian, reload
-ferronit run                    # продакшен (granian, fallback на uvicorn)
-ferronit run --workers 4
-```
-
-## Всё вместе
-
-`app.py` остаётся тонким адаптером над доменным и прикладным слоями:
-
-```python
-app = Ferronit()
-
-@app.route("/orders", methods=["POST"])
-async def create_order(req):
-    data = await req.json()
-    await command_bus.dispatch(PlaceOrder(data["order_id"], data["user_id"]))
-    return {"ok": True}, 201
-```
+| Тема | Док |
+|---|---|
+| Начало работы | [getting-started.md](getting-started.md) |
+| DDD, DI, гексагональная | [ddd.md](ddd.md) |
+| Маршрутизация и хендлеры | [routing.md](routing.md) |
+| Привязка параметров | [binding.md](binding.md) |
+| Request / Response | [requests.md](requests.md), [responses.md](responses.md) |
+| Middleware и contrib | [middleware.md](middleware.md) |
+| Rust-ядро | [rust-core.md](rust-core.md) |
+| Слой данных | [data/overview.md](data/overview.md), [data/rawdb.md](data/rawdb.md) |
+| OpenAPI | [openapi.md](openapi.md) |
+| WebSocket | [websocket.md](websocket.md) |
+| Безопасность (ASVS) | [security/](security/) |
+| Бенчмарки | [benchmarks.md](benchmarks.md) |

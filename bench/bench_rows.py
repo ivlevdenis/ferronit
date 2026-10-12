@@ -39,6 +39,7 @@ PING_REQUESTS = 10000
 RUNS = 2
 WRITE_REQUESTS = {1: 3000, 100: 800, 1000: 150}
 WRITE_APPS = ("ferronit-model", "blacksheep", "litestar-msgspec", "litestar-core", "blacksheep-core")
+RELATION_APPS = ("ferronit-model", "blacksheep", "litestar-msgspec")
 
 
 def bulk_body(op: str, n: int) -> str:
@@ -56,7 +57,7 @@ from typing import Annotated
 import msgspec
 from ferronit import Response, Ferronit
 from ferronit.contrib.rawdb import Pool, create_pool
-from ferronit.contrib.rawmodel import Model
+from ferronit.contrib.rawmodel import Model, Relation
 from ferronit.di import Container
 
 DSN = "postgresql://postgres:postgres@127.0.0.1:5432/postgres"
@@ -77,6 +78,19 @@ class BenchRow(Model):
     email: str = ""
 
 
+class BenchChild(Model):
+    __table__ = "bench_children"
+    id: int = 0
+    parent_id: int = 0
+    name: str = ""
+
+
+class BenchParent(Model):
+    __table__ = "bench_parents"
+    id: int = 0
+    children: Annotated[list[BenchChild], Relation("parent_id")] = []
+
+
 class BenchRepo:
     def __init__(self, pool: ShopPool):
         self._pool = pool
@@ -84,6 +98,10 @@ class BenchRepo:
     async def list_rows(self):
         async with self._pool.uow(readonly=True) as uow:
             return await uow.model(BenchRow).list(limit=ROWS)
+
+    async def list_parents(self):
+        async with self._pool.uow(readonly=True) as uow:
+            return await uow.model(BenchParent).list(limit=ROWS)
 
     async def bulk_insert(self, rows):
         placeholders = ", ".join(f"(${i * 2 + 1}, ${i * 2 + 2})" for i in range(len(rows)))
@@ -137,6 +155,13 @@ def _encode(row):
 async def rows(repo: BenchRepo):
     models = await repo.list_rows()
     body = msgspec.json.encode({"rows": models})
+    return Response(body, content_type="application/json")
+
+
+@app.route("/parents")
+async def parents(repo: BenchRepo):
+    models = await repo.list_parents()
+    body = msgspec.json.encode({"parents": models})
     return Response(body, content_type="application/json")
 
 
@@ -250,12 +275,27 @@ async def upsert_rows(request: Request) -> dict:
     return {"count": len(rows)}
 
 
+@get("/parents")
+async def parents() -> dict:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        records = await conn.fetch("SELECT id FROM bench_parents LIMIT $1", ROWS)
+        ids = [r["id"] for r in records]
+        children = await conn.fetch(
+            "SELECT id, parent_id, name FROM bench_children WHERE parent_id = ANY($1)", ids
+        )
+    grouped = {}
+    for c in children:
+        grouped.setdefault(c["parent_id"], []).append(dict(c))
+    return {"parents": [{"id": r["id"], "children": grouped.get(r["id"], [])} for r in records]}
+
+
 @get("/ping")
 async def ping() -> dict:
     return {"ok": True}
 
 
-app = Litestar(route_handlers=[rows, insert_rows, update_rows, upsert_rows, ping])
+app = Litestar(route_handlers=[rows, insert_rows, update_rows, upsert_rows, parents, ping])
 '''
 
 LITESTAR_ASYNCPG_APP = '''
@@ -391,6 +431,21 @@ async def upsert_rows(request: Request):
     async with pool.acquire() as conn:
         await conn.execute(sql, *params)
     return {"count": len(rows)}
+
+
+@app.router.get("/parents")
+async def parents():
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        records = await conn.fetch("SELECT id FROM bench_parents LIMIT $1", ROWS)
+        ids = [r["id"] for r in records]
+        children = await conn.fetch(
+            "SELECT id, parent_id, name FROM bench_children WHERE parent_id = ANY($1)", ids
+        )
+    grouped = {}
+    for c in children:
+        grouped.setdefault(c["parent_id"], []).append(dict(c))
+    return {"parents": [{"id": r["id"], "children": grouped.get(r["id"], [])} for r in records]}
 
 
 @app.router.get("/ping")
@@ -657,6 +712,22 @@ def seed() -> None:
                 "SELECT 'user_' || g, 'u' || g || '@example.com' "
                 "FROM generate_series(1, 1000) AS g"
             )
+            # связи: 1000 родителей × 3 ребёнка
+            await conn.execute("CREATE TABLE IF NOT EXISTS bench_parents (id serial PRIMARY KEY)")
+            await conn.execute(
+                "CREATE TABLE IF NOT EXISTS bench_children ("
+                "id serial PRIMARY KEY, parent_id int NOT NULL, name text NOT NULL)"
+            )
+            await conn.execute("TRUNCATE bench_parents RESTART IDENTITY CASCADE")
+            await conn.execute("TRUNCATE bench_children RESTART IDENTITY")
+            await conn.execute(
+                "INSERT INTO bench_parents (id) SELECT g FROM generate_series(1, 1000) AS g"
+            )
+            await conn.execute(
+                "INSERT INTO bench_children (parent_id, name) "
+                "SELECT p.id, 'c' || ((p.id - 1) * 3 + c) "
+                "FROM bench_parents p CROSS JOIN generate_series(1, 3) AS c"
+            )
         finally:
             await conn.close()
 
@@ -788,6 +859,33 @@ def run_writes() -> None:
             print(f"       {rows:>6} | {cells}")
 
 
+def run_relations() -> None:
+    """Замеры связей: GET /parents (N родителей × 3 ребёнка) на 1/100/1000."""
+    print("\nСвязи (GET /parents, N родителей × 3 ребёнка, ab -c 50 -k, req/s):")
+    header = f"{'родителей':>9} | " + " | ".join(f"{name:>17}" for name in RELATION_APPS)
+    print(header)
+    print("-" * len(header))
+    for rows in ROWS_LIST:
+        procs = {name: start(name, PORTS[name], rows) for name in RELATION_APPS}
+        try:
+            for name in RELATION_APPS:
+                wait_ready(PORTS[name])
+            for name in RELATION_APPS:
+                ab_reqs(PORTS[name], "/parents", 100)
+            best = {name: 0.0 for name in RELATION_APPS}
+            for _ in range(RUNS):
+                for name in RELATION_APPS:
+                    rps = ab_reqs(PORTS[name], "/parents", REQUESTS)
+                    best[name] = max(best[name], rps)
+        finally:
+            for proc in procs.values():
+                proc.terminate()
+            for proc in procs.values():
+                proc.wait()
+        cells = " | ".join(f"{best[name]:>17,.0f}" for name in RELATION_APPS)
+        print(f"{rows:>9} | {cells}")
+
+
 def main() -> None:
     seed()
     names = list(PORTS)
@@ -808,6 +906,7 @@ def main() -> None:
         print(f"  {name:22s} {pings[ROWS_LIST[0]][name]:>12,.0f}")
 
     run_writes()
+    run_relations()
 
 
 if __name__ == "__main__":

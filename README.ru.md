@@ -7,6 +7,9 @@
 [![License](https://img.shields.io/pypi/l/ferronit)](LICENSE)
 [![GitHub stars](https://img.shields.io/github/stars/ivlevdenis/ferronit)](https://github.com/ivlevdenis/ferronit/stargazers)
 
+> ⚠️ **Ранняя разработка — код не готов к продакшен.** API и внутренности ещё
+> меняются, используйте на свой страх и риск.
+
 Быстрая замена легаси-кода, который не тянет нагрузку: маршрутизация, разбор запроса,
 JSON, gzip, CORS и PostgreSQL уходят в Rust-ядро, а ваши хендлеры остаются обычным Python.
 Миграция, а не переписывание.

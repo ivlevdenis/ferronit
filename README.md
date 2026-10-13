@@ -7,6 +7,9 @@
 [![License](https://img.shields.io/pypi/l/ferronit)](LICENSE)
 [![GitHub stars](https://img.shields.io/github/stars/ivlevdenis/ferronit)](https://github.com/ivlevdenis/ferronit/stargazers)
 
+> ⚠️ **Early development — not production-ready.** The API and internals are still
+> changing; use at your own risk.
+
 Your legacy Python service is hitting its performance ceiling. Ferronit moves the hot path —
 routing, request parsing, JSON, gzip, CORS, PostgreSQL — into a Rust core, while your handlers
 stay plain Python. A migration, not a rewrite.

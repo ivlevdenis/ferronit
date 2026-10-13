@@ -1,6 +1,13 @@
+import json
+
 from django.http import JsonResponse
 
 from .models import BenchRow
+
+
+def _body(request):
+    """Тело запроса как dict — одинаковый с другими фреймворками разбор JSON."""
+    return json.loads(request.body or b"{}")
 
 
 def ping(request):
@@ -10,7 +17,8 @@ def ping(request):
 def rows(request):
     """GET /rows?limit=N — список; POST /rows — INSERT одной строки."""
     if request.method == "POST":
-        row = BenchRow.objects.create(name="bench", email="bench@example.com")
+        data = _body(request)
+        row = BenchRow.objects.create(name=data["name"], email=data["email"])
         return JsonResponse({"id": row.id})
     limit = int(request.GET.get("limit", "100"))
     data = list(BenchRow.objects.all()[:limit].values("id", "name", "email"))
@@ -22,14 +30,16 @@ def rows_item(request, row_id):
     if request.method == "DELETE":
         BenchRow.objects.filter(id=row_id).delete()
         return JsonResponse({"ok": True})
+    data = _body(request)
     updated = BenchRow.objects.filter(id=row_id).update(
-        name="bench", email="bench@example.com"
+        name=data["name"], email=data["email"]
     )
     return JsonResponse({"id": row_id if updated else None})
 
 
 def upsert(request):
+    data = _body(request)
     row, _ = BenchRow.objects.update_or_create(
-        id=1, defaults={"name": "bench", "email": "bench@example.com"}
+        id=data["id"], defaults={"name": data["name"], "email": data["email"]}
     )
     return JsonResponse({"id": row.id})

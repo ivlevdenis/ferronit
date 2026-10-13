@@ -59,17 +59,19 @@ if _BENCH_APPS:
 
 
 FERRONIT_APP = '''\
-import msgspec
 from typing import Annotated
 
 from ferronit import Ferronit
 from ferronit.contrib.rawdb import Pool, create_pool
-from ferronit.contrib.rawmodel import Model
+from ferronit.contrib.rawmodel import Mapper, Model, Repository
+from ferronit.ddd import AggregateRoot, Command, CommandBus, Query, QueryBus
 from ferronit.di import Container
 
 DSN = "postgresql://postgres:postgres@127.0.0.1:5432/postgres"
 ShopPool = Annotated[Pool, "shop"]
 
+
+# ── Модель чтения: строка таблицы, отдаётся в ответ без сборки агрегата ──
 
 class BenchRow(Model):
     __table__ = "bench_rows"
@@ -78,73 +80,196 @@ class BenchRow(Model):
     email: str = ""
 
 
-class Repo:
-    def __init__(self, pool: ShopPool):
-        self._pool = pool
+# ── Агрегат: запись идёт только через него ────────────────────────────
 
-    async def list(self, limit: int):
-        async with self._pool.uow(readonly=True) as uow:
+class Row(AggregateRoot):
+    def __init__(self, row_id: int, name: str, email: str):
+        super().__init__()
+        self.id = row_id
+        self.name = name
+        self.email = email
+
+    @classmethod
+    def new(cls, name: str, email: str) -> "Row":
+        return cls(0, name, email)
+
+    def rename(self, name: str, email: str) -> None:
+        self.name = name
+        self.email = email
+
+
+class RowMapper(Mapper[Row, BenchRow]):
+    """Перевод «агрегат ↔ модель чтения»."""
+
+    def to_aggregate(self, model: BenchRow) -> Row:
+        return Row(model.id, model.name, model.email)
+
+    def from_aggregate(self, aggregate: Row) -> BenchRow:
+        return BenchRow(id=aggregate.id, name=aggregate.name, email=aggregate.email)
+
+
+class RowsRepository(Repository[Row, BenchRow, RowMapper, ShopPool]):
+    """Репозиторий агрегата Row на базе Repository фреймворка.
+
+    Запись — агрегатом (insert/update/upsert/delete), чтение — моделью чтения
+    (read возвращает BenchRow, без сборки агрегатов: у замеров чтения своя цена).
+    Базовые save (upsert), delete и get наследуются; INSERT без pk добавлен,
+    потому что он идёт через базовый RawModelRepository юнита работы.
+    """
+
+    async def insert(self, name: str, email: str) -> Row:
+        async with self.uow() as uow:
+            saved = await uow.model(BenchRow).save(BenchRow(name=name, email=email))
+        return self._mapper.to_aggregate(saved)
+
+    async def update(self, row_id: int, name: str, email: str) -> Row | None:
+        async with self.uow() as uow:
+            saved = await uow.model(BenchRow).update(row_id, {"name": name, "email": email})
+        return self._mapper.to_aggregate(saved) if saved is not None else None
+
+    async def read(self, limit: int) -> list[BenchRow]:
+        """Путь чтения: строки из модели чтения, агрегаты не собираются."""
+        async with self.uow(readonly=True) as uow:
             return await uow.model(BenchRow).list(limit=limit)
 
-    async def insert(self, name: str, email: str):
-        async with self._pool.uow() as uow:
-            return await uow.model(BenchRow).save(BenchRow(name=name, email=email))
 
-    async def update(self, row_id: int, name: str, email: str):
-        async with self._pool.uow() as uow:
-            return await uow.model(BenchRow).update(row_id, {"name": name, "email": email})
+# ── CQRS: команды (запись) и запросы (чтение) ─────────────────────────
 
-    async def delete(self, row_id: int):
-        async with self._pool.uow() as uow:
-            await uow.model(BenchRow).delete(row_id)
+class InsertRow(Command):
+    __slots__ = ("email", "name")
 
-    async def upsert(self, row_id: int, name: str, email: str):
-        async with self._pool.uow() as uow:
-            return await uow.model(BenchRow).upsert(BenchRow(id=row_id, name=name, email=email))
+    def __init__(self, name: str, email: str):
+        self.name = name
+        self.email = email
 
+
+class UpdateRow(Command):
+    __slots__ = ("email", "name", "row_id")
+
+    def __init__(self, row_id: int, name: str, email: str):
+        self.row_id = row_id
+        self.name = name
+        self.email = email
+
+
+class UpsertRow(Command):
+    __slots__ = ("email", "name", "row_id")
+
+    def __init__(self, row_id: int, name: str, email: str):
+        self.row_id = row_id
+        self.name = name
+        self.email = email
+
+
+class DeleteRow(Command):
+    __slots__ = ("row_id",)
+
+    def __init__(self, row_id: int):
+        self.row_id = row_id
+
+
+class ListRows(Query):
+    __slots__ = ("limit",)
+
+    def __init__(self, limit: int):
+        self.limit = limit
+
+
+class InsertRowHandler:
+    def __init__(self, rows: RowsRepository):
+        self._rows = rows
+
+    async def __call__(self, cmd: InsertRow):
+        return await self._rows.insert(cmd.name, cmd.email)
+
+
+class UpdateRowHandler:
+    def __init__(self, rows: RowsRepository):
+        self._rows = rows
+
+    async def __call__(self, cmd: UpdateRow):
+        return await self._rows.update(cmd.row_id, cmd.name, cmd.email)
+
+
+class UpsertRowHandler:
+    def __init__(self, rows: RowsRepository):
+        self._rows = rows
+
+    async def __call__(self, cmd: UpsertRow):
+        return await self._rows.save(Row(cmd.row_id, cmd.name, cmd.email))
+
+
+class DeleteRowHandler:
+    def __init__(self, rows: RowsRepository):
+        self._rows = rows
+
+    async def __call__(self, cmd: DeleteRow):
+        await self._rows.delete(cmd.row_id)
+
+
+class ListRowsHandler:
+    def __init__(self, rows: RowsRepository):
+        self._rows = rows
+
+    async def __call__(self, query: ListRows) -> list[BenchRow]:
+        return await self._rows.read(query.limit)
+
+
+# ── DI: ключи (включая шины) регистрируются ДО объявления маршрутов ──
 
 container = Container()
 app = Ferronit(container=container)
-container.factory(Repo)
+
+COMMANDS = CommandBus()
+QUERIES = QueryBus()
+container.factory(RowsRepository)
+container.singleton(CommandBus, COMMANDS)
+container.singleton(QueryBus, QUERIES)
 
 
 @app.lifespan
 async def lifespan():
     pool = await create_pool(DSN, min_size=1, max_size=16)
     container.singleton(ShopPool, pool)
+    rows = container.get(RowsRepository)
+    COMMANDS.register(InsertRow, InsertRowHandler(rows))
+    COMMANDS.register(UpdateRow, UpdateRowHandler(rows))
+    COMMANDS.register(UpsertRow, UpsertRowHandler(rows))
+    COMMANDS.register(DeleteRow, DeleteRowHandler(rows))
+    QUERIES.register(ListRows, ListRowsHandler(rows))
     yield
     await pool.close()
 
 
 @app.route("/rows")
-async def rows(repo: Repo, limit: int = 100):
-    return {"rows": await repo.list(limit)}
+async def rows(queries: QueryBus, limit: int = 100):
+    return {"rows": await queries.ask(ListRows(limit))}
 
 
 @app.route("/rows", methods=["POST"])
-async def insert(req, repo: Repo):
+async def insert(req, commands: CommandBus):
     body = await req.json()
-    row = await repo.insert(body["name"], body["email"])
+    row = await commands.dispatch(InsertRow(body["name"], body["email"]))
     return {"id": row.id}
 
 
 @app.route("/rows/{row_id}", methods=["PUT"])
-async def update(req, repo: Repo, row_id: int):
+async def update(req, row_id: int, commands: CommandBus):
     body = await req.json()
-    row = await repo.update(row_id, body["name"], body["email"])
+    row = await commands.dispatch(UpdateRow(row_id, body["name"], body["email"]))
     return {"id": row.id if row is not None else None}
 
 
 @app.route("/rows/{row_id}", methods=["DELETE"])
-async def delete(req, repo: Repo, row_id: int):
-    await repo.delete(row_id)
+async def delete(row_id: int, commands: CommandBus):
+    await commands.dispatch(DeleteRow(row_id))
     return {"ok": True}
 
 
 @app.route("/rows/upsert", methods=["POST"])
-async def upsert(req, repo: Repo):
+async def upsert(req, commands: CommandBus):
     body = await req.json()
-    row = await repo.upsert(body["id"], body["name"], body["email"])
+    row = await commands.dispatch(UpsertRow(body["id"], body["name"], body["email"]))
     return {"id": row.id}
 
 
@@ -331,7 +456,7 @@ app = Litestar(route_handlers=[rows, insert, update, delete, upsert, ping])
 
 
 FASTAPI_APP = '''\
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, Request
 from sqlalchemy import Column, Integer, String, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
@@ -365,10 +490,10 @@ async def rows(limit: int = Query(100)):
 
 
 @app.post("/rows")
-async def insert():
-    # FastAPI-body не нужен для бенча: вставляем фиксированную строку.
+async def insert(request: Request):
+    data = await request.json()
     async with factory() as session:
-        row = BenchRow(name="bench", email="bench@example.com")
+        row = BenchRow(name=data["name"], email=data["email"])
         session.add(row)
         await session.commit()
         await session.refresh(row)
@@ -376,14 +501,15 @@ async def insert():
 
 
 @app.put("/rows/{row_id}")
-async def update(row_id: int):
+async def update(row_id: int, request: Request):
+    data = await request.json()
     async with factory() as session:
         result = await session.execute(select(BenchRow).where(BenchRow.id == row_id))
         row = result.scalars().first()
         if row is None:
             return {"id": None}
-        row.name = "bench"
-        row.email = "bench@example.com"
+        row.name = data["name"]
+        row.email = data["email"]
         await session.commit()
         return {"id": row.id}
 
@@ -400,10 +526,11 @@ async def delete(row_id: int):
 
 
 @app.post("/rows/upsert")
-async def upsert():
+async def upsert(request: Request):
     from sqlalchemy.dialects.postgresql import insert as pg_insert
+    data = await request.json()
     async with factory() as session:
-        stmt = pg_insert(BenchRow).values(id=1, name="bench", email="bench@example.com")
+        stmt = pg_insert(BenchRow).values(id=data["id"], name=data["name"], email=data["email"])
         stmt = stmt.on_conflict_do_update(
             index_elements=[BenchRow.id],
             set_={"name": stmt.excluded.name, "email": stmt.excluded.email},

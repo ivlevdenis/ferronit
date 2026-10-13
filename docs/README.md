@@ -27,4 +27,10 @@ Ferronit — быстрая замена легаси Python-сервисов, �
 
 ## Справочно
 - [Бенчмарки](benchmarks.md) — измеренные цифры и методика
+- [Ferronit и Django](vs-django.md) — один сервис в трёх реализациях: код, что даёт Django из коробки, цена в строках и req/s
+- [Ferronit и FastAPI](vs-fastapi.md) — тот же сервис на FastAPI (pydantic vs стенд): валидация, схема, цена в строках и req/s
+- [Ferronit и BlackSheep](vs-blacksheep.md) — ближайший конкурент: DI и bindings, паритет на ping и разница на строках
+- [Ferronit и Litestar](vs-litestar.md) — msgspec-модели и DI у обоих: разрыв ×2.4 на ping и паритет на чтениях
+- [Ferronit и Tornado](vs-tornado.md) — не ASGI, свой pure-Python сервер: ×10 на ping (в основном сервер), ×1.4–2 на строках
+- [Ferronit и Twisted](vs-twisted.md) — reactor + asyncio-мост: тот же вывод про сервер и слой данных
 - [ASVS Level 1](security/ASVS.md) — карта соответствия OWASP ASVS 5.0

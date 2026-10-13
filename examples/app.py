@@ -55,12 +55,11 @@ app = Ferronit(debug=True, container=container)
 
 # ── Домен (без SQL) ────────────────────────────────────────────────────
 
-class CartItem:
-    def __init__(self, product_id: str, name: str, price: float, qty: int):
-        self.product_id = product_id
-        self.name = name
-        self.price = price
-        self.qty = qty
+class CartItem(msgspec.Struct):
+    product_id: str
+    name: str = "Unknown"
+    price: float = 0.0
+    qty: int = 1
 
 
 class OrderPlaced(DomainEvent):
@@ -155,18 +154,12 @@ class OrderRepository(Repository[Order, OrderModel, OrderMapper, ShopPool]):
 # ── CQRS: команды (запись) ────────────────────────────────────────────
 
 class PlaceOrder(Command):
-    __slots__ = ("items", "user_id")
-
-    def __init__(self, user_id: str, items: list[CartItem]):
-        self.user_id = user_id
-        self.items = items
+    user_id: str
+    items: list[CartItem]
 
 
 class CancelOrder(Command):
-    __slots__ = ("order_id",)
-
-    def __init__(self, order_id: str):
-        self.order_id = order_id
+    order_id: str
 
 
 class PlaceOrderHandler:
@@ -203,17 +196,11 @@ class CancelOrderHandler:
 # ── CQRS: запросы (чтение) ────────────────────────────────────────────
 
 class GetOrder(Query):
-    __slots__ = ("order_id",)
-
-    def __init__(self, order_id: str):
-        self.order_id = order_id
+    order_id: str
 
 
 class ListUserOrders(Query):
-    __slots__ = ("user_id",)
-
-    def __init__(self, user_id: str):
-        self.user_id = user_id
+    user_id: str
 
 
 class GetOrderHandler:

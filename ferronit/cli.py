@@ -38,17 +38,13 @@ from infrastructure.db import OrderRepo
 
 
 class CreateOrderCmd(Command):
-    __slots__ = ("order_id", "user_id", "amount")
-    def __init__(self, order_id: str, user_id: str, amount: int):
-        self.order_id = order_id
-        self.user_id = user_id
-        self.amount = amount
+    order_id: str
+    user_id: str
+    amount: int
 
 
 class GetOrderQ(Query):
-    __slots__ = ("order_id",)
-    def __init__(self, order_id: str):
-        self.order_id = order_id
+    order_id: str
 
 
 class OrderService:

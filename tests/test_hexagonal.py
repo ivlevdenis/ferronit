@@ -53,10 +53,8 @@ class InMemoryUoW(UnitOfWork):
 # ── Application ───────────────────────────────────────────────────────
 
 class CreateOrderCmd(Command):
-    __slots__ = ("amount", "order_id")
-    def __init__(self, oid: str, amount: int):
-        self.order_id = oid
-        self.amount = amount
+    order_id: str
+    amount: int
 
 
 class OrderService(ApplicationService):

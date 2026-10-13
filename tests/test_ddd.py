@@ -1,5 +1,6 @@
 """DDD integration tests — full command/query/aggregate lifecycle."""
 
+import msgspec
 import pytest
 from httpx import ASGITransport, AsyncClient
 
@@ -31,16 +32,12 @@ class User(AggregateRoot):
 # ── Commands / Queries ────────────────────────────────────────────────
 
 class CreateUser(Command):
-    __slots__ = ("name", "user_id")
-    def __init__(self, user_id: str, name: str):
-        self.user_id = user_id
-        self.name = name
+    user_id: str
+    name: str
 
 
 class GetUser(Query):
-    __slots__ = ("user_id",)
-    def __init__(self, user_id: str):
-        self.user_id = user_id
+    user_id: str
 
 
 # ── Repository ─────────────────────────────────────────────────────────
@@ -97,6 +94,29 @@ async def test_ddd_full_cycle():
     assert result == {"id": "1", "name": "Denis"}
 
     assert await query_bus.ask(GetUser("99")) is None
+
+
+def test_commands_and_queries_are_serialisable():
+    """Команда и запрос — msgspec.Struct: гоняются через внешнюю шину, а не только in-process."""
+    raw = msgspec.json.encode(CreateUser("1", "Denis"))
+    assert raw == b'{"user_id":"1","name":"Denis"}'
+    assert msgspec.json.decode(raw, type=CreateUser) == CreateUser("1", "Denis")
+
+    qraw = msgspec.json.encode(GetUser("7"))
+    assert msgspec.json.decode(qraw, type=GetUser) == GetUser("7")
+
+
+@pytest.mark.asyncio
+async def test_deserialised_command_reaches_the_bus():
+    """Команда, пришедшая из внешней шины, диспетчеризуется той же шиной."""
+    repo = InMemoryUserRepo()
+    cmd_bus = CommandBus()
+    cmd_bus.register(CreateUser, CreateUserHandler(repo))
+
+    from_wire = msgspec.json.decode(msgspec.json.encode(CreateUser("5", "Ann")), type=CreateUser)
+    assert await cmd_bus.dispatch(from_wire) == "5"
+    saved = await repo.get("5")
+    assert saved is not None and saved.name == "Ann"
 
 
 @pytest.mark.asyncio

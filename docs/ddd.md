@@ -50,10 +50,8 @@ from ferronit.ddd import (
 
 ```python
 class PlaceOrder(Command):
-    __slots__ = ("order_id", "user_id")
-    def __init__(self, order_id, user_id):
-        self.order_id = order_id
-        self.user_id = user_id
+    order_id: str
+    user_id: str
 
 class OrderPlaced(DomainEvent):
     __slots__ = ("order_id",)
@@ -68,6 +66,20 @@ class Order(AggregateRoot):
     def place(self):
         self.record(OrderPlaced(self.order_id))
 ```
+
+`Command` и `Query` — не просто маркеры, а `msgspec.Struct`, поэтому сообщение
+сериализуемо и его можно отправить во **внешнюю** шину, а не только в
+in-process `CommandBus`:
+
+```python
+import msgspec
+
+raw = msgspec.json.encode(PlaceOrder("1", "u1"))          # b'{"order_id":"1","user_id":"u1"}'
+cmd = msgspec.json.decode(raw, type=PlaceOrder)           # обратно в команду
+```
+
+Свои поля объявляй аннотациями: `__init__` и `__slots__` msgspec в `Struct`
+не разрешает.
 
 Шины диспетчеризуют по конкретному типу сообщения:
 

@@ -6,6 +6,8 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable
 from typing import Any
 
+import msgspec
+
 __all__ = [
     "AggregateRoot",
     "Command",
@@ -19,14 +21,21 @@ __all__ = [
 
 # ── Messages ──────────────────────────────────────────────────────────
 
-class Command:
-    """Marker for command objects (write operations)."""
-    __slots__ = ()
+class Command(msgspec.Struct):
+    """Marker for command objects (write operations).
+
+    Это ``msgspec.Struct``, а не обычный класс: команду можно сериализовать
+    (``msgspec.json.encode``) и отправить во внешнюю шину, а не только в
+    in-process :class:`CommandBus`. Свои поля объявляй аннотациями, ``__init__``
+    и ``__slots__`` msgspec не разрешает.
+    """
 
 
-class Query:
-    """Marker for query objects (read operations)."""
-    __slots__ = ()
+class Query(msgspec.Struct):
+    """Marker for query objects (read operations).
+
+    Как и :class:`Command` — ``msgspec.Struct``, поэтому запрос сериализуем.
+    """
 
 
 # ── Bus ───────────────────────────────────────────────────────────────

@@ -44,19 +44,21 @@ ferronit run --workers 4              # прод: granian, fallback uvicorn
 
 ## Почему быстро
 
-Маршрутизация — Rust `matchit`, фактически O(1): Ferronit не деградирует с ростом
-числа маршрутов, FastAPI теряет до 4× внутри одной таблицы. Методика — только
-`ab` (C-клиент); полный разбор — [`docs/benchmarks.md`](docs/benchmarks.md).
+Маршрутизация — Rust `matchit`, фактически O(1). На чтении из БД Ferronit обходит
+конкурентов позиционным маппингом `rawmodel` + `msgspec`. Методика — только `ab`
+(C-клиент), granian, 1 воркер; полный разбор — [`docs/benchmarks.md`](docs/benchmarks.md).
 
-| Сценарий | Ferronit | FastAPI | Разрыв |
+| Сценарий | Ferronit | BlackSheep | FastAPI |
 |---|---|---|---|
-| uvicorn, 1000 маршрутов | 20 216 req/s | 2 817 req/s | ×7.2 |
-| granian, 1000 маршрутов | 94 873 req/s | 3 416 req/s | **×27.8** |
+| GET /ping (dict) | 98 197 req/s | 93 523 req/s | 19 036 req/s |
+| GET /rows?limit=100 | 8 350 req/s | 8 065 req/s | 956 req/s |
+| GET /rows?limit=1000 | 2 334 req/s | 1 780 req/s | 158 req/s |
 
 ## Слой данных
 
-Три варианта под разные задачи — от «запрос → JSON целиком в Rust» до
-полноценного ORM. Какой выбрать: [`docs/data/overview.md`](docs/data/overview.md).
+Один тонкий слой поверх asyncpg — `rawdb` + `rawmodel`: декларативные модели,
+query DSL (`select`), связи, Unit of Work — без ORM. Подробнее:
+[`docs/data/overview.md`](docs/data/overview.md).
 
 ## Разработка
 
@@ -64,7 +66,7 @@ ferronit run --workers 4              # прод: granian, fallback uvicorn
 poetry install --all-extras             # окружение в .venv + все зависимости
 PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 poetry run maturin develop --release   # Rust-ядро
 ./scripts/check.sh                      # линт → типы → докстринги → сборка ядра → тесты
-poetry run pytest tests/ -q             # 263 теста
+poetry run pytest tests/ -q             # 265 тестов
 ```
 
 Окружение ведёт Poetry (`poetry.toml` — venv внутри проекта), wheel с Rust-ядром собирает

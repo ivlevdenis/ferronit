@@ -45,19 +45,22 @@ ferronit run --workers 4              # production: granian, uvicorn fallback
 
 ## Why it is fast
 
-Routing is Rust `matchit`, effectively O(1): Ferronit does not degrade as the number of
-routes grows, while FastAPI loses up to 4× inside a single routing table. Methodology —
-`ab` (C client) only; the full analysis is in [`docs/benchmarks.md`](docs/benchmarks.md).
+Routing is Rust `matchit`, effectively O(1). On database reads Ferronit beats the
+competition with positional row-mapping (`rawmodel`) + `msgspec`. Methodology — `ab`
+(C client) only, granian, 1 worker; full breakdown in
+[`docs/benchmarks.md`](docs/benchmarks.md).
 
-| Scenario | Ferronit | FastAPI | Gap |
+| Scenario | Ferronit | BlackSheep | FastAPI |
 |---|---|---|---|
-| uvicorn, 1000 routes | 20 216 req/s | 2 817 req/s | ×7.2 |
-| granian, 1000 routes | 94 873 req/s | 3 416 req/s | **×27.8** |
+| GET /ping (dict) | 98 197 req/s | 93 523 req/s | 19 036 req/s |
+| GET /rows?limit=100 | 8 350 req/s | 8 065 req/s | 956 req/s |
+| GET /rows?limit=1000 | 2 334 req/s | 1 780 req/s | 158 req/s |
 
 ## Data layer
 
-Three options for different jobs — from "request → whole JSON response in Rust" to a
-full ORM. Which one to pick: [`docs/data/overview.md`](docs/data/overview.md).
+One thin layer over asyncpg — `rawdb` + `rawmodel`: declarative models, a query DSL
+(`select`), relations, a Unit of Work — no ORM. Details:
+[`docs/data/overview.md`](docs/data/overview.md).
 
 ## Development
 
@@ -65,7 +68,7 @@ full ORM. Which one to pick: [`docs/data/overview.md`](docs/data/overview.md).
 poetry install --all-extras             # environment in .venv + all dependencies
 PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 poetry run maturin develop --release   # build the Rust core
 ./scripts/check.sh                      # lint → types → docstrings → core build → tests
-poetry run pytest tests/ -q             # 263 tests
+poetry run pytest tests/ -q             # 265 tests
 ```
 
 Poetry manages the environment (`poetry.toml` keeps the venv inside the project), while the

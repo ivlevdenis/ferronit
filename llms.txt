@@ -21,7 +21,7 @@
 
 - Приложение: `ferronit.Ferronit` (`@app.route`, `@app.websocket`, `app.use`, `app.mount`, `@app.lifespan`, `app.container`)
 - Запрос/ответ: `ferronit.Request`, `ferronit.Response`, `ferronit.JSONResponse`, `ferronit.StreamingResponse`, `ferronit.TextResponse`
-- DDD: `ferronit.ddd` — `AggregateRoot`, `Command`, `Query`, `CommandBus`, `QueryBus`, `Repository`
+- DDD: `ferronit.ddd` — `AggregateRoot`, `Command`, `Query` (оба `msgspec.Struct`, то есть сериализуемы), `CommandBus`, `QueryBus`, `Repository`
 - Порты и адаптеры: `ferronit.hexagonal` — `Port`, `Adapter`, `UnitOfWork`, `ApplicationService`, `Logger`, `Cache`, `MessageBus`, `EventBus`
 - DI: `ferronit.di.Container` (singleton/factory/get/has); привязка параметров — `ferronit.binding`; конфиг: `ferronit.config.EnvConfig`
 - БД: `ferronit.contrib.rawdb` + `rawmodel` (asyncpg без ORM) — `Pool`, `create_pool`, `RawUnitOfWork`, `Model`, `Relation`, query DSL
@@ -36,7 +36,7 @@
 poetry run pytest tests/ -q
 poetry run ferronit dev --server granian
 poetry run ferronit run --workers 4
-docker build -t ferronit:0.16.0 . && ./scripts/docker_smoke.sh
+docker build -t ferronit:0.17.0 . && ./scripts/docker_smoke.sh
 ```
 
 ## Optional

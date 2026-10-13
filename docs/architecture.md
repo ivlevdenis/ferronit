@@ -137,7 +137,8 @@ Ferronit — высокопроизводительный ASGI-фреймвор�
 Ferronit поставляет строительные блоки, чтобы доменная логика жила отдельно от
 HTTP и БД. Это опционально: минимальное приложение — один `@app.route`.
 
-- **`ferronit.ddd`** — `Command`/`Query`, `CommandBus`/`QueryBus` (диспетчеризация
+- **`ferronit.ddd`** — `Command`/`Query` (оба `msgspec.Struct`, поэтому сообщения
+  сериализуемы и годятся для внешней шины), `CommandBus`/`QueryBus` (диспетчеризация
   по конкретному типу), `AggregateRoot` (буферизует `DomainEvent` через
   `record()`/`pull_events()`), `DomainEvent`, `Repository`.
 - **`ferronit.hexagonal`** — `Port`/`Adapter`, стандартные порты (`Logger`,

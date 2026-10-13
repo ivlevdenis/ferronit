@@ -9,7 +9,7 @@ Ferronit — высокопроизводительный Python ASGI-фрейм
 написан на Rust: **роутинг, парсинг запроса, JSON-сериализация, gzip и CORS**. Бизнес-логика
 остаётся обычным Python: DDD / CQRS, hexagonal (порты и адаптеры), DI-контейнер.
 
-Версия 0.16.0, требуется Python ≥ 3.12. Скорость: 97 365 req/s на granian/1000 маршрутов
+Версия 0.17.0, требуется Python ≥ 3.12. Скорость: 97 365 req/s на granian/1000 маршрутов
 (×1.1 к BlackSheep — основному конкуренту, ×31 к FastAPI), полный hot path ~10 мкс на запрос.
 
 Репозиторий — **один дистрибутив** `ferronit` (maturin mixed):
@@ -102,7 +102,7 @@ poetry run ferronit dev --server granian   # dev-сервер с reload
 poetry run ferronit run --workers 4        # прод: Granian, fallback uvicorn
 
 # docker
-docker build -t ferronit:0.16.0 . && ./scripts/docker_smoke.sh
+docker build -t ferronit:0.17.0 . && ./scripts/docker_smoke.sh
 ```
 
 Тесты Postgres (`tests/test_postgres_real.py`, 4 шт.) требуют контейнер на :5432:
@@ -144,6 +144,10 @@ docker run -d --name ferronit-pg -e POSTGRES_PASSWORD=postgres -e POSTGRES_USER=
     `poetry run maturin develop --release`. `poetry.lock` в репозитории — при правке
     зависимостей обновляй `poetry lock`, не удаляй файл. Проект Poetry не ставит
     (`package-mode = false`), потому что сборка нативная.
+14. **`Command` и `Query` — `msgspec.Struct`**: свои поля объявляются аннотациями, `__init__` и
+    `__slots__` msgspec запрещает (`Struct types cannot define __init__`). Сообщение сериализуемо
+    (`msgspec.json.encode/decode`) — команду можно отправить во внешнюю шину, а не только в
+    in-process `CommandBus`.
 
 ## Стиль кода
 

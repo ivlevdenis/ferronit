@@ -61,7 +61,9 @@ if _BENCH_APPS:
 FERRONIT_APP = '''\
 from typing import Annotated
 
-from ferronit import Ferronit
+import msgspec
+
+from ferronit import Body, Ferronit
 from ferronit.contrib.rawdb import Pool, create_pool
 from ferronit.contrib.rawmodel import Mapper, Model, Repository
 from ferronit.ddd import AggregateRoot, Command, CommandBus, Query, QueryBus
@@ -71,7 +73,7 @@ DSN = "postgresql://postgres:postgres@127.0.0.1:5432/postgres"
 ShopPool = Annotated[Pool, "shop"]
 
 
-# ── Модель чтения: строка таблицы, отдаётся в ответ без сборки агрегата ──
+# ── Модель чтения: строка таблицы ─────────────────────────────────────
 
 class BenchRow(Model):
     __table__ = "bench_rows"
@@ -80,7 +82,20 @@ class BenchRow(Model):
     email: str = ""
 
 
-# ── Агрегат: запись идёт только через него ────────────────────────────
+# ── Модели тела запроса ───────────────────────────────────────────────
+
+class InsertBody(msgspec.Struct):
+    name: str
+    email: str
+
+
+class UpsertBody(msgspec.Struct):
+    id: int
+    name: str
+    email: str
+
+
+# ── Агрегат: запись и чтение идут только через него ───────────────────
 
 class Row(AggregateRoot):
     def __init__(self, row_id: int, name: str, email: str):
@@ -99,7 +114,7 @@ class Row(AggregateRoot):
 
 
 class RowMapper(Mapper[Row, BenchRow]):
-    """Перевод «агрегат ↔ модель чтения»."""
+    """Перевод «агрегат ↔ модель чтения» в обе стороны."""
 
     def to_aggregate(self, model: BenchRow) -> Row:
         return Row(model.id, model.name, model.email)
@@ -111,9 +126,9 @@ class RowMapper(Mapper[Row, BenchRow]):
 class RowsRepository(Repository[Row, BenchRow, RowMapper, ShopPool]):
     """Репозиторий агрегата Row на базе Repository фреймворка.
 
-    Запись — агрегатом (insert/update/upsert/delete), чтение — моделью чтения
-    (read возвращает BenchRow, без сборки агрегатов: у замеров чтения своя цена).
-    Базовые save (upsert), delete и get наследуются; INSERT без pk добавлен,
+    Запись — агрегатом (insert/update/upsert/delete), чтение — базовым list(),
+    который собирает агрегаты через RowMapper.to_aggregate; в ответ они
+    проецируются обратно моделью чтения (to_read_model). INSERT без pk добавлен,
     потому что он идёт через базовый RawModelRepository юнита работы.
     """
 
@@ -127,52 +142,36 @@ class RowsRepository(Repository[Row, BenchRow, RowMapper, ShopPool]):
             saved = await uow.model(BenchRow).update(row_id, {"name": name, "email": email})
         return self._mapper.to_aggregate(saved) if saved is not None else None
 
-    async def read(self, limit: int) -> list[BenchRow]:
-        """Путь чтения: строки из модели чтения, агрегаты не собираются."""
-        async with self.uow(readonly=True) as uow:
-            return await uow.model(BenchRow).list(limit=limit)
+    def to_read_model(self, aggregate: Row) -> BenchRow:
+        """Проекция агрегата в модель чтения — то, что уходит в ответ."""
+        return self._mapper.from_aggregate(aggregate)
 
 
 # ── CQRS: команды (запись) и запросы (чтение) ─────────────────────────
 
 class InsertRow(Command):
-    __slots__ = ("email", "name")
-
-    def __init__(self, name: str, email: str):
-        self.name = name
-        self.email = email
+    name: str
+    email: str
 
 
 class UpdateRow(Command):
-    __slots__ = ("email", "name", "row_id")
-
-    def __init__(self, row_id: int, name: str, email: str):
-        self.row_id = row_id
-        self.name = name
-        self.email = email
+    row_id: int
+    name: str
+    email: str
 
 
 class UpsertRow(Command):
-    __slots__ = ("email", "name", "row_id")
-
-    def __init__(self, row_id: int, name: str, email: str):
-        self.row_id = row_id
-        self.name = name
-        self.email = email
+    row_id: int
+    name: str
+    email: str
 
 
 class DeleteRow(Command):
-    __slots__ = ("row_id",)
-
-    def __init__(self, row_id: int):
-        self.row_id = row_id
+    row_id: int
 
 
 class ListRows(Query):
-    __slots__ = ("limit",)
-
-    def __init__(self, limit: int):
-        self.limit = limit
+    limit: int
 
 
 class InsertRowHandler:
@@ -212,7 +211,8 @@ class ListRowsHandler:
         self._rows = rows
 
     async def __call__(self, query: ListRows) -> list[BenchRow]:
-        return await self._rows.read(query.limit)
+        aggregates = await self._rows.list(limit=query.limit)   # агрегаты собираются
+        return [self._rows.to_read_model(a) for a in aggregates]
 
 
 # ── DI: ключи (включая шины) регистрируются ДО объявления маршрутов ──
@@ -247,16 +247,18 @@ async def rows(queries: QueryBus, limit: int = 100):
 
 
 @app.route("/rows", methods=["POST"])
-async def insert(req, commands: CommandBus):
-    body = await req.json()
-    row = await commands.dispatch(InsertRow(body["name"], body["email"]))
+async def insert(body: Annotated[InsertBody, Body()], commands: CommandBus):
+    row = await commands.dispatch(InsertRow(body.name, body.email))
     return {"id": row.id}
 
 
 @app.route("/rows/{row_id}", methods=["PUT"])
-async def update(req, row_id: int, commands: CommandBus):
-    body = await req.json()
-    row = await commands.dispatch(UpdateRow(row_id, body["name"], body["email"]))
+async def update(
+    row_id: int,
+    body: Annotated[InsertBody, Body()],
+    commands: CommandBus,
+):
+    row = await commands.dispatch(UpdateRow(row_id, body.name, body.email))
     return {"id": row.id if row is not None else None}
 
 
@@ -267,9 +269,8 @@ async def delete(row_id: int, commands: CommandBus):
 
 
 @app.route("/rows/upsert", methods=["POST"])
-async def upsert(req, commands: CommandBus):
-    body = await req.json()
-    row = await commands.dispatch(UpsertRow(body["id"], body["name"], body["email"]))
+async def upsert(body: Annotated[UpsertBody, Body()], commands: CommandBus):
+    row = await commands.dispatch(UpsertRow(body.id, body.name, body.email))
     return {"id": row.id}
 
 

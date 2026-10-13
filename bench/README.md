@@ -5,9 +5,7 @@
 sdist/Docker-образ. Логика фреймворка от него не зависит.
 
 **Основной конкурент для сравнения — BlackSheep.** Бенчи по умолчанию сравнивают Ferronit
-с BlackSheep (ближайший соперник), остальные (FastAPI/Litestar/Django) — дополнительные точки.
-TurboAPI (`turboapi` из PyPI) меряется как есть: у него собственный Rust-сервер (`app.run`),
-на granian он не работает.
+с BlackSheep (ближайший соперник), остальные (Litestar/FastAPI/Django) — дополнительные точки.
 
 ## Политика: req/s меряем только `ab`
 
@@ -19,32 +17,32 @@ TurboAPI (`turboapi` из PyPI) меряется как есть: у него с
 ## Основное
 
 ```bash
-./bench/run_all_ab.sh                     # вся матрица (granian), ~5–6 минут, пишет bench/RESULTS_ab.txt
-.venv/bin/python bench/ab_bench.py --server granian --routes 50
-.venv/bin/python bench/ab_bench.py --server granian --routes 1000 --requests 20000
-.venv/bin/python bench/bench_rows.py               # Ferronit-rawmodel vs Litestar/FastAPI/Django: 1/100/1000 строк
-.venv/bin/python bench/bench_granian_bare.py       # потолок чистого granian
-.venv/bin/python bench/plot_rows.py                # → bench_rows.html
+./bench/run_all_ab.sh                     # ping + rows?limit + записи, ~5–6 минут, пишет bench/RESULTS_ab.txt
+.venv/bin/python bench/api_bench.py                     # то же без записи в файл
+BENCH_APPS=ferronit,blacksheep .venv/bin/python bench/api_bench.py   # выборочно
 ```
 
-`ab_bench.py` сам генерирует одинаковые приложения (Ferronit, BlackSheep, Litestar, FastAPI,
-TurboAPI) с N маршрутами, поднимает их granian'ом (1 воркер; TurboAPI —
-свой Rust-сервер через `app.run`), греет и меряет по выборке маршрутов **первый / средний /
-последний** — так видно, что FastAPI деградирует при росте таблицы маршрутов, а Ferronit и
-TurboAPI нет. Флаги: `--routes`, `--requests`, `--concurrency`, `--runs`,
-`--payload {none,small,medium,big}`, `--no-fastapi`, `--no-litestar`, `--no-blacksheep`,
-`--no-turboapi`.
+`api_bench.py` генерирует одинаковые приложения (Ferronit, BlackSheep, Litestar, FastAPI, Django),
+поднимает их granian'ом (1 воркер; Django — через `django_bench.asgi`), греет и меряет по очереди:
+
+- `GET /ping` — простой `{"ok": true}`;
+- `GET /rows?limit=N` — `SELECT id, name, email LIMIT $1`, где `N` (1/20/50/100/1000) приходит
+  **query-параметром**, как в реальном API;
+- одиночные записи: `POST /rows` (INSERT), `PUT /rows/{id}` (UPDATE), `DELETE /rows/{id}`,
+  `POST /rows/upsert` (UPSERT).
+
+Перед каждой операцией записи таблица восстанавливается (`TRUNCATE` + 1000 строк), чтобы
+UPDATE/UPSERT/DELETE били по существующим строкам, а не по пустой таблице.
 
 | Скрипт | Что мерит |
 |---|---|
-| `ab_bench.py` | маршрутизация и размер ответа, Ferronit vs BlackSheep/Litestar/FastAPI/TurboAPI — **на `ab`** |
-| `bench_rows.py`, `plot_rows.py` | Ferronit-rawmodel vs Litestar/FastAPI/Django: 1/100/1000 строк из PostgreSQL — **на `ab`** |
-| `bench_granian_bare.py` | потолок чистого granian (пустое тело / JSON) — **на `ab`** |
+| `api_bench.py` | ping + строки из БД (query-limit) + одиночные записи — Ferronit vs BlackSheep/Litestar/FastAPI/Django, **на `ab`** |
 | `pg_wire.py`, `wire_bench.py` | самодельный клиент по проводу PostgreSQL (SCRAM, simple/extended, пайплайн) против asyncpg |
 | `micro_bench_json.py`, `micro_bench_response.py`, `micro_bench_model.py` | микрозамеры (Rust JSON против json.dumps, сборка ответа json+gzip, маппинг строк) — без HTTP |
-| `rust_pg_orm/` | Rust-стенд: `tokio-postgres`, `sqlx`, `SeaORM` |
-| `go_pg_orm/` | Go-стенд: `pgx`, `sqlx`, `GORM`, `ent` |
+| `rust_pg_orm/`, `rust_pg_1row/`, `go_pg_orm/`, `go_pg_1row/` | кросс-языковые стенды: `tokio-postgres`/`sqlx`/`SeaORM`, `pgx`/`sqlx`/`GORM`/`ent` |
 | `prof_*.py` | профилирование горячего пути (cProfile) |
+| `legacy/` | старые HTTP-бенчи (маршрутизация, payload, bulk-строки, потолок granian) — не актуализируются |
+| `legacy_httpx/` | httpx-клиент (client-bound, ~3.7k потолок) |
 
 ## Прямой замер PostgreSQL (окт 2026)
 
@@ -103,15 +101,14 @@ pgbench, инстанс `postgres:18.6` (дефолтный конфиг Docker,
 * Identity-map убран с `list()`, чтения идут `readonly=True` (без `BEGIN/COMMIT`) — это и есть
   выигрыш rawmodel. Тесты — `tests/test_rawmodel.py`.
 
-## HTTP-сравнение фреймворков (`bench_rows.py`)
+## HTTP-сравнение фреймворков (`api_bench.py`)
 
-Канонические цифры (строки из БД, записи, связи) — в [`docs/benchmarks.md`](../docs/benchmarks.md),
-они датированы прогоном и не дублируются здесь, чтобы не было двух расходящихся источников.
-Воспроизведение (`GET /rows`, 1 / 100 / 1000 строк, `ab -c 50 -k`, granian, 1 воркер, по очереди):
+Канонические цифры (ping, строки с query-limit, одиночные записи) — в
+[`docs/benchmarks.md`](../docs/benchmarks.md), датированы прогоном и не дублируются здесь,
+чтобы не было двух расходящихся источников. Воспроизведение:
 
 ```bash
-.venv/bin/python bench/bench_rows.py
-.venv/bin/python bench/plot_rows.py   # → bench_rows.html
+.venv/bin/python bench/api_bench.py
 ```
 
 ## Протокол замера (иначе цифры не сравнимы между сессиями)
@@ -127,13 +124,14 @@ pgbench, инстанс `postgres:18.6` (дефолтный конфиг Docker,
 Требования: окружение `.venv` в корне репозитория, `ab` (`apt install apache2-utils`),
 Docker с контейнером `ferronit-pg` на :5432.
 
-## legacy_httpx/ — что здесь и почему не годится
+## legacy/ и legacy_httpx/ — старые бенчи
 
-`bench_network.py`, `bench_payload.py` и другие ходят httpx-клиентом, поэтому их req/s
-**client-bound** (~3–7k) — пригодны для отладки ASGI-пути без сети, но не для цифр в README.
+`legacy/` — прежние HTTP-бенчи (`ab_bench.py` маршрутизация/payload, `bench_rows.py` bulk-строки,
+`bench_granian_bare.py` потолок, `bench_params.py`), заменены `api_bench.py` и не актуализируются.
+`legacy_httpx/` — скрипты на httpx-клиенте, req/s **client-bound** (~3–7k), для цифр не годятся.
 
 ## Helper-приложения (`_`-префикс)
 
-`_bench_rows_*.py`, `_bench_granian_*.py` — минимальные приложения,
-которые запускают основные скрипты как отдельные серверы. Имена собираются динамически,
-поэтому поиск по имени их «не находит». Не удаляй, не проверив `bench_*.py`.
+`_bench_api_*.py` (и `_bench_rows_*.py` из legacy) — минимальные приложения, которые
+запускают основные скрипты как отдельные серверы. Имена собираются динамически, поэтому
+поиск по имени их «не находит». Не удаляй, не проверив `bench_*.py`.

@@ -60,6 +60,33 @@ ferronit run --workers 4              # прод: granian, fallback uvicorn
 query DSL (`select`), связи, Unit of Work — без ORM. Подробнее:
 [`docs/data/overview.md`](docs/data/overview.md).
 
+```python
+from typing import Annotated
+from ferronit import Ferronit
+from ferronit.contrib.rawdb import create_pool
+from ferronit.contrib.rawmodel import Model, Relation
+
+class OrderItem(Model):
+    __table__ = "order_items"
+    id: int = 0
+    order_id: int = 0
+    name: str = ""
+
+class Order(Model):
+    __table__ = "orders"
+    id: int = 0
+    items: Annotated[list[OrderItem], Relation("order_id")] = []   # 1:N, грузится всегда
+
+app = Ferronit()
+
+@app.route("/orders")
+async def orders():
+    pool = await create_pool("postgresql://user:pass@localhost/db")  # обычно из lifespan/DI
+    async with pool.uow(readonly=True) as uow:
+        rows = await uow.model(Order).list(limit=10)
+    return {"orders": rows}   # items вложенно в JSON, один WHERE fk = ANY($1)
+```
+
 ## Разработка
 
 ```bash

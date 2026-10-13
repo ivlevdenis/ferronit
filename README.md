@@ -62,6 +62,33 @@ One thin layer over asyncpg — `rawdb` + `rawmodel`: declarative models, a quer
 (`select`), relations, a Unit of Work — no ORM. Details:
 [`docs/data/overview.md`](docs/data/overview.md).
 
+```python
+from typing import Annotated
+from ferronit import Ferronit
+from ferronit.contrib.rawdb import create_pool
+from ferronit.contrib.rawmodel import Model, Relation
+
+class OrderItem(Model):
+    __table__ = "order_items"
+    id: int = 0
+    order_id: int = 0
+    name: str = ""
+
+class Order(Model):
+    __table__ = "orders"
+    id: int = 0
+    items: Annotated[list[OrderItem], Relation("order_id")] = []   # 1:N, always loaded
+
+app = Ferronit()
+
+@app.route("/orders")
+async def orders():
+    pool = await create_pool("postgresql://user:pass@localhost/db")  # usually lifespan/DI
+    async with pool.uow(readonly=True) as uow:
+        rows = await uow.model(Order).list(limit=10)
+    return {"orders": rows}   # items nested in JSON, one WHERE fk = ANY($1)
+```
+
 ## Development
 
 ```bash

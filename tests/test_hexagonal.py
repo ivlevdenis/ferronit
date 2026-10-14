@@ -73,6 +73,22 @@ class OrderService(ApplicationService):
         return order.id
 
 
+# ── Входящий порт (driving port) ──────────────────────────────────────
+
+class OrderApiPort(Port):
+    async def create(self, order_id: str, amount: int) -> str: ...
+
+
+class PortBackedService(ApplicationService, OrderApiPort):
+    def __init__(self, repo: OrderRepository):
+        super().__init__()
+        self._repo = repo
+
+    async def create(self, order_id: str, amount: int) -> str:
+        await self._repo.save(Order(order_id, amount))
+        return order_id
+
+
 # ── Tests ─────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
@@ -97,3 +113,30 @@ async def test_hexagonal_full():
     async with AsyncClient(transport=transport, base_url="http://test") as c:
         r = await c.post("/orders", json={"id": "ord-1", "amount": 100})
         assert r.json() == {"order_id": "ord-1"}
+
+
+@pytest.mark.asyncio
+async def test_hexagonal_input_port_resolves_through_di():
+    """Входящий порт → реализация в контейнере; маршрут зависит только от порта."""
+    from ferronit.di import Container
+
+    repo = InMemoryOrderRepo()
+    c = Container()
+    c.singleton(OrderRepository, repo)
+    # Интерфейс → реализация: DI строит PortBackedService по его конструктору.
+    c.factory(OrderApiPort, PortBackedService)
+
+    v = Ferronit(container=c)
+
+    @v.route("/orders", methods=["POST"])
+    async def create_order(req, port: OrderApiPort):
+        body = await req.json()
+        oid = await port.create(body["id"], body["amount"])
+        return {"order_id": oid}
+
+    transport = ASGITransport(app=v)
+    async with AsyncClient(transport=transport, base_url="http://test") as cl:
+        r = await cl.post("/orders", json={"id": "ord-2", "amount": 50})
+
+    assert r.json() == {"order_id": "ord-2"}
+    assert (await repo.get("ord-2")).amount == 50

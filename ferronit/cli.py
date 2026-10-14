@@ -32,35 +32,32 @@ class Order(AggregateRoot):
 APP_TEMPLATE = '''\
 """Application services — use cases, no HTTP/DB code."""
 
-from ferronit.ddd import Command, Query
-from ferronit.hexagonal import Logger
+from ferronit.hexagonal import ApplicationService, Logger, Port
 from infrastructure.db import OrderRepo
 
 
-class CreateOrderCmd(Command):
-    order_id: str
-    user_id: str
-    amount: int
+class OrderApiPort(Port):
+    """Входящий порт заказов — контракт, через который входы вызывают прикладной слой."""
+
+    async def create(self, order_id: str, user_id: str, amount: int): ...
+    async def get(self, order_id: str): ...
 
 
-class GetOrderQ(Query):
-    order_id: str
-
-
-class OrderService:
+class OrderService(ApplicationService, OrderApiPort):
     def __init__(self, repo: OrderRepo, logger: Logger):
+        super().__init__()
         self._repo = repo
         self._log = logger
 
-    async def create(self, cmd: CreateOrderCmd):
+    async def create(self, order_id: str, user_id: str, amount: int):
         from domain.orders import Order
-        order = Order(cmd.order_id, cmd.user_id, cmd.amount)
+        order = Order(order_id, user_id, amount)
         await self._repo.save(order)
         await self._log.info(f"Order created: {order.id}")
         return order
 
-    async def get(self, q: GetOrderQ):
-        return await self._repo.get(q.order_id)
+    async def get(self, order_id: str):
+        return await self._repo.get(order_id)
 '''
 
 INFRA_TEMPLATE = '''\
@@ -99,7 +96,7 @@ class OrderRepo:
 '''
 
 INTERFACES_TEMPLATE = '''\
-"""HTTP interfaces — connect domain to the world."""
+"""HTTP-адаптер входящего порта — переводит запросы в вызовы OrderApiPort."""
 
 from ferronit import Ferronit
 from ferronit.contrib.cors import cors
@@ -107,14 +104,16 @@ from ferronit.contrib.rawdb import create_pool
 from ferronit.contrib.tracing import trace_middleware
 from ferronit.di import Container
 from ferronit.hexagonal import Logger, PrintLogger
-from application.services import CreateOrderCmd, GetOrderQ, OrderService
+from application.services import OrderApiPort, OrderService
 from config import config
 from infrastructure.db import OrderRepo, ShopPool
 
 container = Container()
 container.singleton(Logger, PrintLogger())
 container.factory(OrderRepo)
-container.factory(OrderService)
+# Входящий порт → реализация. Регистрировать ДО маршрутов: binding распознаёт
+# DI-параметр по наличию ключа в контейнере на момент регистрации маршрута.
+container.factory(OrderApiPort, OrderService)
 
 app = Ferronit(container=container)
 app.use(cors())
@@ -145,20 +144,19 @@ def home(req):
 
 
 @app.route("/orders", methods=["POST"])
-async def create_order(req, orders: OrderService):
+async def create_order(req, port: OrderApiPort):
     body = await req.json()
-    cmd = CreateOrderCmd(
-        order_id=body["id"],
-        user_id=body.get("user_id", "anonymous"),
-        amount=body["amount"],
+    result = await port.create(
+        body["id"],
+        body.get("user_id", "anonymous"),
+        body["amount"],
     )
-    result = await orders.create(cmd)
     return {{"order_id": result.id, "status": result.status}}
 
 
 @app.route("/orders/{{order_id}}")
-async def get_order(req, orders: OrderService):
-    result = await orders.get(GetOrderQ(req.params["order_id"]))
+async def get_order(req, port: OrderApiPort):
+    result = await port.get(req.params["order_id"])
     if result is None:
         return {{"error": "not found"}}
     return {{"order_id": result.id, "status": result.status}}

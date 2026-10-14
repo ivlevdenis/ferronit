@@ -582,6 +582,66 @@ async def test_relation_list_uses_separate_query() -> None:
     assert [i.name for i in parents[0].items] == ["a", "b"]
 
 
+# ── явный join ──────────────────────────────────────────────────────────────
+
+
+class JoinParent(Model):
+    __table__ = "join_parents"
+    id: int = 0
+    title: str = ""
+
+
+class JoinChild(Model):
+    __table__ = "join_children"
+    id: int = 0
+    parent_id: int = 0
+    name: str = ""
+
+
+def test_join_fk_compiles_left_join() -> None:
+    sql, params = select(JoinParent).join(JoinChild, fk="parent_id").compile()
+    assert sql == (
+        "SELECT t0.id, t0.title, t1.id, t1.parent_id, t1.name "
+        "FROM (SELECT id, title FROM join_parents) t0 "
+        "LEFT JOIN join_children t1 ON t1.parent_id = t0.id"
+    )
+    assert params == []
+
+
+def test_join_on_pair_compiles() -> None:
+    q = select(JoinParent).join(JoinChild, on=JoinParent.c.id == JoinChild.c.parent_id)
+    sql, params = q.compile()
+    assert "LEFT JOIN join_children t1 ON t1.parent_id = t0.id" in sql
+    assert params == []
+
+
+async def test_fetch_joined_returns_pairs() -> None:
+    class Conn:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, tuple]] = []
+
+        async def fetch(self, sql: str, *params):
+            self.calls.append((sql, params))
+            return [
+                (1, "p1", 1, 1, "a"),
+                (1, "p1", 2, 1, "b"),
+                (2, "p2", 3, 2, "c"),
+            ]
+
+    conn = Conn()
+    repo = RawModelRepository(conn, JoinParent)
+    rows = await repo.fetch_joined(select(JoinParent).join(JoinChild, fk="parent_id"))
+    assert len(rows) == 2
+
+    parent1, children1 = rows[0]
+    assert parent1 == JoinParent(id=1, title="p1")
+    assert [c.name for c in children1] == ["a", "b"]
+
+    parent2, children2 = rows[1]
+    assert parent2 == JoinParent(id=2, title="p2")
+    assert [c.name for c in children2] == ["c"]
+
+
 # ── базовый репозиторий ────────────────────────────────────────────────────
 
 UsersPool = Annotated[Pool, "users"]

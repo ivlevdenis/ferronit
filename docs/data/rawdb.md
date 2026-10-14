@@ -189,6 +189,24 @@ async with RawUnitOfWork(pool, readonly=True) as uow:
 - `Relation("order_id", pk="id")` — FK в дочерней таблице и PK родителя (по умолчанию `id`).
 - Связь сериализуется в JSON как вложенный объект/список (msgspec).
 
+### Явный join
+
+Помимо декларативных `Relation`, модель можно джойнить прямо в запросе:
+`Query.join` добавляет `LEFT JOIN`, а `fetch_joined()` возвращает кортежи
+`(родитель, [дети])`:
+
+```python
+q = select(Order).join(OrderItem, fk="order_id")                       # FK-джойн
+q = select(Order).join(OrderItem, on=Order.c.id == OrderItem.c.order_id)  # по колонкам
+rows = await repo.fetch_joined(q)                                      # list[(Order, list[OrderItem])]
+```
+
+- `fk` — имя FK в джойн-модели, `pk` — PK родителя (по умолчанию `id`).
+- `on` — сравнение колонок (`Parent.c.x == Child.c.y`); обе колонки должны
+  принадлежать родителю и джойн-модели соответственно.
+- Результат — кортеж `(родитель, дети_j1, дети_j2, …)`, по одному списку на каждый
+  `join`; джойны выполняются одним SQL (родительский SELECT уходит в подзапрос `t0`).
+
 ### Агрегатный репозиторий — Mapper + Repository
 
 Чтобы сохранять доменный агрегат целиком (заголовок + дочерние таблицы) в одну

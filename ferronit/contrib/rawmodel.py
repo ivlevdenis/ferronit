@@ -47,6 +47,7 @@ __all__ = [
     "IdentityMap",
     "Mapper",
     "Model",
+    "OnPair",
     "Query",
     "RawModelRepository",
     "Relation",
@@ -162,7 +163,7 @@ class ModelMeta(StructMeta):
             cls.__columns__ = tuple(columns)
             cls.__select_columns__ = ", ".join(columns)
             cls.__relations__ = relations
-            cls.c = _Columns({name: Column(name) for name in columns})
+            cls.c = _Columns({name: Column(name, cls) for name in columns})
         return cls
 
 
@@ -192,12 +193,15 @@ class Column:
 
     Columns are reached through ``Model.c`` (e.g. ``User.c.age``), so field names
     stay type-checked at authoring time instead of being raw SQL strings.
+    Comparing two columns (``A.c.id == B.c.a_id``) yields an :class:`OnPair` for
+    an explicit ``Query.join``.
     """
 
-    __slots__ = ("name",)
+    __slots__ = ("_model", "name")
 
-    def __init__(self, name: str) -> None:
+    def __init__(self, name: str, model: type[Model] | None = None) -> None:
         self.name = name
+        self._model = model
 
     def __gt__(self, other: Any) -> Condition:
         return Condition(f"{self.name} > $1", [other])
@@ -211,9 +215,11 @@ class Column:
     def __le__(self, other: Any) -> Condition:
         return Condition(f"{self.name} <= $1", [other])
 
-    def __eq__(self, other: Any) -> Condition:  # type: ignore[override]
+    def __eq__(self, other: Any) -> Condition | OnPair:  # type: ignore[override]
         if other is None:
             return Condition(f"{self.name} IS NULL", [])
+        if isinstance(other, Column):
+            return OnPair(self, other)
         return Condition(f"{self.name} = $1", [other])
 
     def __ne__(self, other: Any) -> Condition:  # type: ignore[override]
@@ -258,6 +264,20 @@ class Column:
         return f"{self.name} DESC"
 
 
+class OnPair:
+    """Comparison of two columns for an explicit ``Query.join`` (``A.c.x == B.c.y``).
+
+    Holds the left and right columns together with their models; when a join is
+    compiled, each side is qualified with its table alias (``t0``/``t1``/…).
+    """
+
+    __slots__ = ("left", "right")
+
+    def __init__(self, left: Column, right: Column) -> None:
+        self.left = left
+        self.right = right
+
+
 class _Columns:
     """Namespace of a model's columns, reached as ``Model.c``."""
 
@@ -282,7 +302,16 @@ class Query:
         rows = await repo.fetch(q)
     """
 
-    __slots__ = ("_limit", "_model", "_offset", "_order", "_select", "_table", "_where")
+    __slots__ = (
+        "_joins",
+        "_limit",
+        "_model",
+        "_offset",
+        "_order",
+        "_select",
+        "_table",
+        "_where",
+    )
 
     def __init__(self, model: type[Model], table: str | None = None) -> None:
         self._model = model
@@ -293,6 +322,7 @@ class Query:
         self._order: list[str] = []
         self._limit: int | None = None
         self._offset: int | None = None
+        self._joins: list[tuple[type[Model], OnPair | None, str | None, str]] = []
 
     def where(self, *conditions: Condition | str) -> Query:
         """Add ``AND``-combined filter conditions.
@@ -324,6 +354,34 @@ class Query:
     def offset(self, n: int) -> Query:
         """Skip ``n`` rows before returning."""
         self._offset = n
+        return self
+
+    def join(
+        self,
+        other: type[Model],
+        *,
+        on: OnPair | None = None,
+        fk: str | None = None,
+        pk: str = "id",
+    ) -> Query:
+        """Add an explicit ``LEFT JOIN`` of ``other`` to the query.
+
+        Use either ``fk`` (foreign key in ``other`` → ``pk`` of this model) for
+        a plain FK join, or ``on`` — a column-to-column comparison
+        (``Parent.c.id == Child.c.parent_id``). The joined rows are read with
+        ``repo.fetch_joined(query)``, which returns ``(parent, [children])``
+        tuples.
+
+        Args:
+            other: Model to join.
+            on: Column-to-column condition (``Parent.c.x == Child.c.y``).
+            fk: Foreign-key column name in ``other`` (shortcut for ``on``).
+            pk: Primary-key column of this model (default ``"id"``).
+
+        Returns:
+            This query (mutated, for chaining).
+        """
+        self._joins.append((other, on, fk, pk))
         return self
 
     def first(self) -> Query:
@@ -361,12 +419,52 @@ class Query:
         if self._offset is not None:
             params.append(self._offset)
             sql += f" OFFSET ${len(params)}"
+        if self._joins:
+            sql, params = _wrap_joins(sql, params, self._model, self._joins)
         return sql, params
 
 
 def select(model: type[Model], table: str | None = None) -> Query:
     """Start a ``SELECT`` over ``model``."""
     return Query(model, table)
+
+
+def _resolve_on_pair(
+    on: OnPair, parent_model: type[Model], child_model: type[Model], alias: str
+) -> str:
+    """Развернуть ``OnPair`` в ``t{i}.child_col = t0.parent_col`` (или наоборот)."""
+    left, right = on.left, on.right
+    if left._model is parent_model and right._model is child_model:
+        return f"{alias}.{right.name} = t0.{left.name}"
+    if right._model is parent_model and left._model is child_model:
+        return f"{alias}.{left.name} = t0.{right.name}"
+    raise ValueError(
+        "join on: колонки должны принадлежать родителю и джойн-модели соответственно"
+    )
+
+
+def _wrap_joins(
+    parent_sql: str,
+    params: list[Any],
+    parent_model: type[Model],
+    joins: list[tuple[type[Model], OnPair | None, str | None, str]],
+) -> tuple[str, list[Any]]:
+    """Обернуть SELECT по родителю в явные ``LEFT JOIN``-ы из ``Query.join``.
+
+    Родительский SELECT (с WHERE/ORDER/LIMIT/OFFSET) уходит в подзапрос ``t0``,
+    каждая джойн-модель получает алиас ``t1``/``t2``/… с условием ``ON``.
+    """
+    cols = [f"t0.{c}" for c in parent_model.__columns__]
+    clauses: list[str] = []
+    for index, (child, on, fk, pk) in enumerate(joins, start=1):
+        alias = f"t{index}"
+        cols.extend(f"{alias}.{c}" for c in child.__columns__)
+        if fk is not None:
+            on_sql = f"{alias}.{fk} = t0.{pk}"
+        else:
+            on_sql = _resolve_on_pair(on, parent_model, child, alias)  # type: ignore[arg-type]
+        clauses.append(f" LEFT JOIN {_resolve_table(child)} {alias} ON {on_sql}")
+    return f"SELECT {', '.join(cols)} FROM ({parent_sql}) t0{''.join(clauses)}", params
 
 
 # --- WHERE mini-DSL ---------------------------------------------------------
@@ -804,6 +902,56 @@ class RawModelRepository[M: Model](Adapter):
             models.append(self._model(**kwargs))
         return models
 
+    def _materialize_joined_pairs(
+        self, rows, joins: list[tuple[type[Model], Any, Any, Any]]
+    ) -> builtins.list[builtins.tuple[Any, ...]]:
+        """Разобрать плоские JOIN-строки в кортежи ``(родитель, [дети]…)``.
+
+        Строки приходят из явного ``Query.join`` (см. ``_wrap_joins``): колонки
+        родителя, затем колонки каждой джойн-модели по порядку объявления.
+        Повторяющиеся дочерние строки (перекрёстное произведение нескольких
+        джойнов) отсеиваются по кортежу значений.
+        """
+        if not rows:
+            return []
+        parent_cols = self._columns
+        n_parent = len(parent_cols)
+        pk_index = parent_cols.index(self._pk)
+
+        child_models = [child for child, _on, _fk, _pk in joins]
+        offsets: list[int] = []
+        widths: list[int] = []
+        offset = n_parent
+        for child in child_models:
+            offsets.append(offset)
+            widths.append(len(child.__columns__))
+            offset += widths[-1]
+
+        n_joins = len(child_models)
+        order: list[Any] = []
+        grouped: dict[Any, tuple[tuple[Any, ...], list[Any]]] = {}
+        for row in rows:
+            pk = row[pk_index]
+            if pk not in grouped:
+                grouped[pk] = (tuple(row[:n_parent]), [(set(), []) for _ in range(n_joins)])
+                order.append(pk)
+            _parent_vals, accs = grouped[pk]
+            for i, child in enumerate(child_models):
+                vals = tuple(row[offsets[i]:offsets[i] + widths[i]])
+                if all(value is None for value in vals):
+                    continue
+                seen, acc = accs[i]
+                if vals not in seen:
+                    seen.add(vals)
+                    acc.append(child(*vals))
+
+        result: list[tuple[Any, ...]] = []
+        for pk in order:
+            parent_vals, accs = grouped[pk]
+            children = tuple(acc for _seen, acc in accs)
+            result.append((self._model(*parent_vals), *children))
+        return result
+
     async def get(self, id: Any) -> M | None:
         """Fetch a single row by primary key.
 
@@ -890,6 +1038,25 @@ class RawModelRepository[M: Model](Adapter):
         if row is None:
             return None
         return self._model(*row)
+
+    async def fetch_joined(
+        self, query: Query
+    ) -> builtins.list[builtins.tuple[Any, ...]]:
+        """Run a ``Query`` with explicit ``join``-s and return ``(parent, [children]…)``.
+
+        Each tuple is ``(parent, children_of_join_1, children_of_join_2, …)``,
+        one list per ``join``. The parent columns come from this repository's
+        model; joined models arrive in declaration order.
+
+        Args:
+            query: A ``Query`` built with ``.join(...)``.
+
+        Returns:
+            A list of ``(parent, [children]…)`` tuples.
+        """
+        sql, params = query.compile()
+        rows = await self._conn.fetch(sql, *params)
+        return self._materialize_joined_pairs(rows, query._joins)
 
     async def fetch_value(self, query: Query) -> Any | None:
         """Fetch the first column of the first row — for ``count()``/``aggregate()``."""

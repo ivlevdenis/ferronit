@@ -40,6 +40,66 @@ class PaymentService(ApplicationService):
             await self._bus.publish("payments", {"order_id": order_id})
 ```
 
+### Входящий порт и HTTP-адаптер
+
+Порты выше — **исходящие** (приложение само вызывает БД, логгер, шину). Входящий
+порт работает наоборот: его объявляет прикладной слой, а **входы** (HTTP, CLI,
+консьюмер очереди) вызывают порт. Контракт порта — в терминах **DTO прикладного
+слоя**, а не домена: домен (`Order`, `CartItem`) наружу не выходит, перевод
+домен ↔ DTO делает сервис, поэтому адаптер остаётся тонким:
+
+```python
+class OrderDTO(msgspec.Struct):
+    order_id: str
+    user_id: str
+    items: list[OrderItemDTO]
+    total: float
+    status: str
+
+
+class OrderApiPort(Port):
+    """Входящий порт — контракт прикладного слоя в терминах DTO, не домена."""
+    async def create(self, dto: CreateOrderDTO) -> OrderDTO | None: ...
+    async def get(self, order_id: str) -> OrderDTO | None: ...
+
+
+class OrderService(ApplicationService, OrderApiPort):
+    def __init__(self, commands: CommandBus, queries: QueryBus):
+        super().__init__()
+        self._commands = commands
+        self._queries = queries
+
+    async def create(self, dto):
+        cart = [CartItem(i.product_id, i.name, i.price, i.qty) for i in dto.items]
+        order = await self._commands.dispatch(PlaceOrder(dto.user_id, cart))
+        return _order_to_dto(order)  # домен → DTO — здесь, не в адаптере
+
+    async def get(self, order_id):
+        return _order_to_dto(await self._queries.ask(GetOrder(order_id)))
+
+
+# Порт регистрируется ДО маршрутов: binding распознаёт DI-параметр на этапе
+# регистрации маршрута по наличию ключа в контейнере.
+container.factory(OrderApiPort, OrderService)
+
+
+class HttpOrdersAdapter:
+    """HTTP-адаптер: переводит запросы в вызовы порта (без домена и маппинга)."""
+
+    def mount(self, app: Ferronit, prefix: str = "") -> None:
+        base = prefix.rstrip("/")
+
+        @app.route(f"{base}/orders", methods=["POST"])
+        async def create_order(body: Annotated[CreateOrderDTO, Body()], port: OrderApiPort):
+            return await port.create(body)
+```
+
+Маршрут ничего не знает ни о шинах, ни о домене — `port: OrderApiPort` инжектится
+из контейнера, а `CreateOrderDTO`/`OrderDTO` это контракт прикладного слоя.
+Адаптер — отдельный вход и монтируется из точки сборки (`app.mount("/",
+HttpOrdersAdapter())`), поэтому прикладной слой про HTTP не знает. Второй вход
+(gRPC, CLI, консьюмер очереди) — ещё один адаптер к тому же порту.
+
 ## Блоки DDD
 
 ```python
@@ -150,14 +210,16 @@ async def lifespan():
 
 ## Всё вместе
 
-`app.py` остаётся тонким адаптером над доменным и прикладным слоями:
+`app.py` остаётся тонким адаптером над доменным и прикладным слоями — маршрут
+зависит от входящего порта, а не от шин. Входной адаптер подключается из точки
+сборки (`main.py`), поэтому прикладной слой собирается без HTTP:
 
 ```python
-app = Ferronit()
+container.factory(OrderApiPort, OrderService)  # до монтирования маршрутов
 
-@app.route("/orders", methods=["POST"])
-async def create_order(req):
-    data = await req.json()
-    await command_bus.dispatch(PlaceOrder(data["order_id"], data["user_id"]))
-    return {"ok": True}, 201
+# main.py — точка сборки:
+app.mount("/", HttpOrdersAdapter())
 ```
+
+Полный вариант с классом-адаптером `HttpOrdersAdapter` — в `examples/http.py`
+и `examples/main.py`.

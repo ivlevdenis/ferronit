@@ -68,6 +68,7 @@ from ferronit.contrib.rawdb import Pool, create_pool
 from ferronit.contrib.rawmodel import Mapper, Model, Repository
 from ferronit.ddd import AggregateRoot, Command, CommandBus, Query, QueryBus
 from ferronit.di import Container
+from ferronit.hexagonal import ApplicationService, Port
 
 DSN = "postgresql://postgres:postgres@127.0.0.1:5432/postgres"
 ShopPool = Annotated[Pool, "shop"]
@@ -215,6 +216,42 @@ class ListRowsHandler:
         return [self._rows.to_read_model(a) for a in aggregates]
 
 
+# ── Входящий порт + прикладной сервис ─────────────────────────────────
+
+class RowsApiPort(Port):
+    """Входящий порт стенда — контракт операций над строками (в терминах домена)."""
+
+    async def list(self, limit: int) -> list[BenchRow]: ...
+    async def insert(self, name: str, email: str) -> Row: ...
+    async def update(self, row_id: int, name: str, email: str) -> Row | None: ...
+    async def delete(self, row_id: int) -> None: ...
+    async def upsert(self, row_id: int, name: str, email: str) -> Row: ...
+
+
+class RowsService(ApplicationService, RowsApiPort):
+    """Прикладной слой: реализует ``RowsApiPort``, диспатчит команды/запросы в шины."""
+
+    def __init__(self, commands: CommandBus, queries: QueryBus):
+        super().__init__()
+        self._commands = commands
+        self._queries = queries
+
+    async def list(self, limit: int) -> list[BenchRow]:
+        return await self._queries.ask(ListRows(limit))
+
+    async def insert(self, name: str, email: str) -> Row:
+        return await self._commands.dispatch(InsertRow(name, email))
+
+    async def update(self, row_id: int, name: str, email: str) -> Row | None:
+        return await self._commands.dispatch(UpdateRow(row_id, name, email))
+
+    async def delete(self, row_id: int) -> None:
+        await self._commands.dispatch(DeleteRow(row_id))
+
+    async def upsert(self, row_id: int, name: str, email: str) -> Row:
+        return await self._commands.dispatch(UpsertRow(row_id, name, email))
+
+
 # ── DI: ключи (включая шины) регистрируются ДО объявления маршрутов ──
 
 container = Container()
@@ -225,6 +262,8 @@ QUERIES = QueryBus()
 container.factory(RowsRepository)
 container.singleton(CommandBus, COMMANDS)
 container.singleton(QueryBus, QUERIES)
+# Входящий порт → реализация (ДО объявления маршрутов — тот же порядок, что в примере).
+container.factory(RowsApiPort, RowsService)
 
 
 @app.lifespan
@@ -241,42 +280,48 @@ async def lifespan():
     await pool.close()
 
 
-@app.route("/rows")
-async def rows(queries: QueryBus, limit: int = 100):
-    return {"rows": await queries.ask(ListRows(limit))}
+# ── HTTP-адаптер входящего порта ──────────────────────────────────────
+
+class HttpRowsAdapter:
+    """HTTP-адаптер: переводит HTTP-запросы в вызовы ``RowsApiPort``."""
+
+    def mount(self, app: Ferronit, prefix: str = "") -> None:
+        base = prefix.rstrip("/")
+
+        @app.route(f"{base}/rows")
+        async def rows(port: RowsApiPort, limit: int = 100):
+            return {"rows": await port.list(limit)}
+
+        @app.route(f"{base}/rows", methods=["POST"])
+        async def insert(body: Annotated[InsertBody, Body()], port: RowsApiPort):
+            row = await port.insert(body.name, body.email)
+            return {"id": row.id}
+
+        @app.route(f"{base}/rows/{{row_id}}", methods=["PUT"])
+        async def update(
+            row_id: int,
+            body: Annotated[InsertBody, Body()],
+            port: RowsApiPort,
+        ):
+            row = await port.update(row_id, body.name, body.email)
+            return {"id": row.id if row is not None else None}
+
+        @app.route(f"{base}/rows/{{row_id}}", methods=["DELETE"])
+        async def delete(row_id: int, port: RowsApiPort):
+            await port.delete(row_id)
+            return {"ok": True}
+
+        @app.route(f"{base}/rows/upsert", methods=["POST"])
+        async def upsert(body: Annotated[UpsertBody, Body()], port: RowsApiPort):
+            row = await port.upsert(body.id, body.name, body.email)
+            return {"id": row.id}
+
+        @app.route(f"{base}/ping")
+        async def ping():
+            return {"ok": True}
 
 
-@app.route("/rows", methods=["POST"])
-async def insert(body: Annotated[InsertBody, Body()], commands: CommandBus):
-    row = await commands.dispatch(InsertRow(body.name, body.email))
-    return {"id": row.id}
-
-
-@app.route("/rows/{row_id}", methods=["PUT"])
-async def update(
-    row_id: int,
-    body: Annotated[InsertBody, Body()],
-    commands: CommandBus,
-):
-    row = await commands.dispatch(UpdateRow(row_id, body.name, body.email))
-    return {"id": row.id if row is not None else None}
-
-
-@app.route("/rows/{row_id}", methods=["DELETE"])
-async def delete(row_id: int, commands: CommandBus):
-    await commands.dispatch(DeleteRow(row_id))
-    return {"ok": True}
-
-
-@app.route("/rows/upsert", methods=["POST"])
-async def upsert(body: Annotated[UpsertBody, Body()], commands: CommandBus):
-    row = await commands.dispatch(UpsertRow(body.id, body.name, body.email))
-    return {"id": row.id}
-
-
-@app.route("/ping")
-async def ping():
-    return {"ok": True}
+app.mount("", HttpRowsAdapter())
 '''
 
 

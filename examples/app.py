@@ -1,22 +1,19 @@
 """Ferronit — гексагональный пример с CQRS: агрегат Order + Mapper + Repository.
 
-Заказ — агрегат (header + позиции), хранится в двух таблицах, но сервис и
-маршруты работают только с доменным ``Order``. Маппинг сосредоточен в одном
-адаптере ``OrderMapper``; ``OrderRepository`` — порт над агрегатом.
+Это **прикладной** слой: домен, порты, сервис, шины и DI. Про HTTP здесь ничего
+нет — входящий адаптер ``HttpOrdersAdapter`` лежит в ``examples/http.py`` и
+монтируется из точки сборки ``examples/main.py``:
 
-CQRS: запись идёт командами через ``CommandBus`` (``PlaceOrder``,
-``CancelOrder``), чтение — запросами через ``QueryBus`` (``GetOrder``,
-``ListUserOrders``). Агрегат буферизует доменные события (``OrderPlaced``,
-``OrderCancelled``), обработчик команды забирает их через ``pull_events()`` и
-публикует в ``InMemoryEventBus`` — подписчик ``audit`` пишет их в журнал.
+    app.mount("/", HttpOrdersAdapter())
 
-Endpoints:
-  POST /orders              — создать заказ (команда PlaceOrder)
-  GET  /orders              — список заказов (запрос ListUserOrders)
-  GET  /orders/{id}         — заказ со всеми позициями (запрос GetOrder)
-  POST /orders/{id}/cancel  — отменить заказ (команда CancelOrder)
-  GET  /openapi.json
-  GET  /ping
+Заказ — агрегат (header + позиции), хранится в двух таблицах, но сервис работает
+только с доменным ``Order``. ``OrderRepository`` — порт над агрегатом; вход описан
+входящим портом ``OrderApiPort``, его реализует ``OrderService`` (диспатчит
+команды/запросы в шины).
+
+CQRS: запись — командами через ``CommandBus`` (``PlaceOrder``/``CancelOrder``),
+чтение — запросами через ``QueryBus`` (``GetOrder``/``ListUserOrders``); события
+``OrderPlaced``/``OrderCancelled`` публикуются в ``InMemoryEventBus``.
 """
 
 import asyncio
@@ -31,7 +28,7 @@ except ImportError:
 
 import msgspec
 
-from ferronit import Body, Ferronit
+from ferronit import Ferronit
 from ferronit.contrib.rawdb import Pool, create_pool
 from ferronit.contrib.rawmodel import Mapper, Model, Relation, Repository
 from ferronit.ddd import (
@@ -43,7 +40,7 @@ from ferronit.ddd import (
     QueryBus,
 )
 from ferronit.di import Container
-from ferronit.hexagonal import EventBus, InMemoryEventBus
+from ferronit.hexagonal import ApplicationService, EventBus, InMemoryEventBus, Port
 
 DB_URL = os.environ.get("DATABASE_URL", "postgresql://postgres:postgres@127.0.0.1:5432/postgres")
 
@@ -219,6 +216,81 @@ class ListOrdersHandler:
         return await self._orders.by_user(q.user_id)
 
 
+# ── Контракт входа/выхода: DTO прикладного слоя ──────────────────────
+# Порт и HTTP-адаптер общаются этими структурами. Домен (Order, CartItem) из
+# прикладного слоя наружу не выходит — перевод домен ↔ DTO делает сервис.
+
+class OrderItemDTO(msgspec.Struct):
+    product_id: str
+    name: str = "Unknown"
+    price: float = 0.0
+    qty: int = 1
+
+
+class CreateOrderDTO(msgspec.Struct):
+    user_id: str = "user-1"
+    items: list[OrderItemDTO] = []
+
+
+class OrderDTO(msgspec.Struct):
+    order_id: str
+    user_id: str
+    items: list[OrderItemDTO]
+    total: float
+    status: str
+
+
+def _order_to_dto(o: Order) -> OrderDTO:
+    return OrderDTO(
+        order_id=o.id,
+        user_id=o.user_id,
+        items=[OrderItemDTO(i.product_id, i.name, i.price, i.qty) for i in o.items],
+        total=o.total,
+        status=o.status,
+    )
+
+
+# ── Входящий порт + прикладной сервис ─────────────────────────────────
+
+class OrderApiPort(Port):
+    """Входящий порт заказов — контракт прикладного слоя в терминах DTO.
+
+    Ни доменных типов (``Order``/``CartItem``), ни HTTP здесь нет: адаптер
+    передаёт ``CreateOrderDTO`` и получает ``OrderDTO``; перевод делает сервис.
+    """
+
+    async def create(self, dto: CreateOrderDTO) -> OrderDTO | None: ...
+    async def list_user_orders(self, user_id: str) -> list[OrderDTO]: ...
+    async def get(self, order_id: str) -> OrderDTO | None: ...
+    async def cancel(self, order_id: str) -> OrderDTO | None: ...
+
+
+class OrderService(ApplicationService, OrderApiPort):
+    """Прикладной слой: реализует ``OrderApiPort``, диспатчит команды/запросы в шины."""
+
+    def __init__(self, commands: CommandBus, queries: QueryBus):
+        super().__init__()
+        self._commands = commands
+        self._queries = queries
+
+    async def create(self, dto: CreateOrderDTO) -> OrderDTO | None:
+        cart = [CartItem(i.product_id, i.name, i.price, i.qty) for i in dto.items]
+        order = await self._commands.dispatch(PlaceOrder(dto.user_id, cart))
+        return _order_to_dto(order) if order is not None else None
+
+    async def list_user_orders(self, user_id: str) -> list[OrderDTO]:
+        orders = await self._queries.ask(ListUserOrders(user_id))
+        return [_order_to_dto(o) for o in orders]
+
+    async def get(self, order_id: str) -> OrderDTO | None:
+        order = await self._queries.ask(GetOrder(order_id))
+        return _order_to_dto(order) if order is not None else None
+
+    async def cancel(self, order_id: str) -> OrderDTO | None:
+        order = await self._commands.dispatch(CancelOrder(order_id))
+        return _order_to_dto(order) if order is not None else None
+
+
 # ── Подписчик на доменные события (журнал) ────────────────────────────
 
 AUDIT: list[str] = []
@@ -248,6 +320,10 @@ container.factory(OrderRepository)
 container.singleton(EventBus, EVENTS)
 container.singleton(CommandBus, COMMANDS)
 container.singleton(QueryBus, QUERIES)
+# Входящий порт → реализация. Регистрируется ДО объявления маршрутов: binding
+# распознаёт DI-параметр по факту наличия ключа в контейнере на момент
+# регистрации маршрута, поэтому ``OrderApiPort`` должен быть здесь заранее.
+container.factory(OrderApiPort, OrderService)
 
 
 # ── Lifecycle ──────────────────────────────────────────────────────────
@@ -282,81 +358,6 @@ async def lifespan():
     await pool.close()
 
 
-# ── Модели HTTP: тело запроса и ответ ─────────────────────────────────
+# HTTP-адаптер (``HttpOrdersAdapter``) живёт в examples/http.py и монтируется
+# из точки сборки examples/main.py: `app.mount("/", HttpOrdersAdapter())`.
 
-class OrderItemIn(msgspec.Struct):
-    product_id: str
-    name: str = "Unknown"
-    price: float = 0.0
-    qty: int = 1
-
-
-class CreateOrderBody(msgspec.Struct):
-    user_id: str = "user-1"
-    items: list[OrderItemIn] = []
-
-
-class OrderResponse(msgspec.Struct):
-    order_id: str
-    user_id: str
-    items: list[dict]
-    total: float
-    status: str
-
-
-def _to_response(o: Order) -> OrderResponse:
-    return OrderResponse(
-        order_id=o.id,
-        user_id=o.user_id,
-        items=[{"product_id": i.product_id, "name": i.name,
-                "price": i.price, "qty": i.qty} for i in o.items],
-        total=o.total,
-        status=o.status,
-    )
-
-
-# ── Routes ─────────────────────────────────────────────────────────────
-
-@app.route("/orders", methods=["POST"], summary="Create order")
-async def create_order(body: Annotated[CreateOrderBody, Body()], bus: CommandBus):
-    items = [CartItem(i.product_id, i.name, i.price, i.qty) for i in body.items]
-    order = await bus.dispatch(PlaceOrder(body.user_id, items))
-    if order is None:
-        return {"error": "items required"}, 400
-    return _to_response(order)
-
-
-@app.route("/orders", summary="List orders")
-async def list_orders(bus: QueryBus) -> list[OrderResponse]:
-    return [_to_response(o) for o in await bus.ask(ListUserOrders("user-1"))]
-
-
-@app.route("/orders/{order_id}", summary="Get order")
-async def get_order(order_id: str, bus: QueryBus):
-    order = await bus.ask(GetOrder(order_id))
-    if order is None:
-        return {"error": "not found"}, 404
-    return _to_response(order)
-
-
-@app.route("/orders/{order_id}/cancel", methods=["POST"], summary="Cancel order")
-async def cancel_order(order_id: str, bus: CommandBus):
-    order = await bus.dispatch(CancelOrder(order_id))
-    if order is None:
-        return {"error": "not found"}, 404
-    return _to_response(order)
-
-
-@app.route("/openapi.json")
-def openapi_spec():
-    return app.openapi.build()
-
-
-@app.route("/ping")
-async def ping():
-    return {"ok": True}
-
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, port=8000)

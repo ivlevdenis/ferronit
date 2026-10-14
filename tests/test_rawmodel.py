@@ -537,6 +537,51 @@ async def test_relations_always_loaded(pool) -> None:
         assert [i.name for i in parents[1].items] == ["c"]
 
 
+async def test_relation_point_read_uses_join() -> None:
+    """get() (точечное чтение) грузит связь одним LEFT JOIN."""
+
+    class JoinConn:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, str, tuple]] = []
+
+        async def fetch(self, sql: str, *params):
+            self.calls.append(("fetch", sql, params))
+            # плоские JOIN-строки: родитель id=1 с двумя детьми
+            return [(1, 1, 1, "a"), (1, 2, 1, "b")]
+
+    conn = JoinConn()
+    repo = RawModelRepository(conn, RelParent)
+    parent = await repo.get(1)
+    assert len(conn.calls) == 1
+    assert "LEFT JOIN" in conn.calls[0][1]
+    assert parent is not None
+    assert [i.name for i in parent.items] == ["a", "b"]
+
+
+async def test_relation_list_uses_separate_query() -> None:
+    """list() (массовое чтение) грузит связь отдельным запросом, не JOIN."""
+
+    class ListConn:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, str, tuple]] = []
+
+        async def fetch(self, sql: str, *params):
+            self.calls.append(("fetch", sql, params))
+            if "rel_items" in sql:
+                # отдельный child-запрос: id, parent_id, name
+                return [(1, 1, "a"), (2, 1, "b")]
+            return [(1,)]  # родитель id=1
+
+    conn = ListConn()
+    repo = RawModelRepository(conn, RelParent)
+    parents = await repo.list()
+    assert len(conn.calls) == 2
+    assert "LEFT JOIN" not in conn.calls[0][1]
+    assert "ANY" in conn.calls[1][1]
+    assert [p.id for p in parents] == [1]
+    assert [i.name for i in parents[0].items] == ["a", "b"]
+
+
 # ── базовый репозиторий ────────────────────────────────────────────────────
 
 UsersPool = Annotated[Pool, "users"]

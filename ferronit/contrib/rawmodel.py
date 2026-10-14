@@ -626,6 +626,30 @@ def _repo_sql(model_cls: type[Model], table: str, pk: str) -> tuple:
     )
 
 
+@lru_cache(maxsize=256)
+def _join_select(parent_sql: str, model: type[Model]) -> str:
+    """Обернуть SELECT по родителю в LEFT JOIN всех объявленных связей.
+
+    Родительский SELECT (с фильтрами, сортировкой и пагинацией) уходит в
+    подзапрос ``t0``, чтобы его голые имена колонок оставались однозначными;
+    снаружи колонки квалифицируются алиасами ``t0``/``t1``/…, и связи
+    джойнятся по FK дочерней таблицы к PK родителя. Параметры родительского
+    запроса не меняются — JOIN добавляет только имена колонок.
+    """
+    relations = model.__relations__
+    if not relations:
+        return parent_sql
+    cols = [f"t0.{c}" for c in model.__columns__]
+    joins: list[str] = []
+    for index, (child, fk, pk, _many) in enumerate(relations.values(), start=1):
+        alias = f"t{index}"
+        cols.extend(f"{alias}.{c}" for c in child.__columns__)
+        joins.append(
+            f" LEFT JOIN {_resolve_table(child)} {alias} ON {alias}.{fk} = t0.{pk}"
+        )
+    return f"SELECT {', '.join(cols)} FROM ({parent_sql}) t0{''.join(joins)}"
+
+
 class RawModelRepository[M: Model](Adapter):
     """Repository over one table returning model instances instead of dicts.
 
@@ -677,10 +701,13 @@ class RawModelRepository[M: Model](Adapter):
         ) = _repo_sql(model_cls, table or _resolve_table(model_cls), pk)
 
     async def _materialize(self, rows) -> list[M]:
-        """Построить модели из строк, подтянув объявленные связи.
+        """Построить модели из строк, подтянув связи отдельным запросом.
 
-        Каждая связь грузится одним запросом на всех родителей
-        (``WHERE fk = ANY($1)``), поэтому N+1 не возникает.
+        Каждая связь грузится одним ``SELECT … WHERE fk = ANY($1)`` на всех
+        родителей сразу, поэтому N+1 не возникает. Это путь массового чтения
+        (``list``/``fetch``): отдельный запрос не дублирует родительские
+        колонки и на больших наборах быстрее ``LEFT JOIN``
+        (см. :meth:`_materialize_joined`).
         """
         if not rows:
             return []
@@ -692,7 +719,8 @@ class RawModelRepository[M: Model](Adapter):
         rel_data: dict[str, tuple[dict[Any, list], bool]] = {}
         for field, (child, fk, _pk, many) in relations.items():
             child_rows = await self._conn.fetch(
-                f"SELECT {child.__select_columns__} FROM {child.__table__} WHERE {fk} = ANY($1)",
+                f"SELECT {child.__select_columns__} FROM {_resolve_table(child)}"
+                f" WHERE {fk} = ANY($1)",
                 pks,
             )
             fk_index = child.__columns__.index(fk)
@@ -713,6 +741,69 @@ class RawModelRepository[M: Model](Adapter):
             models.append(self._model(**kwargs))
         return models
 
+    async def _materialize_joined(self, rows) -> list[M]:
+        """Построить модели из плоских JOIN-строк (точечное чтение связей).
+
+        Связи грузятся одним ``LEFT JOIN`` (см. ``_join_select``), поэтому
+        строка содержит колонки родителя, затем колонки каждой связи в порядке
+        объявления. Повторяющиеся дочерние строки (перекрёстное произведение
+        нескольких коллекций) отсеиваются по кортежу значений; строка без
+        детей приходит с ``NULL``-ами в дочерних колонках.
+        """
+        if not rows:
+            return []
+        relations = self._model.__relations__
+        if not relations:
+            return [self._model(*row) for row in rows]
+
+        parent_cols = self._columns
+        n_parent = len(parent_cols)
+        pk_index = parent_cols.index(self._pk)
+
+        rel_fields = list(relations)
+        rel_specs = [relations[field] for field in rel_fields]
+
+        offsets: list[int] = []
+        child_widths: list[int] = []
+        offset = n_parent
+        for child, _fk, _pk, _many in rel_specs:
+            offsets.append(offset)
+            child_widths.append(len(child.__columns__))
+            offset += child_widths[-1]
+
+        order: list[Any] = []
+        grouped: dict[Any, tuple[tuple[Any, ...], list[Any]]] = {}
+        for row in rows:
+            pk = row[pk_index]
+            if pk not in grouped:
+                accs: list[Any] = []
+                for _child, _fk, _pk, many in rel_specs:
+                    accs.append((set(), [] if many else None))
+                grouped[pk] = (tuple(row[:n_parent]), accs)
+                order.append(pk)
+            accs = grouped[pk][1]
+            for i, (child, _fk, _pk, many) in enumerate(rel_specs):
+                vals = tuple(row[offsets[i]:offsets[i] + child_widths[i]])
+                if all(value is None for value in vals):
+                    continue  # LEFT JOIN без детей — пропускаем
+                seen, acc = accs[i]
+                if many:
+                    if vals not in seen:
+                        seen.add(vals)
+                        acc.append(child(*vals))
+                elif acc is None:
+                    acc = child(*vals)
+                accs[i] = (seen, acc)
+
+        models: list[M] = []
+        for pk in order:
+            parent_vals, accs = grouped[pk]
+            kwargs = {c: parent_vals[i] for i, c in enumerate(parent_cols)}
+            for field, (_seen, acc) in zip(rel_fields, accs, strict=True):
+                kwargs[field] = acc
+            models.append(self._model(**kwargs))
+        return models
+
     async def get(self, id: Any) -> M | None:
         """Fetch a single row by primary key.
 
@@ -726,10 +817,16 @@ class RawModelRepository[M: Model](Adapter):
             cached = self._identity_map.get(self._model, id)
             if cached is not None:
                 return cached
-        row = await self._conn.fetchrow(self._select_pk_sql, id)
-        if row is None:
-            return None
-        obj = (await self._materialize([row]))[0]
+        if self._model.__relations__:
+            rows = await self._conn.fetch(_join_select(self._select_pk_sql, self._model), id)
+            if not rows:
+                return None
+            obj = (await self._materialize_joined(rows))[0]
+        else:
+            row = await self._conn.fetchrow(self._select_pk_sql, id)
+            if row is None:
+                return None
+            obj = self._model(*row)
         if self._identity_map is not None:
             self._identity_map.put(self._model, id, obj)
         return obj
@@ -784,10 +881,15 @@ class RawModelRepository[M: Model](Adapter):
         if query._limit is None:
             query = query.limit(1)
         sql, params = query.compile()
+        if self._model.__relations__:
+            rows = await self._conn.fetch(_join_select(sql, self._model), *params)
+            if not rows:
+                return None
+            return (await self._materialize_joined(rows))[0]
         row = await self._conn.fetchrow(sql, *params)
         if row is None:
             return None
-        return (await self._materialize([row]))[0]
+        return self._model(*row)
 
     async def fetch_value(self, query: Query) -> Any | None:
         """Fetch the first column of the first row — for ``count()``/``aggregate()``."""

@@ -38,7 +38,9 @@ TARGETS = [
 ]
 
 # Здесь старая версия может остаться (исторические записи и сторонние крейты).
-WHITELIST = ("CHANGELOG.md", "docs/vs-", "bench/go_")
+# poetry.lock — не наш номер: там constraints и хэши колес, которые могут содержать
+# те же цифры (нижняя граница зависимости, sha256 колеса).
+WHITELIST = ("CHANGELOG.md", "docs/vs-", "bench/go_", "poetry.lock")
 
 SEMVER = re.compile(r"^\d+\.\d+\.\d+$")
 

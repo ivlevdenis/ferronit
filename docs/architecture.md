@@ -73,13 +73,13 @@ Ferronit — высокопроизводительный ASGI-фреймвор�
 | Rust-ядро | `ferronit._core` (`ferronit-rs/`) | radix-роутинг, разбор запроса, JSON, gzip, CORS, multipart |
 | Request | `ferronit/core/request.py` | ленивое чтение тела, query/headers, загрузки, ошибки |
 | Response | `ferronit/core/response.py` | `JSONResponse`, `TextResponse`, `StreamingResponse`, `Response` |
-| Роутинг | `ferronit/routing.py` | регистрация HTTP/WS-маршрутов |
+| Роутинг | `ferronit._core` (Rust) | дерево маршрутов HTTP/WS, поиск по radix-дереву |
 | Binding | `ferronit/binding.py` | привязка параметров хендлера, query/body-модели, pre-bind DI |
 | DI | `ferronit/di.py` | `Container` (singleton/factory), `Annotated`-ключи |
 | Middleware | `ferronit/middleware.py` | цепочка middleware, расширения `apply(app)` |
 | DDD | `ferronit/ddd.py` | Command/Query, шины, агрегаты, события, Repository |
 | Гексагон | `ferronit/hexagonal.py` | Port/Adapter, UnitOfWork, ApplicationService |
-| Данные | `ferronit/contrib/rawdb.py`, `rawmodel.py` | Pool, RawRepository, Model/select/Relation, RawModelRepository |
+| Данные | `ferronit/contrib/sql.py`, `drivers.py`, `rawdb.py`, `rawmodel.py` | дерево SQL и диалекты, драйверы (asyncpg/aiomysql/aiosqlite), Pool/RawRepository, Model/select/Relation |
 | Contrib | `ferronit/contrib/*` | cors, health, kafka, llm, ratelimit, security, staticfiles, tracing, vectordb |
 | Конфиг | `ferronit/config.py` | `EnvConfig` |
 | CLI | `ferronit/cli.py` | `new` / `dev` / `run` |

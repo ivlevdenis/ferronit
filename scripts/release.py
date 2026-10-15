@@ -115,7 +115,10 @@ def main() -> None:
         print(f"    [ok] {rel}: {count}")
 
     # 2) старая версия не должна остаться вне whitelist.
-    leftover = git("grep", "-n", old, "--", ".").splitlines()
+    # -F: номер ищем как строку. Без этого точка в номере версии работает как
+    # «любой символ» и совпадает с hex-хэшами в lock-файлах сторонних крейтов
+    # (bench/rust_pg_orm/Cargo.lock) — релиз падал на ложном остатке.
+    leftover = git("grep", "-n", "-F", old, "--", ".").splitlines()
     bad = [ln for ln in leftover if not any(ln.split(":", 1)[0].startswith(w) for w in WHITELIST)]
     if bad:
         print("старая версия осталась в неожиданных местах:", file=sys.stderr)

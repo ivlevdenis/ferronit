@@ -1,7 +1,7 @@
 """Релиз Ferronit: бамп версии во всех местах → check.sh → commit → tag → push.
 
 Usage:
-    python scripts/release.py 0.19.0 [--notes "…"] [--skip-check] [--no-push]
+    python scripts/release.py <версия> [--notes "…"] [--skip-check] [--no-push]
 
 Перед запуском допиши записи в CHANGELOG.md (заголовок ``## <версия>``) — тогда
 скрипт их не тронет. Иначе он вставит заголовок с датой (тело — из ``--notes``).
@@ -77,7 +77,7 @@ def bump_kind(old: str, new: str) -> str:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("new", help="новая версия, напр. 0.19.0")
+    ap.add_argument("new", help="новая версия в формате x.y.z")
     ap.add_argument("--notes", default=None, help="тело записи CHANGELOG (если заголовка ещё нет)")
     ap.add_argument("--skip-check", action="store_true", help="пропустить ./scripts/check.sh")
     ap.add_argument("--no-push", action="store_true", help="не пушить main и тег")

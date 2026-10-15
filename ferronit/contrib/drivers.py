@@ -168,25 +168,44 @@ def _require(module_name: str, extra: str) -> Any:
 
 
 def parse_dsn(dsn: str) -> dict[str, Any]:
-    """Split a DSN into the keyword arguments a driver's ``connect`` expects.
+    """Split a DSN into the keyword arguments its driver's ``connect`` expects.
+
+    The scheme decides the shape: network engines (``mysql://``, ``postgresql://``)
+    give ``host``/``port``/``user``/``password``/``db``; SQLite, being a file, gives
+    ``path`` (``:memory:`` for an in-memory database).
 
     Args:
-        dsn: Connection string, e.g. ``mysql://root:root@127.0.0.1:3307/db``.
+        dsn: Connection string, e.g. ``mysql://root:***@127.0.0.1:3307/db``
+            or ``sqlite:///var/lib/app.db``.
 
     Returns:
-        Keyword arguments (``host``, ``port``, ``user``, ``password``, ``db``).
+        Keyword arguments for the driver: ``host``/``port``/``user``/``password``/``db``
+        for network engines, ``path`` for SQLite.
 
     Raises:
-        ValueError: If the DSN has no scheme.
+        ValueError: If the DSN has no scheme, or the scheme is not a database scheme
+            (a SQLite DSN parsed as MySQL would silently point at the wrong database).
     """
     parts = urlsplit(dsn)
-    if not parts.scheme:
+    scheme = parts.scheme.lower()
+    if not scheme:
         raise ValueError(f"DSN без схемы: {dsn!r}")
+    if scheme.startswith("sqlite"):
+        # Путь берём дословно после «://»: sqlite://:memory: → «:memory:»,
+        # sqlite:///var/app.db → «/var/app.db». Так же читает open_pool.
+        raw = dsn.split("://", 1)[1]
+        return {"path": raw or ":memory:"}
+    if scheme.startswith("mysql"):
+        default_port = 3306
+    elif scheme.startswith("postgres"):
+        default_port = 5432
+    else:
+        raise ValueError(f"неизвестная схема DSN: {scheme!r} (mysql, postgresql, sqlite)")
     port = parts.port
     return {
         "host": parts.hostname or "127.0.0.1",
-        "port": port if port is not None else 3306,
-        "user": parts.username or "root",
+        "port": port if port is not None else default_port,
+        "user": parts.username or "",
         "password": parts.password or "",
         "db": (parts.path or "/").lstrip("/"),
     }
@@ -427,7 +446,6 @@ async def open_pool(dsn: str, *, min_size: int = 1, max_size: int = 10) -> Any:
         return MySQLPool(pool)
     if scheme.startswith("sqlite"):
         aiosqlite = _require("aiosqlite", "sqlite")
-        path = dsn.split("://", 1)[1] or ":memory:"
-        connection = await aiosqlite.connect(path, isolation_level=None)
+        connection = await aiosqlite.connect(parse_dsn(dsn)["path"], isolation_level=None)
         return SQLitePool(connection)
     raise ValueError(f"неизвестная схема DSN: {scheme!r} (нужно mysql или sqlite)")

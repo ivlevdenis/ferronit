@@ -254,3 +254,39 @@ async def test_mysql_rejects_returning() -> None:
             )
     finally:
         conn.close()
+
+
+# ── разбор DSN ──────────────────────────────────────────────────────────
+
+def test_parse_dsn_splits_network_engines() -> None:
+    """mysql:// и postgresql:// дают аргументы драйвера, порт по умолчанию — свой."""
+    from ferronit.contrib.drivers import parse_dsn
+
+    assert parse_dsn("mysql://root:secret@db.internal:3307/app") == {
+        "host": "db.internal",
+        "port": 3307,
+        "user": "root",
+        "password": "secret",
+        "db": "app",
+    }
+    assert parse_dsn("mysql://127.0.0.1/app")["port"] == 3306
+    assert parse_dsn("postgresql://postgres@127.0.0.1/db")["port"] == 5432
+
+
+def test_parse_dsn_gives_sqlite_a_path_not_a_host() -> None:
+    """SQLite — файл: путь берём дословно, а не как у MySQL (иначе база «уедет»)."""
+    from ferronit.contrib.drivers import parse_dsn
+
+    assert parse_dsn("sqlite://:memory:") == {"path": ":memory:"}
+    assert parse_dsn("sqlite:///var/lib/app.db") == {"path": "/var/lib/app.db"}
+    assert parse_dsn("sqlite://") == {"path": ":memory:"}
+
+
+def test_parse_dsn_rejects_unknown_scheme() -> None:
+    """Неизвестная схема — ошибка, а не молчаливые MySQL-умолчания."""
+    from ferronit.contrib.drivers import parse_dsn
+
+    with pytest.raises(ValueError):
+        parse_dsn("oracle://user@host/db")
+    with pytest.raises(ValueError):
+        parse_dsn("no-scheme-here")

@@ -30,7 +30,6 @@ ferronit/
 │   ├── app.py             # ASGI-движок: маршруты, middleware, gzip, CORS, lifespan
 │   ├── request.py         # Request (заголовки/query в Rust), PathParamError, BodyTooLarge
 │   └── response.py        # Response, JSONResponse, StreamingResponse, TextResponse
-├── routing.py             # RouteNode + независимая от CLI регистрация маршрутов
 ├── binding.py            # привязка параметров хендлера: request + контейнер (выбирается при регистрации)
 ├── middleware.py          # стек middleware
 ├── di.py                  # Container: синглтоны/фабрики по типу или строке
@@ -41,8 +40,10 @@ ferronit/
 ├── config.py              # EnvConfig: типизированные переменные окружения
 ├── cli.py                 # ferronit new / dev / run + шаблоны scaffold-проекта
 └── contrib/               # инфраструктурные адаптеры (опциональные зависимости)
-    ├── rawdb.py           # тонкий слой на asyncpg: RawRepository/RawUnitOfWork (без ORM)
-    ├── rawmodel.py        # декларативные модели + Query/select + связи (Relation) поверх rawdb (asyncpg)
+    ├── sql.py             # дерево выражений + диалекты (POSTGRES/SQLITE/MYSQL) и компиляция SQL
+    ├── drivers.py         # адаптеры соединений и пулов: asyncpg, aiomysql (MySQL), aiosqlite (SQLite)
+    ├── rawdb.py           # тонкий слой поверх драйвера: RawRepository/RawUnitOfWork/Condition (без ORM)
+    ├── rawmodel.py        # декларативные модели + Query/select + связи (Relation) поверх rawdb
     ├── llm.py             # LlmPort + OpenAiAdapter, ClaudeAdapter, MockLlmAdapter
     ├── vectordb.py        # VectorDbPort + Qdrant, Chroma, Mock
     ├── kafka.py           # KafkaMessageBus (aiokafka)
@@ -53,7 +54,7 @@ ferronit-rs/src/lib.rs        # Rust: Router, parse_headers, Response::json (в 
 pyproject.toml                # метаданные, extras, [tool.poetry], [tool.maturin], ruff/mypy
 poetry.toml, poetry.lock      # окружение Poetry (venv в .venv/) и зафиксированные зависимости
 bench/                     # измерительный стенд (все цифры — docs/benchmarks.md) + README.md внутри
-tests/                     # 249 тестов; tests/security/ — 64 (в т.ч. 14 ASVS L1)
+tests/                     # 360 тестов; tests/security/ — 65 (в т.ч. 14 ASVS L1)
 examples/                  # минимальный, DI, LLM+SSE, RAG, WebSocket + README
 docker/                    # Dockerfile-обвязка: demo_app.py, entrypoint.sh
 docs/                      # документация: README.md (хаб), data/ (слой данных), benchmarks.md,
@@ -84,7 +85,7 @@ PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 poetry run maturin develop --release   # �
 ./scripts/check.sh
 
 # по отдельности (можно и .venv/bin/... — venv лежит внутри проекта)
-poetry run pytest tests/ -q                    # 263 теста, ~4 с
+poetry run pytest tests/ -q                    # 360 тестов, ~4 с
 poetry run pytest tests/security -q            # security-набор + ASVS L1
 poetry run ruff check ferronit tests           # линт
 poetry run mypy ferronit                       # типы

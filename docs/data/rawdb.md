@@ -192,18 +192,22 @@ async with RawUnitOfWork(pool, readonly=True) as uow:
 ### Явный join
 
 Помимо декларативных `Relation`, модель можно джойнить прямо в запросе:
-`Query.join` добавляет `LEFT JOIN`, а `fetch_joined()` возвращает кортежи
-`(родитель, [дети])`:
+`Query.join` добавляет `LEFT JOIN` по умолчанию, а `fetch_joined()` возвращает
+кортежи `(родитель, [дети])`:
 
 ```python
 q = select(Order).join(OrderItem, fk="order_id")                       # FK-джойн
 q = select(Order).join(OrderItem, on=Order.c.id == OrderItem.c.order_id)  # по колонкам
+q = select(Order).join(OrderItem, fk="order_id", kind=sql.INNER)       # тип джойна
 rows = await repo.fetch_joined(q)                                      # list[(Order, list[OrderItem])]
 ```
 
 - `fk` — имя FK в джойн-модели, `pk` — PK родителя (по умолчанию `id`).
 - `on` — сравнение колонок (`Parent.c.x == Child.c.y`); обе колонки должны
   принадлежать родителю и джойн-модели соответственно.
+- `kind` — `sql.LEFT` (по умолчанию), `sql.INNER`, `sql.RIGHT`, `sql.FULL`.
+  Движок без такого джойна отклоняет statement громко: `FULL` на MySQL даёт
+  `DialectError`, а не SQL, который сервер потом отвергнет.
 - Результат — кортеж `(родитель, дети_j1, дети_j2, …)`, по одному списку на каждый
   `join`; джойны выполняются одним SQL (родительский SELECT уходит в подзапрос `t0`).
 

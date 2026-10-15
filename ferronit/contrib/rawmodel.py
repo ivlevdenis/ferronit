@@ -341,7 +341,7 @@ class Query:
         self._order: list[str] = []
         self._limit: int | None = None
         self._offset: int | None = None
-        self._joins: list[tuple[type[Model], OnPair | None, str | None, str]] = []
+        self._joins: list[tuple[type[Model], OnPair | None, str | None, str, str]] = []
 
     def where(self, *conditions: Any) -> Query:
         """Add ``AND``-combined filter conditions.
@@ -410,8 +410,9 @@ class Query:
         on: OnPair | None = None,
         fk: str | None = None,
         pk: str = "id",
+        kind: str = sql.LEFT,
     ) -> Query:
-        """Add an explicit ``LEFT JOIN`` of ``other`` to the query.
+        """Add an explicit join of ``other`` to the query.
 
         Use either ``fk`` (foreign key in ``other`` → ``pk`` of this model) for
         a plain FK join, or ``on`` — a column-to-column comparison
@@ -424,11 +425,15 @@ class Query:
             on: Column-to-column condition (``Parent.c.x == Child.c.y``).
             fk: Foreign-key column name in ``other`` (shortcut for ``on``).
             pk: Primary-key column of this model (default ``"id"``).
+            kind: Join kind — ``sql.LEFT`` (default), ``sql.INNER``,
+                ``sql.RIGHT`` or ``sql.FULL``; an engine without that join
+                (``FULL`` on MySQL) rejects the statement with
+                :class:`~ferronit.contrib.sql.DialectError`.
 
         Returns:
             This query (mutated, for chaining).
         """
-        self._joins.append((other, on, fk, pk))
+        self._joins.append((other, on, fk, pk, kind))
         return self
 
     def first(self) -> Query:
@@ -456,17 +461,14 @@ class Query:
         self._select = [expression]
         return self
 
-    def compile(self, dialect: sql.Dialect | None = None) -> tuple[str, list[Any]]:
-        """Compile to ``(sql, params)`` with continuous ``$N`` placeholders.
-
-        Args:
-            dialect: Render for this dialect; the query's own dialect
-                (PostgreSQL unless the query was built with another one).
+    def _statement(self) -> sql.Select:
+        """Build the ``SELECT`` node of this query, without join wrapping.
 
         Returns:
-            The SQL text and its bound values in placeholder order.
+            The statement node; :func:`_wrap_joins` puts the explicit joins of
+            :meth:`join` around it, and compilation happens once, after that.
         """
-        statement = sql.Select(
+        return sql.Select(
             self._table,
             self._select,
             where=[sql.Paren(item) for item in self._where],
@@ -477,10 +479,21 @@ class Query:
             limit=self._limit,
             offset=self._offset,
         )
-        sql_text, params = sql.compile_statement(statement, dialect or self._dialect)
+
+    def compile(self, dialect: sql.Dialect | None = None) -> tuple[str, list[Any]]:
+        """Compile to ``(sql, params)`` with continuous ``$N`` placeholders.
+
+        Args:
+            dialect: Render for this dialect; the query's own dialect
+                (PostgreSQL unless the query was built with another one).
+
+        Returns:
+            The SQL text and its bound values in placeholder order.
+        """
+        statement = self._statement()
         if self._joins:
-            sql_text, params = _wrap_joins(sql_text, params, self._model, self._joins)
-        return sql_text, params
+            statement = _wrap_joins(statement, self._model, self._joins)
+        return sql.compile_statement(statement, dialect or self._dialect)
 
 
 def select(
@@ -501,40 +514,43 @@ def select(
 
 def _resolve_on_pair(
     on: OnPair, parent_model: type[Model], child_model: type[Model], alias: str
-) -> str:
-    """Развернуть ``OnPair`` в ``t{i}.child_col = t0.parent_col`` (или наоборот)."""
+) -> sql.Compare:
+    """Развернуть ``OnPair`` в узел ``t{i}.child_col = t0.parent_col`` (или наоборот)."""
     left, right = on.left, on.right
     if left._model is parent_model and right._model is child_model:
-        return f"{alias}.{right.name} = t0.{left.name}"
+        return sql.Compare(sql.Ref(right.name, alias), "=", sql.Ref(left.name, "t0"))
     if right._model is parent_model and left._model is child_model:
-        return f"{alias}.{left.name} = t0.{right.name}"
+        return sql.Compare(sql.Ref(left.name, alias), "=", sql.Ref(right.name, "t0"))
     raise ValueError(
         "join on: колонки должны принадлежать родителю и джойн-модели соответственно"
     )
 
 
 def _wrap_joins(
-    parent_sql: str,
-    params: list[Any],
+    statement: sql.Select,
     parent_model: type[Model],
-    joins: list[tuple[type[Model], OnPair | None, str | None, str]],
-) -> tuple[str, list[Any]]:
-    """Обернуть SELECT по родителю в явные ``LEFT JOIN``-ы из ``Query.join``.
+    joins: list[tuple[type[Model], OnPair | None, str | None, str, str]],
+) -> sql.Select:
+    """Обернуть SELECT по родителю в явные JOIN-ы из ``Query.join``.
 
     Родительский SELECT (с WHERE/ORDER/LIMIT/OFFSET) уходит в подзапрос ``t0``,
-    каждая джойн-модель получает алиас ``t1``/``t2``/… с условием ``ON``.
+    каждая джойн-модель получает алиас ``t1``/``t2``/… с условием ``ON``. Обёртка
+    строится узлами (:class:`sql.Subquery`, :class:`sql.Join`), а не строками:
+    SQL целиком рендерит компилятор, поэтому подзапрос и диалект-квотинг
+    собираются в одном месте.
     """
-    cols = [f"t0.{c}" for c in parent_model.__columns__]
-    clauses: list[str] = []
-    for index, (child, on, fk, pk) in enumerate(joins, start=1):
+    cols: list[sql.Expr] = [sql.Ref(c, "t0") for c in parent_model.__columns__]
+    clauses: list[sql.Join] = []
+    for index, (child, on, fk, pk, kind) in enumerate(joins, start=1):
         alias = f"t{index}"
-        cols.extend(f"{alias}.{c}" for c in child.__columns__)
-        if fk is not None:
-            on_sql = f"{alias}.{fk} = t0.{pk}"
-        else:
-            on_sql = _resolve_on_pair(on, parent_model, child, alias)  # type: ignore[arg-type]
-        clauses.append(f" LEFT JOIN {_resolve_table(child)} {alias} ON {on_sql}")
-    return f"SELECT {', '.join(cols)} FROM ({parent_sql}) t0{''.join(clauses)}", params
+        cols.extend(sql.Ref(c, alias) for c in child.__columns__)
+        condition = (
+            sql.Compare(sql.Ref(fk, alias), "=", sql.Ref(pk, "t0"))
+            if fk is not None
+            else _resolve_on_pair(on, parent_model, child, alias)  # type: ignore[arg-type]
+        )
+        clauses.append(sql.Join(_resolve_table(child), condition, kind=kind, alias=alias))
+    return sql.Select(sql.Subquery(statement, "t0"), cols, joins=clauses)
 
 
 # --- WHERE mini-DSL ---------------------------------------------------------
@@ -796,9 +812,7 @@ def _repo_sql(
         ),
         dialect,
     )[0]
-    select_pk_sql = sql.compile_statement(
-        sql.Select(table, columns, where=[sql.Raw(f"{pk} = $1")]), dialect
-    )[0]
+    select_pk_sql = sql.compile_statement(_pk_statement(table, columns, pk), dialect)[0]
     delete_sql = sql.compile_statement(sql.Delete(table, pk), dialect)[0]
     list_sql = sql.compile_statement(
         sql.Select(table, columns, limit=1, offset=2), dialect
@@ -817,8 +831,12 @@ def _repo_sql(
     )
 
 
-@lru_cache(maxsize=256)
-def _join_select(parent_sql: str, model: type[Model]) -> str:
+def _pk_statement(table: str, columns: Sequence[str], pk: str) -> sql.Select:
+    """SELECT одной строки по pk — узлом (значение подставляет вызов)."""
+    return sql.Select(table, columns, where=[sql.Raw(f"{pk} = $1")])
+
+
+def _wrap_relations(statement: sql.Select, model: type[Model]) -> sql.Select:
     """Обернуть SELECT по родителю в LEFT JOIN всех объявленных связей.
 
     Родительский SELECT (с фильтрами, сортировкой и пагинацией) уходит в
@@ -829,16 +847,20 @@ def _join_select(parent_sql: str, model: type[Model]) -> str:
     """
     relations = model.__relations__
     if not relations:
-        return parent_sql
-    cols = [f"t0.{c}" for c in model.__columns__]
-    joins: list[str] = []
+        return statement
+    cols: list[sql.Expr] = [sql.Ref(c, "t0") for c in model.__columns__]
+    joins: list[sql.Join] = []
     for index, (child, fk, pk, _many) in enumerate(relations.values(), start=1):
         alias = f"t{index}"
-        cols.extend(f"{alias}.{c}" for c in child.__columns__)
+        cols.extend(sql.Ref(c, alias) for c in child.__columns__)
         joins.append(
-            f" LEFT JOIN {_resolve_table(child)} {alias} ON {alias}.{fk} = t0.{pk}"
+            sql.Join(
+                _resolve_table(child),
+                sql.Compare(sql.Ref(fk, alias), "=", sql.Ref(pk, "t0")),
+                alias=alias,
+            )
         )
-    return f"SELECT {', '.join(cols)} FROM ({parent_sql}) t0{''.join(joins)}"
+    return sql.Select(sql.Subquery(statement, "t0"), cols, joins=joins)
 
 
 class RawModelRepository[M: Model](Adapter):
@@ -871,6 +893,7 @@ class RawModelRepository[M: Model](Adapter):
         "_insert_cols",
         "_insert_columns",
         "_insert_sql",
+        "_join_pk_sql",
         "_list_sql",
         "_model",
         "_pk",
@@ -901,6 +924,12 @@ class RawModelRepository[M: Model](Adapter):
         ) = _repo_sql(
             model_cls, table or _resolve_table(model_cls), pk, self._dialect
         )
+        # Чтение строки по pk со связями: тот же SELECT, но обёрнутый в LEFT JOIN
+        # объявленных связей. Собирается узлами и компилируется один раз.
+        self._join_pk_sql = sql.compile_statement(
+            _wrap_relations(_pk_statement(self._table, self._columns, pk), model_cls),
+            self._dialect,
+        )[0]
 
     async def _materialize(self, rows) -> list[M]:
         """Построить модели из строк, подтянув связи отдельным запросом.
@@ -965,7 +994,7 @@ class RawModelRepository[M: Model](Adapter):
     async def _materialize_joined(self, rows) -> list[M]:
         """Построить модели из плоских JOIN-строк (точечное чтение связей).
 
-        Связи грузятся одним ``LEFT JOIN`` (см. ``_join_select``), поэтому
+        Связи грузятся одним ``LEFT JOIN`` (см. ``_wrap_relations``), поэтому
         строка содержит колонки родителя, затем колонки каждой связи в порядке
         объявления. Повторяющиеся дочерние строки (перекрёстное произведение
         нескольких коллекций) отсеиваются по кортежу значений; строка без
@@ -1026,7 +1055,7 @@ class RawModelRepository[M: Model](Adapter):
         return models
 
     def _materialize_joined_pairs(
-        self, rows, joins: list[tuple[type[Model], Any, Any, Any]]
+        self, rows, joins: list[tuple[type[Model], Any, Any, Any, Any]]
     ) -> builtins.list[builtins.tuple[Any, ...]]:
         """Разобрать плоские JOIN-строки в кортежи ``(родитель, [дети]…)``.
 
@@ -1041,7 +1070,7 @@ class RawModelRepository[M: Model](Adapter):
         n_parent = len(parent_cols)
         pk_index = parent_cols.index(self._pk)
 
-        child_models = [child for child, _on, _fk, _pk in joins]
+        child_models = [child for child, _on, _fk, _pk, _kind in joins]
         offsets: list[int] = []
         widths: list[int] = []
         offset = n_parent
@@ -1088,7 +1117,7 @@ class RawModelRepository[M: Model](Adapter):
             The model instance, or ``None`` when no row matches.
         """
         if self._model.__relations__:
-            rows = await self._conn.fetch(_join_select(self._select_pk_sql, self._model), id)
+            rows = await self._conn.fetch(self._join_pk_sql, id)
             if not rows:
                 return None
             return (await self._materialize_joined(rows))[0]
@@ -1166,9 +1195,12 @@ class RawModelRepository[M: Model](Adapter):
         """
         if query._limit is None:
             query = query.limit(1)
-        sql_text, params = query.compile(self._dialect)
+        statement = query._statement()
         if self._model.__relations__:
-            rows = await self._conn.fetch(_join_select(sql_text, self._model), *params)
+            statement = _wrap_relations(statement, self._model)
+        sql_text, params = sql.compile_statement(statement, self._dialect)
+        if self._model.__relations__:
+            rows = await self._conn.fetch(sql_text, *params)
             if not rows:
                 return None
             return (await self._materialize_joined(rows))[0]

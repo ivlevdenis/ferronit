@@ -14,6 +14,7 @@ from typing import Annotated
 
 import pytest
 
+from ferronit.contrib import sql
 from ferronit.contrib.rawdb import Pool, RawUnitOfWork, create_raw_pool
 from ferronit.contrib.rawmodel import (
     IdentityMap,
@@ -613,6 +614,35 @@ def test_join_on_pair_compiles() -> None:
     sql, params = q.compile()
     assert "LEFT JOIN join_children t1 ON t1.parent_id = t0.id" in sql
     assert params == []
+
+
+def test_join_kind_inner_compiles() -> None:
+    sql_text, params = select(JoinParent).join(JoinChild, fk="parent_id", kind=sql.INNER).compile()
+    assert sql_text == (
+        "SELECT t0.id, t0.title, t1.id, t1.parent_id, t1.name "
+        "FROM (SELECT id, title FROM join_parents) t0 "
+        "INNER JOIN join_children t1 ON t1.parent_id = t0.id"
+    )
+    assert params == []
+
+
+def test_join_kind_right_and_full_compile() -> None:
+    for kind in (sql.RIGHT, sql.FULL):
+        sql_text, _params = select(JoinParent).join(JoinChild, fk="parent_id", kind=kind).compile()
+        assert f"{kind} JOIN join_children t1 ON t1.parent_id = t0.id" in sql_text
+
+
+def test_join_kind_full_is_refused_on_mysql() -> None:
+    """У MySQL нет FULL OUTER JOIN — отказ вместо SQL, который сервер отвергнет."""
+    query = select(JoinParent).join(JoinChild, fk="parent_id", kind=sql.FULL)
+    with pytest.raises(sql.DialectError):
+        query.compile(sql.MYSQL)
+
+
+def test_unknown_join_kind_is_refused() -> None:
+    query = select(JoinParent).join(JoinChild, fk="parent_id", kind="NATURAL")
+    with pytest.raises(ValueError):
+        query.compile()
 
 
 async def test_fetch_joined_returns_pairs() -> None:

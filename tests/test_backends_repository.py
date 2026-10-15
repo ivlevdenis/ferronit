@@ -337,3 +337,53 @@ async def test_grouped_aggregates(engine: str) -> None:
             assert total == 2
     finally:
         await pool.close()
+
+
+@pytest.mark.parametrize("engine", ENGINES)
+async def test_explicit_join_kinds(engine: str) -> None:
+    """INNER/LEFT/RIGHT/FULL JOIN в дереве — на трёх настоящих движках.
+
+    Данные подобраны так, чтобы типы джойнов различались по результату: ``p2``
+    без детей (его теряет ``INNER``) и ребёнок без родителя (его теряет
+    ``LEFT``). ``FULL`` диалект MySQL обязан отклонить: у сервера нет
+    ``FULL OUTER JOIN``.
+    """
+    pool = await _pool(engine)
+    try:
+        await _prepare(engine, pool)
+        async with pool.uow() as uow:
+            parents = uow.model(AstParent)
+            items = uow.model(AstItem)
+            await parents.save(AstParent(title="p1"))
+            await parents.save(AstParent(title="p2"))
+            await items.save_many(
+                [
+                    AstItem(parent_id=1, name="a"),
+                    AstItem(parent_id=999, name="orphan"),
+                ]
+            )
+
+            def query(kind: str):
+                return select(AstParent).join(AstItem, fk="parent_id", kind=kind)
+
+            inner = await parents.fetch_joined(query(sql.INNER))
+            assert [p.title for p, _kids in inner] == ["p1"]
+
+            left = await parents.fetch_joined(query(sql.LEFT))
+            assert sorted(p.title for p, _kids in left) == ["p1", "p2"]
+            parent1, children1 = next(pair for pair in left if pair[0].title == "p1")
+            assert [child.name for child in children1] == ["a"]
+
+            if engine == "mysql":
+                with pytest.raises(sql.DialectError):
+                    query(sql.FULL).compile(sql.MYSQL)
+            else:
+                right = await parents.fetch_joined(query(sql.RIGHT))
+                assert [p.title for p, _kids in right if p.title is not None] == ["p1"]
+                assert any(p.id is None for p, _kids in right)
+
+                full = await parents.fetch_joined(query(sql.FULL))
+                assert sorted(p.title for p, _kids in full if p.title) == ["p1", "p2"]
+                assert any(p.id is None for p, _kids in full)
+    finally:
+        await pool.close()

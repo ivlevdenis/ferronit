@@ -399,3 +399,119 @@ def test_dsl_filter_compiles_for_both_dialects() -> None:
         ' WHERE (("id" > ?) AND (("name" LIKE ?) OR ("email" IN (?, ?))))'
     )
     assert lite_params == [1, "%a%", "x", "y"]
+
+
+# ── Ref, Join и подзапрос ────────────────────────────────────────────────────
+
+
+def test_ref_qualifies_and_quotes_per_dialect() -> None:
+    """``Ref`` добавляет алиас; имя колонки квотится по диалекту."""
+    assert sql.compile_expr(sql.Ref("id", "t0")) == ("t0.id", [])
+    assert sql.compile_expr(sql.Ref("id", "t0"), sql.SQLITE) == ('t0."id"', [])
+    assert sql.compile_expr(sql.Ref("id"), sql.MYSQL) == ("`id`", [])
+
+
+def test_compare_of_two_refs_binds_nothing() -> None:
+    """Колонка против колонки — это SQL в тексте, а не bound-параметр."""
+    node = sql.Compare(sql.Ref("parent_id", "t1"), "=", sql.Ref("id", "t0"))
+    assert sql.compile_expr(node) == ("t1.parent_id = t0.id", [])
+
+
+def test_join_renders_every_kind() -> None:
+    on = sql.Compare(sql.Ref("parent_id", "t1"), "=", sql.Ref("id", "t0"))
+    for kind in sql.JOIN_KINDS:
+        statement = sql.Select(
+            "parents",
+            [sql.Ref("id", "t0")],
+            joins=[sql.Join("children", on, kind=kind, alias="t1")],
+        )
+        assert sql.compile_statement(statement) == (
+            f"SELECT t0.id FROM parents {kind} JOIN children t1 ON t1.parent_id = t0.id",
+            [],
+        )
+
+
+def test_full_join_is_refused_by_mysql() -> None:
+    """MySQL не умеет FULL OUTER JOIN — диалект отказывает, а не врёт SQL-ом."""
+    statement = sql.Select(
+        "parents",
+        ["id"],
+        joins=[sql.Join("children", sql.Raw("1 = 1"), kind=sql.FULL, alias="t1")],
+    )
+    assert sql.compile_statement(statement)[0] == (
+        "SELECT id FROM parents FULL JOIN children t1 ON 1 = 1"
+    )
+    with pytest.raises(sql.DialectError):
+        sql.compile_statement(statement, sql.MYSQL)
+
+
+def test_unknown_join_kind_is_rejected() -> None:
+    with pytest.raises(ValueError):
+        sql.Join("children", sql.Raw("1 = 1"), kind="CROSS")
+
+
+def test_join_without_condition_is_rejected() -> None:
+    with pytest.raises(ValueError):
+        sql.Join("children", None)
+
+
+def test_join_alias_must_be_given_once() -> None:
+    """Алиас — либо у таблицы, либо у подзапроса: два сразу дали бы `t1 t1`."""
+    on = sql.Compare(sql.Ref("user_id", "t1"), "=", sql.Ref("id", "t0"))
+    with pytest.raises(ValueError):
+        sql.Join("posts", on)
+    derived = sql.Subquery(sql.Select("posts", ["id"]), "t1")
+    with pytest.raises(ValueError):
+        sql.Join(derived, on, alias="t1")
+
+
+def test_join_to_a_derived_table() -> None:
+    """Джойн к подзапросу: обе стороны — ``Subquery`` со своими параметрами."""
+    recent = sql.Subquery(
+        sql.Select("posts", ["id", "user_id"], where=[sql.Compare("views", ">", 10)]), "t1"
+    )
+    statement = sql.Select(
+        "users",
+        [sql.Ref("id", "t0")],
+        joins=[
+            sql.Join(
+                recent,
+                sql.Compare(sql.Ref("user_id", "t1"), "=", sql.Ref("id", "t0")),
+                kind=sql.INNER,
+            )
+        ],
+        where=[sql.Compare(sql.Ref("name", "t0"), "=", "Ann")],
+    )
+    assert sql.compile_statement(statement) == (
+        "SELECT t0.id FROM users INNER JOIN "
+        "(SELECT id, user_id FROM posts WHERE views > $1) t1 ON t1.user_id = t0.id "
+        "WHERE t0.name = $2",
+        [10, "Ann"],
+    )
+
+
+def test_subquery_keeps_placeholders_continuous() -> None:
+    """Параметры подзапроса идут в общий список — $N не сбивается."""
+    inner = sql.Select("users", ["id"], where=[sql.Compare("age", ">", 30)], limit=5)
+    statement = sql.Select(
+        sql.Subquery(inner, "t0"),
+        [sql.Ref("id", "t0")],
+        joins=[
+            sql.Join(
+                "posts",
+                sql.Compare(sql.Ref("user_id", "t1"), "=", sql.Ref("id", "t0")),
+                alias="t1",
+            )
+        ],
+        where=[sql.Compare(sql.Ref("id", "t0"), "<", 100)],
+    )
+    assert sql.compile_statement(statement) == (
+        "SELECT t0.id FROM (SELECT id FROM users WHERE age > $1 LIMIT $2) t0 "
+        "LEFT JOIN posts t1 ON t1.user_id = t0.id WHERE t0.id < $3",
+        [30, 5, 100],
+    )
+    assert sql.compile_statement(statement, sql.MYSQL) == (
+        "SELECT t0.`id` FROM (SELECT id FROM `users` WHERE `age` > %s LIMIT %s) t0 "
+        "LEFT JOIN `posts` t1 ON t1.`user_id` = t0.`id` WHERE t0.`id` < %s",
+        [30, 5, 100],
+    )

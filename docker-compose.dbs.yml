@@ -1,0 +1,37 @@
+# Тестовые базы для диалектов слоя данных Ferronit.
+#
+#   ./scripts/dbs_up.sh up        # поднять и дождаться готовности (docker compose --wait)
+#   ./scripts/dbs_up.sh status    # что запущено
+#   ./scripts/dbs_up.sh down      # остановить
+#
+# Почему так:
+#   * MySQL 8.4 на хосте :3307 (3306 часто занят локальным сервером; тестовый
+#     Postgres у нас на :5432 контейнером velox-pg — см. tests/test_rawdb.py);
+#   * SQLite — библиотека, а не сервер: контейнер ему не нужен, тесты гоняют его
+#     через aiosqlite прямо в процессе (tests/test_sql_backends.py);
+#   * Postgres-контейнер здесь не дублируется: им пользуются существующие тесты
+#     слоя данных (DSN postgres:postgres@localhost:5432/postgres).
+#
+# Пользователь/пароль root:root и база ferronit_test — только для тестов.
+
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: ferronit-mysql
+    ports:
+      - "3307:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: ferronit_test
+      # utf8mb4 + *_ci: ILIKE-подобное поведение LIKE без учёта регистра,
+      # как ожидает диалект MySQL (см. ferronit/contrib/sqlast.py).
+      MYSQL_ROOT_HOST: "%"
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -proot --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 20s

@@ -59,8 +59,9 @@ ferronit run --workers 4              # прод: granian, fallback uvicorn
 
 ## Слой данных
 
-Один тонкий слой поверх asyncpg — `rawdb` + `rawmodel`: декларативные модели,
-query DSL (`select`), связи, Unit of Work — без ORM. Подробнее:
+Один тонкий слой поверх драйвера — `rawdb` + `rawmodel`: PostgreSQL (asyncpg), MySQL (aiomysql)
+и SQLite (aiosqlite) за одним API. Декларативные модели, query DSL (`select`), связи, Unit of Work —
+без ORM. SQL собирается деревом выражений и компилируется под диалект. Подробнее:
 [`docs/data/overview.md`](docs/data/overview.md).
 
 ```python

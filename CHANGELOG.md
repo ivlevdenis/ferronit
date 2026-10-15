@@ -4,6 +4,34 @@
 Теги ведутся с 0.8.1; более ранние итерации (прототип Velox) здесь не перечислены.
 Версия живёт в двух файлах и меняется вместе: `ferronit/__init__.py::__version__` и `ferronit-rs/Cargo.toml`.
 
+## 0.19.0 — 2026-10-15
+
+**Добавлено**
+- **Генератор SQL на дереве выражений** (`ferronit.contrib.sql`): сравнения, функции
+  (`count(*)`, `sum(age)`), `IN`/`LIKE`/`BETWEEN`, логические узлы, группировки
+  (`GROUP BY`, `HAVING`, `DISTINCT`), операторы `SELECT`/`INSERT`/`UPDATE`/`DELETE`.
+- **Диалекты**: PostgreSQL (`$N`, `ANY`, `ILIKE`, `RETURNING`, `ON CONFLICT … EXCLUDED`),
+  SQLite (`?`, двойные кавычки, `RETURNING`, `excluded.`), MySQL (`%s`, обратные кавычки,
+  `IN (…)` без `ANY`, без `RETURNING`, `ON DUPLICATE KEY UPDATE`). Неподдерживаемая движком
+  фича даёт `DialectError`, а не молча неверный SQL.
+- **Бэкенды MySQL и SQLite**: слой данных работает на трёх движках, движок выбирается схемой
+  DSN в `create_pool` (`postgresql://`, `mysql://`, `sqlite://`); extras `mysql` и `sqlite`.
+- `RawModelRepository.fetch_rows()` — сырые строки для проекций и агрегатов;
+  у `Query` — `distinct()`, `group_by()`, `having()`, а `columns()` принимает узлы.
+- Тестовые БД: `docker-compose.dbs.yml` + `scripts/dbs_up.sh` (MySQL 8.4 на :3307);
+  SQLite контейнера не требует — прогоны идут в процессе.
+
+**Изменено**
+- `rawdb`/`rawmodel` компилируют SQL под диалект соединения. Для движков без `RETURNING`
+  ключ берётся у драйвера, а строка дочитывается точечным запросом мимо identity map
+  (иначе `upsert`/`update` возвращали устаревший объект); связи грузятся `IN (…)` вместо
+  `= ANY($1)`; `save_many` на MySQL идёт по строке (один round-trip на запись).
+- Модуль `sqlast` переименован в `sql` — он не только дерево: в нём диалекты и компиляция.
+
+**Тесты**: 333 (было 273) — побайтный паритет SQL со старым генератором, рендер на трёх
+диалектах, прогон репозиториев на живых PostgreSQL, MySQL и SQLite.
+
+
 ## 0.18.0 — 2026-10-14
 
 **Добавлено**

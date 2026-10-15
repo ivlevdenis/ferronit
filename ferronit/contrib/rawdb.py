@@ -15,12 +15,12 @@ Lifecycle rules worth knowing:
 
 from __future__ import annotations
 
-import re
 from collections.abc import Sequence
 from typing import Any
 
 import asyncpg
 
+from ferronit.contrib import sql
 from ferronit.hexagonal import Adapter, UnitOfWork
 
 __all__ = [
@@ -69,18 +69,28 @@ class Condition:
         return Condition(f"({self.sql}) OR ({right})", [*self.params, *other.params])
 
 
-def _renumber_placeholders(sql: str, count: int, offset: int) -> str:
-    """Renumber ``$1..$count`` by ``offset`` (descending — ``$1`` не затирает ``$10``)."""
-    for index in range(count, 0, -1):
-        sql = re.sub(rf"\${index}(?!\d)", f"${index + offset}", sql)
-    return sql
+def _renumber_placeholders(sql_text: str, count: int, offset: int) -> str:
+    """Renumber ``$1..$count`` by ``offset`` (descending — ``$1`` не затирает ``$10``).
+
+    Thin wrapper over :func:`sql.renumber_placeholders`; kept with the
+    historical signature because ``Condition`` is a public raw-SQL escape hatch.
+    """
+    return sql.renumber_placeholders(sql_text, offset)
 
 
-def _merge_filters(filters: Sequence[Condition]) -> tuple[str, list[Any]]:
-    """Combine conditions into one ``WHERE`` clause with continuous placeholders.
+def _merge_filters(
+    filters: Sequence[Any], dialect: sql.Dialect = sql.POSTGRES
+) -> tuple[str, list[Any]]:
+    """Combine filters into one ``WHERE`` clause with continuous placeholders.
+
+    Accepts raw :class:`Condition` fragments (their ``$N`` placeholders are
+    renumbered) and compiled expression nodes from :mod:`ferronit.contrib.sql`
+    (``User.c.age > 18``); every item is wrapped in parentheses and joined with
+    ``AND``.
 
     Args:
-        filters: Conditions to join with ``AND``.
+        filters: Conditions or expression nodes to join with ``AND``.
+        dialect: Target dialect for placeholders (PostgreSQL by default).
 
     Returns:
         A tuple of the clause (empty string when there is nothing to filter by)
@@ -93,15 +103,20 @@ def _merge_filters(filters: Sequence[Condition]) -> tuple[str, list[Any]]:
     clauses: list[str] = []
     params: list[Any] = []
     for condition in filters:
-        clauses.append(
-            f"({_renumber_placeholders(condition.sql, len(condition.params), len(params))})"
-        )
-        params.extend(condition.params)
+        sql_text, values = sql.compile_expr(condition, dialect, offset=len(params))
+        clauses.append(f"({sql_text})")
+        params.extend(values)
     return " AND ".join(clauses), params
 
 
 class RawRepository(Adapter):
-    """Repository over one table, backed by a single asyncpg connection.
+    """Repository over one table, backed by a single connection.
+
+    The connection decides the dialect: an ``asyncpg`` connection renders
+    PostgreSQL (``$1`` placeholders, ``RETURNING``), while the MySQL/SQLite
+    adapters from :mod:`ferronit.contrib.drivers` render their own placeholder
+    style and upsert syntax. On engines without ``RETURNING`` the generated key
+    comes from the driver (``lastrowid``) and the row is read back separately.
 
     Usage:
         repo = RawRepository(connection, "users")
@@ -112,12 +127,14 @@ class RawRepository(Adapter):
         await repo.delete(1)
     """
 
-    __slots__ = ("_conn", "_pk", "_table")
+    __slots__ = ("_conn", "_dialect", "_pk", "_table")
 
-    def __init__(self, connection: asyncpg.Connection, table: str, pk: str = "id") -> None:
+    def __init__(self, connection: Any, table: str, pk: str = "id") -> None:
         self._conn = connection
         self._table = table
         self._pk = pk
+        # Диалект берём у соединения; у asyncpg атрибута нет — значит PostgreSQL.
+        self._dialect = getattr(connection, "dialect", sql.POSTGRES)
 
     async def get(self, id: Any) -> dict[str, Any] | None:
         """Fetch a single row by primary key.
@@ -128,9 +145,11 @@ class RawRepository(Adapter):
         Returns:
             The row as a dict, or ``None`` when nothing matches.
         """
-        row = await self._conn.fetchrow(
-            f"SELECT * FROM {self._table} WHERE {self._pk} = $1", id
+        sql_text, _ = sql.compile_statement(
+            sql.Select(self._table, ("*",), where=[sql.Raw(f"{self._pk} = $1")]),
+            self._dialect,
         )
+        row = await self._conn.fetchrow(sql_text, id)
         return dict(row) if row is not None else None
 
     async def list(
@@ -146,21 +165,26 @@ class RawRepository(Adapter):
         Returns:
             A list of rows, each as a dict (possibly empty).
         """
-        where, params = _merge_filters(filters)
-        clause = f" WHERE {where}" if where else ""
-        sql = (
-            f"SELECT * FROM {self._table}{clause}"
-            f" LIMIT ${len(params) + 1} OFFSET ${len(params) + 2}"
+        sql_text, params = sql.compile_statement(
+            sql.Select(
+                self._table,
+                ("*",),
+                where=[sql.Paren(f) for f in filters],
+                limit=limit,
+                offset=offset,
+            ),
+            self._dialect,
         )
-        rows = await self._conn.fetch(sql, *params, limit, offset)
+        rows = await self._conn.fetch(sql_text, *params)
         return [dict(row) for row in rows]
 
     async def save(self, data: dict[str, Any], *, returning: bool = False) -> dict[str, Any]:
         """INSERT a row and return it as a dict.
 
-        The primary key is always read back with ``RETURNING``, so generated
-        keys (``serial``, ``identity``) come from the server rather than from a
-        driver-side guess.
+        Where the engine supports ``RETURNING`` (PostgreSQL, SQLite) the inserted
+        row comes back in one round-trip; MySQL has no ``RETURNING``, so the
+        generated key is taken from the driver and the full row is read back with a
+        second query (only when ``returning=True``).
 
         Args:
             data: Column name → value mapping to insert.
@@ -170,24 +194,32 @@ class RawRepository(Adapter):
         Returns:
             The inserted row as a dict.
         """
-        columns = ", ".join(data)
-        placeholders = ", ".join(f"${index}" for index in range(1, len(data) + 1))
-        if returning:
-            row = await self._conn.fetchrow(
-                f"INSERT INTO {self._table} ({columns}) VALUES ({placeholders}) RETURNING *",
+        columns = list(data)
+        if not self._dialect.supports_returning:
+            key = await self._conn.execute(
+                sql.compile_statement(sql.Insert(self._table, columns), self._dialect)[0],
                 *data.values(),
             )
+            if returning and self._pk not in data:
+                row = await self.get(key)
+                return row if row is not None else {**data, self._pk: key}
+            return {**data, self._pk: key} if self._pk not in data else dict(data)
+        if returning:
+            sql_text, _ = sql.compile_statement(
+                sql.Insert(self._table, columns, returning=("*",)), self._dialect
+            )
+            row = await self._conn.fetchrow(sql_text, *data.values())
             return dict(row) if row is not None else dict(data)
         if self._pk in data:
-            await self._conn.execute(
-                f"INSERT INTO {self._table} ({columns}) VALUES ({placeholders})", *data.values()
+            sql_text, _ = sql.compile_statement(
+                sql.Insert(self._table, columns), self._dialect
             )
+            await self._conn.execute(sql_text, *data.values())
             return dict(data)
-        value = await self._conn.fetchval(
-            f"INSERT INTO {self._table} ({columns}) VALUES ({placeholders})"
-            f" RETURNING {self._pk}",
-            *data.values(),
+        sql_text, _ = sql.compile_statement(
+            sql.Insert(self._table, columns, returning=(self._pk,)), self._dialect
         )
+        value = await self._conn.fetchval(sql_text, *data.values())
         return {**data, self._pk: value}
 
     async def update(self, id: Any, data: dict[str, Any]) -> dict[str, Any]:
@@ -202,12 +234,10 @@ class RawRepository(Adapter):
         """
         if not data:
             return {self._pk: id}
-        assignments = ", ".join(f"{column} = ${index}" for index, column in enumerate(data, 1))
-        await self._conn.execute(
-            f"UPDATE {self._table} SET {assignments} WHERE {self._pk} = ${len(data) + 1}",
-            *data.values(),
-            id,
+        sql_text, _ = sql.compile_statement(
+            sql.Update(self._table, list(data), self._pk), self._dialect
         )
+        await self._conn.execute(sql_text, *data.values(), id)
         return {**data, self._pk: id}
 
     async def delete(self, id: Any) -> None:
@@ -216,11 +246,17 @@ class RawRepository(Adapter):
         Args:
             id: Primary key value of the row to delete.
         """
-        await self._conn.execute(f"DELETE FROM {self._table} WHERE {self._pk} = $1", id)
+        sql_text, _ = sql.compile_statement(sql.Delete(self._table, self._pk), self._dialect)
+        await self._conn.execute(sql_text, id)
 
 
 class RawUnitOfWork(UnitOfWork):
-    """Unit of Work over an asyncpg pool: one connection, one transaction.
+    """Unit of Work over a pool: one connection, one transaction.
+
+    Works with any driver's pool (``asyncpg``, ``aiomysql``, the SQLite adapter): it
+    only needs ``acquire``/``release`` from the pool and ``execute``/
+    ``is_in_transaction`` from the connection, so ``BEGIN``/``COMMIT``/``ROLLBACK``
+    are issued the same way everywhere.
 
     Create one instance per request — the object holds the connection state.
     By default it opens an explicit transaction (``BEGIN``/``COMMIT``) so that
@@ -239,7 +275,7 @@ class RawUnitOfWork(UnitOfWork):
     __slots__ = ("_conn", "_identity_map", "_pk", "_pool", "_readonly")
 
     def __init__(
-        self, pool: asyncpg.Pool, pk: str = "id", *, readonly: bool = False
+        self, pool: Any, pk: str = "id", *, readonly: bool = False
     ) -> None:
         self._pool = pool
         self._pk = pk
@@ -327,7 +363,12 @@ class RawUnitOfWork(UnitOfWork):
 
 
 class Pool:
-    """Typed wrapper around an ``asyncpg.Pool`` — the unit-of-work entry point.
+    """Typed wrapper around a native pool — the unit-of-work entry point.
+
+    The pool can be ``asyncpg`` (PostgreSQL), an ``aiomysql`` pool or the single
+    SQLite connection adapter (see :mod:`ferronit.contrib.drivers`): the wrapper
+    only needs ``acquire``/``release``/``close``, which all three provide. The
+    dialect travels with the connection, not with the pool.
 
     Distinct pools are told apart by annotation: ``Annotated[Pool, "users"]``
     vs ``Annotated[Pool, "orders"]``. The wrapper keeps ``RawUnitOfWork``
@@ -335,12 +376,12 @@ class Pool:
     not on the raw driver.
 
     Args:
-        pool: A ready asyncpg pool (from :func:`create_pool` or ``asyncpg``).
+        pool: A ready pool (from :func:`create_pool` or the driver directly).
     """
 
     __slots__ = ("_pool",)
 
-    def __init__(self, pool: asyncpg.Pool) -> None:
+    def __init__(self, pool: Any) -> None:
         self._pool = pool
 
     def uow(self, pk: str = "id", *, readonly: bool = False) -> RawUnitOfWork:
@@ -383,17 +424,38 @@ async def create_raw_pool(
 async def create_pool(
     dsn: str, *, min_size: int = 1, max_size: int = 10
 ) -> Pool:
-    """Create a :class:`Pool` wrapper around an asyncpg pool.
+    """Create a :class:`Pool` over the engine named by the DSN scheme.
+
+    ``postgresql://`` → ``asyncpg`` (ships with the package), ``mysql://`` →
+    ``aiomysql`` (extra ``mysql``), ``sqlite://`` → ``aiosqlite`` (extra
+    ``sqlite``; SQLite is a library, so the "pool" is one connection). The returned
+    object is the same :class:`Pool` for every engine, so ``uow()``, the
+    repositories and the examples do not change.
 
     Call this inside the event loop the server runs in (typically in
-    ``@app.lifespan`` setup): asyncpg binds the pool to that loop.
+    ``@app.lifespan`` setup): the drivers bind their pools to that loop.
 
     Args:
-        dsn: libpq-style connection string, e.g. ``postgresql://user@host/db``.
-        min_size: Minimum number of pooled connections.
-        max_size: Maximum number of pooled connections.
+        dsn: Connection string; the scheme picks the driver, e.g.
+            ``postgresql://user@host/db``, ``mysql://user:pass@host:3307/db``,
+            ``sqlite:///tmp/app.db`` or ``sqlite://:memory:``.
+        min_size: Minimum number of pooled connections (network engines).
+        max_size: Maximum number of pooled connections (network engines).
 
     Returns:
         A :class:`Pool` ready to hand out units of work.
+
+    Raises:
+        ValueError: If the DSN scheme is not one of the three engines.
+        ModuleNotFoundError: If the driver's extra is not installed.
     """
-    return Pool(await asyncpg.create_pool(dsn, min_size=min_size, max_size=max_size))
+    scheme = dsn.split("://", 1)[0].lower() if "://" in dsn else ""
+    if scheme.startswith("postgres"):
+        return Pool(await asyncpg.create_pool(dsn, min_size=min_size, max_size=max_size))
+    if scheme.startswith(("mysql", "sqlite")):
+        from ferronit.contrib import drivers
+
+        return Pool(await drivers.open_pool(dsn, min_size=min_size, max_size=max_size))
+    raise ValueError(
+        f"неизвестная схема DSN: {scheme!r} (поддерживаются postgresql, mysql, sqlite)"
+    )

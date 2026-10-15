@@ -34,12 +34,12 @@ from collections.abc import Sequence
 from functools import lru_cache
 from typing import Annotated, Any, ClassVar, get_args, get_origin
 
-import asyncpg
 import msgspec
 from msgspec.structs import StructMeta  # type: ignore[attr-defined]
 from msgspec.structs import fields as struct_fields
 
-from ferronit.contrib.rawdb import Condition, Pool, RawUnitOfWork, _merge_filters
+from ferronit.contrib import sql
+from ferronit.contrib.rawdb import Condition, Pool, RawUnitOfWork
 from ferronit.hexagonal import Adapter
 
 __all__ = [
@@ -189,10 +189,12 @@ class Model(msgspec.Struct, metaclass=ModelMeta):
 
 
 class Column:
-    """Typed column reference; comparison operators produce ``Condition`` filters.
+    """Typed column reference; comparison operators produce expression nodes.
 
     Columns are reached through ``Model.c`` (e.g. ``User.c.age``), so field names
-    stay type-checked at authoring time instead of being raw SQL strings.
+    stay type-checked at authoring time instead of being raw SQL strings. Every
+    operator returns a :mod:`ferronit.contrib.sql` node, which the query's
+    dialect renders — so the same filter compiles for PostgreSQL or SQLite.
     Comparing two columns (``A.c.id == B.c.a_id``) yields an :class:`OnPair` for
     an explicit ``Query.join``.
     """
@@ -203,57 +205,57 @@ class Column:
         self.name = name
         self._model = model
 
-    def __gt__(self, other: Any) -> Condition:
-        return Condition(f"{self.name} > $1", [other])
+    def __gt__(self, other: Any) -> sql.Compare:
+        return sql.Compare(self.name, ">", other)
 
-    def __ge__(self, other: Any) -> Condition:
-        return Condition(f"{self.name} >= $1", [other])
+    def __ge__(self, other: Any) -> sql.Compare:
+        return sql.Compare(self.name, ">=", other)
 
-    def __lt__(self, other: Any) -> Condition:
-        return Condition(f"{self.name} < $1", [other])
+    def __lt__(self, other: Any) -> sql.Compare:
+        return sql.Compare(self.name, "<", other)
 
-    def __le__(self, other: Any) -> Condition:
-        return Condition(f"{self.name} <= $1", [other])
+    def __le__(self, other: Any) -> sql.Compare:
+        return sql.Compare(self.name, "<=", other)
 
-    def __eq__(self, other: Any) -> Condition | OnPair:  # type: ignore[override]
+    def __eq__(self, other: Any) -> sql.Compare | sql.IsNull | OnPair:  # type: ignore[override]
         if other is None:
-            return Condition(f"{self.name} IS NULL", [])
+            return sql.IsNull(self.name)
         if isinstance(other, Column):
             return OnPair(self, other)
-        return Condition(f"{self.name} = $1", [other])
+        return sql.Compare(self.name, "=", other)
 
-    def __ne__(self, other: Any) -> Condition:  # type: ignore[override]
+    def __ne__(self, other: Any) -> sql.Compare | sql.IsNull:  # type: ignore[override]
         if other is None:
-            return Condition(f"{self.name} IS NOT NULL", [])
-        return Condition(f"{self.name} <> $1", [other])
+            return sql.IsNull(self.name, negated=True)
+        return sql.Compare(self.name, "!=", other)
 
-    def in_(self, values: Sequence[Any]) -> Condition:
-        """``IN``: поле входит в набор значений (``col = ANY($1)``)."""
-        return Condition(f"{self.name} = ANY($1)", [list(values)])
+    def in_(self, values: Sequence[Any]) -> sql.InList:
+        """``IN``: поле входит в набор значений (на PostgreSQL ``col = ANY($1)``)."""
+        return sql.InList(self.name, list(values))
 
-    def not_in(self, values: Sequence[Any]) -> Condition:
+    def not_in(self, values: Sequence[Any]) -> sql.InList:
         """``NOT IN``: поле не входит в набор значений."""
-        return Condition(f"NOT ({self.name} = ANY($1))", [list(values)])
+        return sql.InList(self.name, list(values), negated=True)
 
-    def like(self, pattern: str) -> Condition:
+    def like(self, pattern: str) -> sql.Like:
         """``LIKE`` с wildcard-паттерном (``%``/``_``)."""
-        return Condition(f"{self.name} LIKE $1", [pattern])
+        return sql.Like(self.name, pattern)
 
-    def ilike(self, pattern: str) -> Condition:
-        """``ILIKE`` — LIKE без учёта регистра."""
-        return Condition(f"{self.name} ILIKE $1", [pattern])
+    def ilike(self, pattern: str) -> sql.Like:
+        """``ILIKE`` — LIKE без учёта регистра (диалект без ILIKE даёт ``LIKE``)."""
+        return sql.Like(self.name, pattern, insensitive=True)
 
-    def is_null(self) -> Condition:
+    def is_null(self) -> sql.IsNull:
         """``IS NULL``."""
-        return Condition(f"{self.name} IS NULL", [])
+        return sql.IsNull(self.name)
 
-    def is_not_null(self) -> Condition:
+    def is_not_null(self) -> sql.IsNull:
         """``IS NOT NULL``."""
-        return Condition(f"{self.name} IS NOT NULL", [])
+        return sql.IsNull(self.name, negated=True)
 
-    def between(self, low: Any, high: Any) -> Condition:
+    def between(self, low: Any, high: Any) -> sql.Between:
         """``col BETWEEN $1 AND $2``."""
-        return Condition(f"{self.name} BETWEEN $1 AND $2", [low, high])
+        return sql.Between(self.name, low, high)
 
     def asc(self) -> str:
         """Ordering term: ascending."""
@@ -295,14 +297,22 @@ class _Columns:
 
 
 class Query:
-    """A ``SELECT`` over one model, compiled to stable SQL with bound parameters.
+    """A ``SELECT`` over one model, compiled to SQL by an expression tree.
 
     Usage:
         q = select(User).where(User.c.age > 18).order_by(User.c.name).limit(50)
         rows = await repo.fetch(q)
+
+    Filters are nodes from :mod:`ferronit.contrib.sql`, rendered for the
+    query's dialect — PostgreSQL by default, another engine by passing
+    ``dialect`` to :meth:`compile` (the tree itself is dialect-free).
     """
 
     __slots__ = (
+        "_dialect",
+        "_distinct",
+        "_group_by",
+        "_having",
         "_joins",
         "_limit",
         "_model",
@@ -313,22 +323,32 @@ class Query:
         "_where",
     )
 
-    def __init__(self, model: type[Model], table: str | None = None) -> None:
+    def __init__(
+        self,
+        model: type[Model],
+        table: str | None = None,
+        dialect: sql.Dialect | None = None,
+    ) -> None:
         self._model = model
         self._table = table or _resolve_table(model)
+        self._dialect = dialect or sql.POSTGRES
         # Предкомпиляция статики: колонки известны на уровне класса.
-        self._select = f"SELECT {model.__select_columns__} FROM {self._table}"
-        self._where: list[Condition] = []
+        self._select: list[Any] = list(model.__columns__)
+        self._where: list[Any] = []
+        self._distinct = False
+        self._group_by: list[Any] = []
+        self._having: list[Any] = []
         self._order: list[str] = []
         self._limit: int | None = None
         self._offset: int | None = None
         self._joins: list[tuple[type[Model], OnPair | None, str | None, str]] = []
 
-    def where(self, *conditions: Condition | str) -> Query:
+    def where(self, *conditions: Any) -> Query:
         """Add ``AND``-combined filter conditions.
 
-        Условие может быть готовым :class:`Condition` (сравнения через ``User.c.*``,
-        ``|``/``&``/``~``) или строкой мини-DSL — она парсится и параметры биндятся:
+        Условие может быть узлом (сравнения через ``User.c.*``, ``|``/``&``/``~``),
+        готовым :class:`~ferronit.contrib.rawdb.Condition` с сырым SQL или строкой
+        мини-DSL — она парсится и параметры биндятся:
 
             select(User).where("age > 18 and (name ilike '%a%' or status in ('x','y'))")
 
@@ -344,6 +364,33 @@ class Query:
     def order_by(self, *specs: Column | str) -> Query:
         """Set ordering by columns (ascending by default) or raw terms."""
         self._order.extend(s.name if isinstance(s, Column) else s for s in specs)
+        return self
+
+    def distinct(self) -> Query:
+        """Select distinct rows (``SELECT DISTINCT``)."""
+        self._distinct = True
+        return self
+
+    def group_by(self, *terms: Column | str | sql.Expr) -> Query:
+        """Group rows for aggregates (``GROUP BY``).
+
+        Args:
+            *terms: ``Model.c`` columns, raw column names, or expression nodes.
+
+        Returns:
+            This query (mutated, for chaining).
+        """
+        self._group_by.extend(t.name if isinstance(t, Column) else t for t in terms)
+        return self
+
+    def having(self, *conditions: sql.Expr) -> Query:
+        """Filter groups after aggregating (``HAVING``).
+
+        Unlike :meth:`where` the conditions are tree nodes, not the string DSL: the
+        DSL knows columns only, while a group filter usually compares an aggregate —
+        ``having(sql.Compare(sql.Func("count"), ">", 2))``.
+        """
+        self._having.extend(conditions)
         return self
 
     def limit(self, n: int) -> Query:
@@ -390,43 +437,66 @@ class Query:
 
     one = first  # алиас: `select(...).one()` читается естественнее
 
-    def columns(self, *names: str) -> Query:
-        """Выбрать конкретные колонки вместо всех полей модели."""
-        self._select = f"SELECT {', '.join(names)} FROM {self._table}"
+    def columns(self, *names: str | sql.Expr) -> Query:
+        """Выбрать конкретные колонки вместо всех полей модели.
+
+        Принимает и имена, и узлы (``sql.Func("count")``) — для проекций и
+        агрегатов результат забирается через ``repo.fetch_rows()``.
+        """
+        self._select = list(names)
         return self
 
     def count(self) -> Query:
         """Агрегат ``count(*)``; результат забирается через ``repo.fetch_value()``."""
-        self._select = f"SELECT count(*) FROM {self._table}"
+        self._select = ["count(*)"]
         return self
 
     def aggregate(self, expression: str) -> Query:
         """Произвольный агрегат (``sum(col)``, ``avg(col)``, ...); через ``fetch_value()``."""
-        self._select = f"SELECT {expression} FROM {self._table}"
+        self._select = [expression]
         return self
 
-    def compile(self) -> tuple[str, list[Any]]:
-        """Compile to ``(sql, params)`` with continuous ``$N`` placeholders."""
-        sql = self._select
-        where, params = _merge_filters(self._where)
-        if where:
-            sql += f" WHERE {where}"
-        if self._order:
-            sql += " ORDER BY " + ", ".join(self._order)
-        if self._limit is not None:
-            params.append(self._limit)
-            sql += f" LIMIT ${len(params)}"
-        if self._offset is not None:
-            params.append(self._offset)
-            sql += f" OFFSET ${len(params)}"
+    def compile(self, dialect: sql.Dialect | None = None) -> tuple[str, list[Any]]:
+        """Compile to ``(sql, params)`` with continuous ``$N`` placeholders.
+
+        Args:
+            dialect: Render for this dialect; the query's own dialect
+                (PostgreSQL unless the query was built with another one).
+
+        Returns:
+            The SQL text and its bound values in placeholder order.
+        """
+        statement = sql.Select(
+            self._table,
+            self._select,
+            where=[sql.Paren(item) for item in self._where],
+            distinct=self._distinct,
+            group_by=self._group_by,
+            having=[sql.Paren(item) for item in self._having],
+            order=self._order,
+            limit=self._limit,
+            offset=self._offset,
+        )
+        sql_text, params = sql.compile_statement(statement, dialect or self._dialect)
         if self._joins:
-            sql, params = _wrap_joins(sql, params, self._model, self._joins)
-        return sql, params
+            sql_text, params = _wrap_joins(sql_text, params, self._model, self._joins)
+        return sql_text, params
 
 
-def select(model: type[Model], table: str | None = None) -> Query:
-    """Start a ``SELECT`` over ``model``."""
-    return Query(model, table)
+def select(
+    model: type[Model], table: str | None = None, *, dialect: sql.Dialect | None = None
+) -> Query:
+    """Start a ``SELECT`` over ``model``.
+
+    Args:
+        model: Model class whose columns define the select list.
+        table: Table name override; the model's resolved name by default.
+        dialect: Dialect for the compiled SQL (PostgreSQL by default).
+
+    Returns:
+        A fresh :class:`Query`.
+    """
+    return Query(model, table, dialect)
 
 
 def _resolve_on_pair(
@@ -545,30 +615,31 @@ class _Parser:
             raise ValueError(f"Expected {kind!r}, got {value!r}")
         self._next()
 
-    def parse(self) -> Condition:
+    def parse(self) -> sql.Expr:
+        """Разобрать всё выражение и убедиться, что токены кончились."""
         condition = self._parse_or()
         if self._i != len(self._tokens):
             raise ValueError(f"Unexpected token: {self._peek()!r}")
         return condition
 
-    def _parse_or(self) -> Condition:
+    def _parse_or(self) -> sql.Expr:
         condition = self._parse_and()
         while self._is_word("or"):
             self._next()
-            condition = condition | self._parse_and()
+            condition = sql.Or(condition, self._parse_and())
         return condition
 
-    def _parse_and(self) -> Condition:
+    def _parse_and(self) -> sql.Expr:
         condition = self._parse_unary()
         while self._is_word("and"):
             self._next()
-            condition = condition & self._parse_unary()
+            condition = sql.And(condition, self._parse_unary())
         return condition
 
-    def _parse_unary(self) -> Condition:
+    def _parse_unary(self) -> sql.Expr:
         if self._is_word("not"):
             self._next()
-            return ~self._parse_unary()
+            return sql.Not(self._parse_unary())
         kind, _ = self._peek()
         if kind == "(":
             self._next()
@@ -577,7 +648,7 @@ class _Parser:
             return condition
         return self._parse_predicate()
 
-    def _parse_predicate(self) -> Condition:
+    def _parse_predicate(self) -> sql.Expr:
         kind, name = self._next()
         if kind != "word" or name.lower() in _RESERVED:
             raise ValueError(f"Expected column name, got {name!r}")
@@ -589,9 +660,8 @@ class _Parser:
             self._next()
             value = self._parse_value()
             if value is None:
-                return Condition(f"{name} IS {'NOT ' if op == '!=' else ''}NULL", [])
-            sql_op = "<>" if op == "!=" else op
-            return Condition(f"{name} {sql_op} $1", [value])
+                return sql.IsNull(name, negated=op == "!=")
+            return sql.Compare(name, op, value)
         if self._is_word("is"):
             self._next()
             negated = False
@@ -599,27 +669,24 @@ class _Parser:
                 self._next()
                 negated = True
             self._expect_word("null")
-            return Condition(f"{name} IS {'NOT ' if negated else ''}NULL", [])
+            return sql.IsNull(name, negated=negated)
         if self._is_word("in"):
             self._next()
-            values = self._parse_list()
-            return Condition(f"{name} = ANY($1)", [values])
+            return sql.InList(name, self._parse_list())
         if self._is_word("not"):
             self._next()
             self._expect_word("in")
-            values = self._parse_list()
-            return Condition(f"NOT ({name} = ANY($1))", [values])
+            return sql.InList(name, self._parse_list(), negated=True)
         if self._is_word("like") or self._is_word("ilike"):
-            op = "ILIKE" if self._peek()[1].lower() == "ilike" else "LIKE"
+            insensitive = self._peek()[1].lower() == "ilike"
             self._next()
-            value = self._parse_value()
-            return Condition(f"{name} {op} $1", [value])
+            return sql.Like(name, self._parse_value(), insensitive=insensitive)
         if self._is_word("between"):
             self._next()
             low = self._parse_value()
             self._expect_word("and")
             high = self._parse_value()
-            return Condition(f"{name} BETWEEN $1 AND $2", [low, high])
+            return sql.Between(name, low, high)
         raise ValueError(f"Expected operator after column {name!r}, got {self._peek()!r}")
 
     def _parse_list(self) -> list[Any]:
@@ -656,12 +723,14 @@ class _Parser:
         raise ValueError(f"Expected value, got {value!r}")
 
 
-def parse_where(expression: str, columns: Sequence[str]) -> Condition:
-    """Parse a ``WHERE`` mini-DSL string into a :class:`Condition`.
+def parse_where(expression: str, columns: Sequence[str]) -> sql.Expr:
+    """Parse a ``WHERE`` mini-DSL string into an expression node.
 
     Поддерживает: ``and``/``or``/``not``, скобки, ``= != < <= > >=``,
     ``in (...)/not in (...)``, ``like``/``ilike``, ``is [not] null``,
-    ``between ... and ...``. Имена колонок сверяются с ``columns``.
+    ``between ... and ...``. Имена колонок сверяются с ``columns``, значения
+    становятся bound-параметрами; рендер в SQL — на стороне диалекта
+    (:func:`ferronit.contrib.sql.compile_expr`).
     """
     return _Parser(_tokenize(expression), columns).parse()
 
@@ -691,36 +760,60 @@ class IdentityMap:
 
 
 @lru_cache(maxsize=256)
-def _repo_sql(model_cls: type[Model], table: str, pk: str) -> tuple:
-    """Pre-compute the connection-independent SQL for ``(model, table, pk)``.
+def _repo_sql(
+    model_cls: type[Model], table: str, pk: str, dialect: sql.Dialect = sql.POSTGRES
+) -> tuple:
+    """Pre-compute the connection-independent SQL for a (model, table, pk, dialect).
 
-    These strings depend only on the model's columns and the table/primary-key
-    names, so they are built once and reused by every repository instance —
-    which keeps the hot read path free of per-request string formatting.
+    These statements depend only on the model's columns, the table/primary-key
+    names and the engine, so they are rendered once by the SQL node tree and reused
+    by every repository instance — which keeps the hot read path free of per-request
+    string formatting.
+
+    Values are bound at call time, so only the SQL text of the compiled statements
+    is used here. The key comparison of the point read is therefore a
+    placeholder-only :class:`~ferronit.contrib.sql.Raw` fragment: the node tree
+    models filter *values*, and this statement has none until it is executed.
+
+    ``RETURNING`` is added only where the engine supports it: on MySQL the insert
+    and upsert statements come back without it, and the repository reads the
+    generated key from the driver instead.
     """
     columns = model_cls.__columns__
     select_columns = model_cls.__select_columns__
     insert_columns = tuple(c for c in columns if c != pk)
-    insert_cols = ", ".join(insert_columns)
-    placeholders = ", ".join(f"${i}" for i in range(1, len(insert_columns) + 1))
-    insert_sql = (
-        f"INSERT INTO {table} ({insert_cols}) VALUES ({placeholders})"
-        f" RETURNING {select_columns}"
-    )
-    all_cols = ", ".join(columns)
-    all_placeholders = ", ".join(f"${i}" for i in range(1, len(columns) + 1))
-    update_set = ", ".join(f"{c} = EXCLUDED.{c}" for c in insert_columns)
-    upsert_sql = (
-        f"INSERT INTO {table} ({all_cols}) VALUES ({all_placeholders})"
-        f" ON CONFLICT ({pk}) DO UPDATE SET {update_set}"
-        f" RETURNING {select_columns}"
-    )
-    select_pk_sql = f"SELECT {select_columns} FROM {table} WHERE {pk} = $1"
-    delete_sql = f"DELETE FROM {table} WHERE {pk} = $1"
-    list_sql = f"SELECT {select_columns} FROM {table} LIMIT $1 OFFSET $2"
+    returning = columns if dialect.supports_returning else ()
+    insert_sql = sql.compile_statement(
+        sql.Insert(table, insert_columns, returning=returning), dialect
+    )[0]
+    upsert_sql = sql.compile_statement(
+        sql.Insert(
+            table,
+            columns,
+            conflict_key=pk,
+            update_columns=insert_columns,
+            returning=returning,
+        ),
+        dialect,
+    )[0]
+    select_pk_sql = sql.compile_statement(
+        sql.Select(table, columns, where=[sql.Raw(f"{pk} = $1")]), dialect
+    )[0]
+    delete_sql = sql.compile_statement(sql.Delete(table, pk), dialect)[0]
+    list_sql = sql.compile_statement(
+        sql.Select(table, columns, limit=1, offset=2), dialect
+    )[0]
     return (
-        table, columns, select_columns, insert_columns, insert_cols,
-        insert_sql, upsert_sql, select_pk_sql, delete_sql, list_sql,
+        table,
+        columns,
+        select_columns,
+        insert_columns,
+        ", ".join(insert_columns),
+        insert_sql,
+        upsert_sql,
+        select_pk_sql,
+        delete_sql,
+        list_sql,
     )
 
 
@@ -751,10 +844,16 @@ def _join_select(parent_sql: str, model: type[Model]) -> str:
 class RawModelRepository[M: Model](Adapter):
     """Repository over one table returning model instances instead of dicts.
 
-    The primary key is excluded from ``INSERT`` (the server generates it) and is
-    read back with ``RETURNING``; ``SELECT``/``DELETE`` key off it. Column order
-    comes from the model, so every emitted SQL string is stable — which lets
-    asyncpg reuse its prepared statement for the statement cache.
+    The engine comes from the connection: an ``asyncpg`` connection is PostgreSQL
+    (``$1``, ``RETURNING``), the adapters in :mod:`ferronit.contrib.drivers` are
+    MySQL or SQLite. Where the engine has no ``RETURNING`` (MySQL) the generated
+    key is taken from the driver and the row is read back with a point select;
+    that is one extra round-trip per write, and only for such engines.
+
+    The primary key is excluded from ``INSERT`` (the server generates it) and
+    ``SELECT``/``DELETE`` key off it. Column order comes from the model, so every
+    emitted SQL string is stable — which lets the driver reuse its prepared
+    statement for the statement cache.
 
     Usage:
         repo = RawModelRepository(connection, User)
@@ -767,6 +866,7 @@ class RawModelRepository[M: Model](Adapter):
         "_columns",
         "_conn",
         "_delete_sql",
+        "_dialect",
         "_identity_map",
         "_insert_cols",
         "_insert_columns",
@@ -782,7 +882,7 @@ class RawModelRepository[M: Model](Adapter):
 
     def __init__(
         self,
-        connection: asyncpg.Connection,
+        connection: Any,
         model_cls: type[M],
         table: str | None = None,
         pk: str = "id",
@@ -792,11 +892,15 @@ class RawModelRepository[M: Model](Adapter):
         self._model = model_cls
         self._pk = pk
         self._identity_map = identity_map
+        # Диалект берём у соединения; у asyncpg атрибута нет — значит PostgreSQL.
+        self._dialect = getattr(connection, "dialect", sql.POSTGRES)
         (
             self._table, self._columns, self._select_columns, self._insert_columns,
             self._insert_cols, self._insert_sql, self._upsert_sql,
             self._select_pk_sql, self._delete_sql, self._list_sql,
-        ) = _repo_sql(model_cls, table or _resolve_table(model_cls), pk)
+        ) = _repo_sql(
+            model_cls, table or _resolve_table(model_cls), pk, self._dialect
+        )
 
     async def _materialize(self, rows) -> list[M]:
         """Построить модели из строк, подтянув связи отдельным запросом.
@@ -816,11 +920,30 @@ class RawModelRepository[M: Model](Adapter):
         pks = [row[pk_index] for row in rows]
         rel_data: dict[str, tuple[dict[Any, list], bool]] = {}
         for field, (child, fk, _pk, many) in relations.items():
-            child_rows = await self._conn.fetch(
-                f"SELECT {child.__select_columns__} FROM {_resolve_table(child)}"
-                f" WHERE {fk} = ANY($1)",
-                pks,
-            )
+            if self._dialect.supports_any:
+                # PostgreSQL: весь набор ключей уходит одним параметром-списком.
+                child_rows = await self._conn.fetch(
+                    sql.compile_statement(
+                        sql.Select(
+                            _resolve_table(child),
+                            child.__columns__,
+                            where=[sql.Raw(f"{fk} = ANY($1)")],
+                        ),
+                        self._dialect,
+                    )[0],
+                    pks,
+                )
+            else:
+                # MySQL/SQLite: ANY нет — набор разворачивается в IN (%s, %s, …).
+                child_sql, child_params = sql.compile_statement(
+                    sql.Select(
+                        _resolve_table(child),
+                        child.__columns__,
+                        where=[sql.InList(fk, pks)],
+                    ),
+                    self._dialect,
+                )
+                child_rows = await self._conn.fetch(child_sql, *child_params)
             fk_index = child.__columns__.index(fk)
             grouped: dict[Any, list] = {}
             for crow in child_rows:
@@ -952,6 +1075,26 @@ class RawModelRepository[M: Model](Adapter):
             result.append((self._model(*parent_vals), *children))
         return result
 
+    async def _load(self, id: Any) -> M | None:
+        """Read one row (with its relations) straight from the database.
+
+        No identity-map involvement: the map lives for one unit of work and would
+        hand back a stale copy right after a write.
+
+        Args:
+            id: Primary key value.
+
+        Returns:
+            The model instance, or ``None`` when no row matches.
+        """
+        if self._model.__relations__:
+            rows = await self._conn.fetch(_join_select(self._select_pk_sql, self._model), id)
+            if not rows:
+                return None
+            return (await self._materialize_joined(rows))[0]
+        row = await self._conn.fetchrow(self._select_pk_sql, id)
+        return self._model(*row) if row is not None else None
+
     async def get(self, id: Any) -> M | None:
         """Fetch a single row by primary key.
 
@@ -965,17 +1108,8 @@ class RawModelRepository[M: Model](Adapter):
             cached = self._identity_map.get(self._model, id)
             if cached is not None:
                 return cached
-        if self._model.__relations__:
-            rows = await self._conn.fetch(_join_select(self._select_pk_sql, self._model), id)
-            if not rows:
-                return None
-            obj = (await self._materialize_joined(rows))[0]
-        else:
-            row = await self._conn.fetchrow(self._select_pk_sql, id)
-            if row is None:
-                return None
-            obj = self._model(*row)
-        if self._identity_map is not None:
+        obj = await self._load(id)
+        if obj is not None and self._identity_map is not None:
             self._identity_map.put(self._model, id, obj)
         return obj
 
@@ -993,13 +1127,17 @@ class RawModelRepository[M: Model](Adapter):
             A list of model instances (possibly empty).
         """
         if filters:
-            where, params = _merge_filters(filters)
-            clause = f" WHERE {where}"
-            sql = (
-                f"SELECT {self._select_columns} FROM {self._table}{clause}"
-                f" LIMIT ${len(params) + 1} OFFSET ${len(params) + 2}"
+            sql_text, params = sql.compile_statement(
+                sql.Select(
+                    self._table,
+                    self._columns,
+                    where=[sql.Paren(f) for f in filters],
+                    limit=limit,
+                    offset=offset,
+                ),
+                self._dialect,
             )
-            rows = await self._conn.fetch(sql, *params, limit, offset)
+            rows = await self._conn.fetch(sql_text, *params)
         else:
             rows = await self._conn.fetch(self._list_sql, limit, offset)
         # Identity-map наполняется только из get(): на list() карта почти никогда
@@ -1016,8 +1154,8 @@ class RawModelRepository[M: Model](Adapter):
         Returns:
             A list of model instances.
         """
-        sql, params = query.compile()
-        rows = await self._conn.fetch(sql, *params)
+        sql_text, params = query.compile(self._dialect)
+        rows = await self._conn.fetch(sql_text, *params)
         return await self._materialize(rows)
 
     async def fetch_one(self, query: Query) -> M | None:
@@ -1028,13 +1166,13 @@ class RawModelRepository[M: Model](Adapter):
         """
         if query._limit is None:
             query = query.limit(1)
-        sql, params = query.compile()
+        sql_text, params = query.compile(self._dialect)
         if self._model.__relations__:
-            rows = await self._conn.fetch(_join_select(sql, self._model), *params)
+            rows = await self._conn.fetch(_join_select(sql_text, self._model), *params)
             if not rows:
                 return None
             return (await self._materialize_joined(rows))[0]
-        row = await self._conn.fetchrow(sql, *params)
+        row = await self._conn.fetchrow(sql_text, *params)
         if row is None:
             return None
         return self._model(*row)
@@ -1054,18 +1192,40 @@ class RawModelRepository[M: Model](Adapter):
         Returns:
             A list of ``(parent, [children]…)`` tuples.
         """
-        sql, params = query.compile()
-        rows = await self._conn.fetch(sql, *params)
+        sql_text, params = query.compile(self._dialect)
+        rows = await self._conn.fetch(sql_text, *params)
         return self._materialize_joined_pairs(rows, query._joins)
 
     async def fetch_value(self, query: Query) -> Any | None:
         """Fetch the first column of the first row — for ``count()``/``aggregate()``."""
-        sql, params = query.compile()
-        row = await self._conn.fetchrow(sql, *params)
+        sql_text, params = query.compile(self._dialect)
+        row = await self._conn.fetchrow(sql_text, *params)
         return row[0] if row is not None else None
+
+    async def fetch_rows(self, query: Query) -> builtins.list[Any]:
+        """Run a ``Query`` and return raw rows — for projections and aggregates.
+
+        Grouped/aggregated results are not model instances, so the rows come back as
+        the driver gives them: an ``asyncpg`` record, or
+        :class:`~ferronit.contrib.drivers.Row` (position *and* name access) on
+        MySQL/SQLite. Use ``count()``/``aggregate()`` with ``fetch_value()`` when a
+        single number is all that is needed.
+
+        Args:
+            query: A ``Query`` built with ``columns()``/``group_by()``/``having()``.
+
+        Returns:
+            The rows of the compiled query.
+        """
+        sql_text, params = query.compile(self._dialect)
+        return builtins.list(await self._conn.fetch(sql_text, *params))
 
     async def save(self, obj: M) -> M:
         """Insert a row and return the full server-side instance.
+
+        On engines with ``RETURNING`` the row comes back in the same round-trip; on
+        MySQL the generated key comes from the driver and the row is read back with
+        a point select.
 
         Args:
             obj: The model instance to insert (primary key ignored).
@@ -1074,43 +1234,79 @@ class RawModelRepository[M: Model](Adapter):
             The inserted row as a model instance (including the generated key).
         """
         values = tuple(getattr(obj, name) for name in self._insert_columns)
-        row = await self._conn.fetchrow(self._insert_sql, *values)
-        return self._model(*row) if row is not None else obj
+        if self._dialect.supports_returning:
+            row = await self._conn.fetchrow(self._insert_sql, *values)
+            return self._model(*row) if row is not None else obj
+        key = await self._conn.execute(self._insert_sql, *values)
+        fetched = await self._load(key) if key else None
+        if fetched is not None:
+            if self._identity_map is not None:
+                self._identity_map.put(self._model, key, fetched)
+            return fetched
+        return msgspec.structs.replace(obj, **{self._pk: key})
 
     async def upsert(self, obj: M) -> M:
         """Insert or replace a row by primary key (client-provided identity).
 
         Unlike :meth:`save`, the primary key is part of the ``INSERT``; on a
-        key conflict every non-key column is overwritten from the new row.
+        key conflict every non-key column is overwritten from the new row. On
+        MySQL the refresh is read back by that key (``lastrowid`` is 0 when the
+        statement updated an existing row instead of inserting).
         """
         values = tuple(getattr(obj, name) for name in self._columns)
-        row = await self._conn.fetchrow(self._upsert_sql, *values)
-        return self._model(*row) if row is not None else obj
+        if self._dialect.supports_returning:
+            row = await self._conn.fetchrow(self._upsert_sql, *values)
+            return self._model(*row) if row is not None else obj
+        await self._conn.execute(self._upsert_sql, *values)
+        key = getattr(obj, self._pk)
+        fetched = await self._load(key) if key is not None else None
+        if fetched is not None:
+            if self._identity_map is not None:
+                self._identity_map.put(self._model, key, fetched)
+            return fetched
+        return obj
 
     async def save_many(self, objs: Sequence[M]) -> builtins.list[M]:
-        """Bulk-insert rows in one statement and return the server-side rows."""
+        """Bulk-insert rows and return the server-side rows.
+
+        PostgreSQL and SQLite insert every row in one statement and read the rows
+        back with ``RETURNING``. MySQL has no ``RETURNING``, so the rows go in one by
+        one and the key of each comes from ``lastrowid`` — N round-trips instead of
+        one statement. That is the engine's limitation, not the generator's: the
+        single-statement form is what the dialect cannot express.
+        """
         if not objs:
             return []
-        n = len(self._insert_columns)
-        groups: builtins.list[str] = []
-        values: builtins.list[Any] = []
-        for k, obj in enumerate(objs):
-            start = k * n
-            groups.append(
-                "(" + ", ".join(f"${start + i}" for i in range(1, n + 1)) + ")"
-            )
-            values.extend(getattr(obj, name) for name in self._insert_columns)
-        sql = (
-            f"INSERT INTO {self._table} ({self._insert_cols})"
-            f" VALUES {', '.join(groups)} RETURNING {self._select_columns}"
-        )
-        rows = await self._conn.fetch(sql, *values)
-        return [self._model(*row) for row in rows]
+        if self._dialect.supports_returning:
+            sql_text = sql.compile_statement(
+                sql.Insert(
+                    self._table,
+                    self._insert_columns,
+                    rows=len(objs),
+                    returning=self._columns,
+                ),
+                self._dialect,
+            )[0]
+            values: builtins.list[Any] = []
+            for obj in objs:
+                values.extend(getattr(obj, name) for name in self._insert_columns)
+            rows = await self._conn.fetch(sql_text, *values)
+            return [self._model(*row) for row in rows]
+        row_sql = sql.compile_statement(
+            sql.Insert(self._table, self._insert_columns), self._dialect
+        )[0]
+        saved: builtins.list[M] = []
+        for obj in objs:
+            row_values = tuple(getattr(obj, name) for name in self._insert_columns)
+            key = await self._conn.execute(row_sql, *row_values)
+            saved.append(msgspec.structs.replace(obj, **{self._pk: key}))
+        return saved
 
     async def delete_by(self, column: str, value: Any) -> None:
         """Delete rows where ``column = value`` (child-table sync for aggregates)."""
         await self._conn.execute(
-            f"DELETE FROM {self._table} WHERE {column} = $1", value
+            sql.compile_statement(sql.Delete(self._table, column), self._dialect)[0],
+            value,
         )
 
     async def update(self, id: Any, data: dict[str, Any]) -> M | None:
@@ -1125,13 +1321,20 @@ class RawModelRepository[M: Model](Adapter):
         """
         if not data:
             return await self.get(id)
-        assignments = ", ".join(f"{c} = ${i}" for i, c in enumerate(data, 1))
-        row = await self._conn.fetchrow(
-            f"UPDATE {self._table} SET {assignments} WHERE {self._pk} = ${len(data) + 1}"
-            f" RETURNING {self._select_columns}",
-            *data.values(),
-            id,
-        )
+        if not self._dialect.supports_returning:
+            sql_text = sql.compile_statement(
+                sql.Update(self._table, list(data), self._pk), self._dialect
+            )[0]
+            await self._conn.execute(sql_text, *data.values(), id)
+            fresh = await self._load(id)
+            if fresh is not None and self._identity_map is not None:
+                self._identity_map.put(self._model, id, fresh)
+            return fresh
+        sql_text = sql.compile_statement(
+            sql.Update(self._table, list(data), self._pk, returning=self._columns),
+            self._dialect,
+        )[0]
+        row = await self._conn.fetchrow(sql_text, *data.values(), id)
         if row is None:
             return None
         obj = self._model.from_row(row)

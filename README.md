@@ -61,8 +61,9 @@ competition with positional row-mapping (`rawmodel`) + `msgspec`. Methodology �
 
 ## Data layer
 
-One thin layer over asyncpg — `rawdb` + `rawmodel`: declarative models, a query DSL
-(`select`), relations, a Unit of Work — no ORM. Details:
+One thin layer over the driver — `rawdb` + `rawmodel`: PostgreSQL (asyncpg), MySQL (aiomysql)
+and SQLite (aiosqlite) behind the same API. Declarative models, a query DSL (`select`), relations,
+a Unit of Work — no ORM. SQL is built from an expression tree and compiled per dialect. Details:
 [`docs/data/overview.md`](docs/data/overview.md).
 
 ```python

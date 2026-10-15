@@ -41,6 +41,27 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 10
+      # Диалект MySQL проверяется живым прогоном: tests/test_backends_repository.py,
+      # tests/test_sql_backends.py (без сервиса тесты пропускаются), SQLite — в процессе.
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: ferronit_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -uroot -proot --silent"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      FERRONIT_TEST_PG_DSN: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+      FERRONIT_TEST_MYSQL_HOST: 127.0.0.1
+      FERRONIT_TEST_MYSQL_PORT: "3306"
+      FERRONIT_TEST_MYSQL_USER: root
+      FERRONIT_TEST_MYSQL_PASSWORD: root
+      FERRONIT_TEST_MYSQL_DB: ferronit_test
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6

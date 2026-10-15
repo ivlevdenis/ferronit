@@ -30,6 +30,12 @@ ferronit = "ferronit.cli:main"
 [project.optional-dependencies]
 server = ["granian[reload]>=2.8", "uvicorn[standard]>=0.30"]
 pydantic = ["pydantic>=2.0"]
+# Драйверы других СУБД. Слой данных (rawdb/rawmodel) работает на трёх движках:
+# PostgreSQL — обязательный asyncpg, MySQL и SQLite — эти extras. Тесты бэкендов:
+# tests/test_backends_repository.py (+ test_sql_backends.py); SQLite — библиотека
+# в процессе, MySQL — контейнер ferronit-mysql (scripts/dbs_up.sh).
+sqlite = ["aiosqlite>=0.20"]
+mysql = ["aiomysql>=0.2"]
 # Зеркалит группу Poetry ниже — для установки без Poetry: pip install "ferronit[dev]"
 dev = ["pytest>=8", "pytest-asyncio", "pytest-benchmark", "httpx", "maturin>=1.14,<2",
        "ruff>=0.6", "mypy>=1.11"]
@@ -111,5 +117,6 @@ pretty = true
 
 # Опциональные зависимости: стабов нет в природе — импорты не считаем ошибкой
 [[tool.mypy.overrides]]
-module = ["aiokafka.*", "aiokafka", "asyncpg.*", "qdrant_client.*", "chromadb.*"]
+module = ["aiokafka.*", "aiokafka", "asyncpg.*", "qdrant_client.*", "chromadb.*",
+          "aiomysql.*", "aiomysql", "aiosqlite.*", "aiosqlite"]
 ignore_missing_imports = true

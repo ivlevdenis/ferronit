@@ -47,15 +47,17 @@ ferronit run --workers 4              # прод: granian, fallback uvicorn
 
 ## Почему быстро
 
-Маршрутизация — Rust `matchit`, фактически O(1). На чтении из БД Ferronit обходит
-конкурентов позиционным маппингом `rawmodel` + `msgspec`. Методика — только `ab`
-(C-клиент), granian, 1 воркер; полный разбор — [`docs/benchmarks.md`](docs/benchmarks.md).
+Маршрутизация — Rust `matchit`, фактически O(1). На чтении из БД фреймворк держится в ~1,3× от
+BlackSheep (его стенд читает сырым `asyncpg`, без слоя строк) и обходит FastAPI/Django на порядок:
+типизированные модели строк и сборка ответа через `msgspec` стоят десятки микросекунд, а не разы.
+Методика — только `ab` (C-клиент), granian, 1 воркер; полный разбор —
+[`docs/benchmarks.md`](docs/benchmarks.md).
 
 | Сценарий | Ferronit | BlackSheep | FastAPI |
 |---|---|---|---|
-| GET /ping (dict) | 98 197 req/s | 93 523 req/s | 19 036 req/s |
-| GET /rows?limit=100 | 8 350 req/s | 8 065 req/s | 956 req/s |
-| GET /rows?limit=1000 | 2 334 req/s | 1 780 req/s | 158 req/s |
+| GET /ping (dict) | 95 119 req/s | 88 951 req/s | 19 878 req/s |
+| GET /rows?limit=100 | 5 674 req/s | 7 725 req/s | 867 req/s |
+| GET /rows?limit=1000 | 1 179 req/s | 1 588 req/s | 146 req/s |
 
 ## Слой данных
 

@@ -1,0 +1,56 @@
+# Слои доступа к PostgreSQL, 2026-10-16 08:43
+# Linux-7.0.0-29-generic-x86_64-with-glibc2.43 | ядер: 20 | load: 0.30
+# 1 клиент, 1 процесс, транзакция на запрос, лучшее из 3; CPU -- time.process_time() процесса (цена Python-слоя)
+
+
+запросов/с (1 клиент):
+операция     ferronit-rawmodel      ferronit-rawdb     sqlalchemy-core      sqlalchemy-orm             asyncpg
+--------------------------------------------------------------------------------------------------------------
+get_1                    8,646               9,208               3,350               2,606              10,519
+list_100                 7,219               6,574               2,531               1,731               8,575
+insert_1                   941                 938                 796                 709                 961
+update_1                   944                 943                 786                 637                 965
+upsert_1                   919                   —                 749                 634                 970
+delete_1                   957                 936                 803                 634                 930
+
+CPU процесса на запрос, мкс:
+операция     ferronit-rawmodel      ferronit-rawdb     sqlalchemy-core      sqlalchemy-orm             asyncpg
+--------------------------------------------------------------------------------------------------------------
+get_1                       73                  71                 255                 335                  58
+list_100                    92                 105                 324                 500                  73
+insert_1                   125                 129                 318                 431                 107
+update_1                   130                 118                 329                 586                  96
+upsert_1                   132                   —                 368                 520                  93
+delete_1                   118                 112                 290                 570                 111
+
+занято ядер (1 клиент):
+операция     ferronit-rawmodel      ferronit-rawdb     sqlalchemy-core      sqlalchemy-orm             asyncpg
+--------------------------------------------------------------------------------------------------------------
+get_1                     0.63                0.65                0.85                0.87                0.61
+list_100                  0.66                0.69                0.82                0.87                0.63
+insert_1                  0.12                0.12                0.25                0.31                0.10
+update_1                  0.12                0.11                0.26                0.37                0.09
+upsert_1                  0.12                   —                0.28                0.33                0.09
+delete_1                  0.11                0.10                0.23                0.36                0.10
+
+потолок одного ядра, запросов/с:
+операция     ferronit-rawmodel      ferronit-rawdb     sqlalchemy-core      sqlalchemy-orm             asyncpg
+--------------------------------------------------------------------------------------------------------------
+get_1                   13,753              14,157               3,923               2,988              17,333
+list_100                10,872               9,505               3,082               2,000              13,694
+insert_1                 7,983               7,722               3,143               2,322               9,360
+update_1                 7,705               8,479               3,039               1,706              10,427
+upsert_1                 7,590                   —               2,719               1,922              10,762
+delete_1                 8,476               8,940               3,454               1,755               9,040
+
+итераций на прогон: get_1=3000, list_100=1500, insert_1=3000, update_1=3000, upsert_1=3000, delete_1=3000
+
+соотношение (Ferronit rawmodel / слой), запросов/с и CPU на запрос:
+  get_1      sqlalchemy-core ×2.58 / ×0.29   sqlalchemy-orm ×3.32 / ×0.22   asyncpg ×0.82 / ×1.26
+  list_100   sqlalchemy-core ×2.85 / ×0.28   sqlalchemy-orm ×4.17 / ×0.18   asyncpg ×0.84 / ×1.26
+  insert_1   sqlalchemy-core ×1.18 / ×0.39   sqlalchemy-orm ×1.33 / ×0.29   asyncpg ×0.98 / ×1.17
+  update_1   sqlalchemy-core ×1.20 / ×0.39   sqlalchemy-orm ×1.48 / ×0.22   asyncpg ×0.98 / ×1.35
+  upsert_1   sqlalchemy-core ×1.23 / ×0.36   sqlalchemy-orm ×1.45 / ×0.25   asyncpg ×0.95 / ×1.42
+  delete_1   sqlalchemy-core ×1.19 / ×0.41   sqlalchemy-orm ×1.51 / ×0.21   asyncpg ×1.03 / ×1.07
+
+контроль: строк в bench_rows = 2000, id=1 = None

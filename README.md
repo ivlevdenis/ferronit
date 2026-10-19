@@ -48,16 +48,17 @@ ferronit run --workers 4              # production: granian, uvicorn fallback
 
 ## Why it is fast
 
-Routing is Rust `matchit`, effectively O(1). On database reads Ferronit beats the
-competition with positional row-mapping (`rawmodel`) + `msgspec`. Methodology — `ab`
-(C client) only, granian, 1 worker; full breakdown in
+Routing is Rust `matchit`, effectively O(1). On database reads the framework stays within ~1.3× of
+BlackSheep (whose benchmark stand reads with raw `asyncpg`, no row layer) and beats FastAPI/Django by
+order of magnitude: typed row models + `msgspec` reply building cost tens of microseconds, not
+multiples. Methodology — `ab` (C client) only, granian, 1 worker; full breakdown in
 [`docs/benchmarks.md`](docs/benchmarks.md).
 
 | Scenario | Ferronit | BlackSheep | FastAPI |
 |---|---|---|---|
-| GET /ping (dict) | 98 197 req/s | 93 523 req/s | 19 036 req/s |
-| GET /rows?limit=100 | 8 350 req/s | 8 065 req/s | 956 req/s |
-| GET /rows?limit=1000 | 2 334 req/s | 1 780 req/s | 158 req/s |
+| GET /ping (dict) | 95 119 req/s | 88 951 req/s | 19 878 req/s |
+| GET /rows?limit=100 | 5 674 req/s | 7 725 req/s | 867 req/s |
+| GET /rows?limit=1000 | 1 179 req/s | 1 588 req/s | 146 req/s |
 
 ## Data layer
 

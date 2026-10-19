@@ -1,0 +1,18 @@
+# CPU под нагрузкой (ab -c 50 -k), 2026-10-16 09:45, ядер 20, load 3.41
+приложение  сценарий             req/s  сервер мкс   PG мкс   ab мкс  ядер с+PG
+-------------------------------------------------------------------------------
+ferronit    ping                76,110          21        0        7       1.43
+ferronit    rows?limit=1         9,435         128       80       12       1.94
+ferronit    rows?limit=100       6,178         186      109       12       1.81
+ferronit    rows?limit=1000      1,103         973      391       37       1.50
+ferronit    INSERT               5,237         210      163       13       1.94
+blacksheep  ping                79,415          21        0        7       1.58
+blacksheep  rows?limit=1        12,052         100       89       10       2.25
+blacksheep  rows?limit=100       7,725         152      128       11       2.14
+blacksheep  rows?limit=1000      1,483         727      389       35       1.65
+blacksheep  INSERT               8,498         123      115       11       2.00
+fastapi     ping                16,898          72        0        8       1.20
+fastapi     rows?limit=1         1,911         558      184       15       1.42
+fastapi     rows?limit=100         774        1362      417       29       1.37
+fastapi     rows?limit=1000        137        7437      449       58       1.08
+fastapi     INSERT               1,047        1020      437       16       1.52

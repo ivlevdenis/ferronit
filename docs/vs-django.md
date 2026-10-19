@@ -192,8 +192,8 @@ Ferronit async-only, поэтому Django-специфика тут принц�
   async context - use a thread or sync_to_async`.
 - **sync-представления под ASGI** Django оборачивает в
   `sync_to_async(..., thread_sensitive=False)` — то есть каждое sync-представление
-  уходит в пул потоков. Отсюда измеренный потолок `GET /ping` — 2 033 req/s против
-  98 197 у Ferronit (×48).
+  уходит в пул потоков. Отсюда измеренный потолок `GET /ping` — 1 988 req/s против
+  95 119 у Ferronit (×48).
 - **async ORM есть**, но частичный: `Model.asave/adelete/arefresh_from_db`, у
   менеджера/QuerySet — `acreate/aget/aupdate/adelete/acount/aget_or_create/
   aupdate_or_create/abulk_create/aiterator/aexists/afirst/alast/ain_bulk/aaggregate`;
@@ -209,12 +209,12 @@ granian 1 воркер, лучший из прогонов, одна машин�
 
 | Сценарий | Ferronit | Django | Отношение |
 |---|---|---|---|
-| `GET /ping` (dict) | 98 197 | 2 033 | ×48 |
-| `GET /rows?limit=1000` | 2 334 | 593 | ×3.9 |
-| INSERT одной строки | 5 300 | 479 | ×11 |
-| UPDATE одной строки | 946 | 458 | ×2.1 |
-| UPSERT | 958 | 638 | ×1.5 |
-| DELETE | 8 956 | 595 | ×15 |
+| `GET /ping` (dict) | 95 119 | 1 988 | ×48 |
+| `GET /rows?limit=1000` | 1 179 | 382 | ×3.1 |
+| INSERT одной строки | 5 702 | 456 | ×12 |
+| UPDATE одной строки | 932 | 449 | ×2.1 |
+| UPSERT | 984 | 336 | ×2.9 |
+| DELETE | 7 095 | 429 | ×17 |
 
 Разрыв на записях меньше, потому что там всех ограничивает коммит (`fsync`) и
 `BEGIN`/`COMMIT`, а не фреймворк. На чистом HTTP и чтениях разрыв максимальный:

@@ -37,6 +37,13 @@ UPDATE/UPSERT/DELETE били по существующим строкам, а �
 | Скрипт | Что мерит |
 |---|---|
 | `api_bench.py` | ping + строки из БД (query-limit) + одиночные записи — Ferronit vs BlackSheep/Litestar/FastAPI/Django, **на `ab`** |
+| `queries_vs_sqlalchemy.py` | запросы к БД **без HTTP**: Ferronit (rawmodel/rawdb) vs SQLAlchemy Core/ORM vs сырой asyncpg; `get_1`/`list_100`/`insert_1`/`update_1`/`upsert_1`/`delete_1`, 1 клиент |
+| `http_cpu_bench.py` | CPU **под HTTP-нагрузкой** (`ab -c 50`): сервер (процесс приложения), PostgreSQL (cgroup), клиент (rusage) — мкс на запрос |
+| `micro_bench_sql_compile.py` | цена сборки SQL в слое Ferronit (0,9 мкс на оператор) |
+| `_probe_pg_cpu.py` | CPU PostgreSQL на запрос (cgroup контейнера) рядом с CPU клиента |
+| `_probe_write_tuning.py`, `_probe_write_tuning2.py` | чем разгоняется запись: `synchronous_commit=off`, `fsync=off`, UNLOGGED, батчинг, групповой коммит (50 клиентов) |
+| `_probe_batch_durability.py`, `_probe_batch_limits.py`, `_probe_copy.py` | батчинг и сохранность: атомарность, SIGKILL-опыт с крахом контейнера, предел параметров, `COPY` против multi-row `INSERT` |
+| `_probe_copy_semantics.py`, `_probe_copy_transaction.py` | семантика `COPY … FROM STDIN`: участие в транзакции, атомарность пачки, `serial`/триггеры, отсутствие `RETURNING` (**COPY не берём — решение 16.10.2026, пробники оставлены как справка**) |
 | `pg_wire.py`, `wire_bench.py` | самодельный клиент по проводу PostgreSQL (SCRAM, simple/extended, пайплайн) против asyncpg |
 | `micro_bench_json.py`, `micro_bench_response.py`, `micro_bench_model.py` | микрозамеры (Rust JSON против json.dumps, сборка ответа json+gzip, маппинг строк) — без HTTP |
 | `rust_pg_orm/`, `rust_pg_1row/`, `go_pg_orm/`, `go_pg_1row/` | кросс-языковые стенды: `tokio-postgres`/`sqlx`/`SeaORM`, `pgx`/`sqlx`/`GORM`/`ent` |
@@ -120,6 +127,10 @@ pgbench, инстанс `postgres:18.6` (дефолтный конфиг Docker,
    `ab` в шапку `RESULTS_ab.txt`.
 4. Сравнивать **соотношения** (Ferronit/FastAPI), а не абсолютные req/s из разных сессий: одна
    машина даёт ±2–3% дрейфа, а на граничных сценариях больше.
+5. **Замеры записи** (`queries_vs_sqlalchemy.py`, `api_bench.py --writes`) требуют снятого
+   фонового I/O: autovacuum на тестовой таблице выключен, перед каждой операцией `CHECKPOINT`
+   и пауза ~5 с. Иначе записи врут втрое (930 → 330 запросов/с) — подробности в
+   [`docs/benchmarks.md`](../docs/benchmarks.md).
 
 Требования: окружение `.venv` в корне репозитория, `ab` (`apt install apache2-utils`),
 Docker с контейнером `ferronit-pg` на :5432.

@@ -60,3 +60,23 @@ async def test_404_parameterised(client):
 async def test_404_unmatched(client):
     r = await client.get("/nope")
     assert r.status_code == 404
+
+
+def test_route_with_26_params_is_rejected_with_value_error():
+    """Шаблон из 26 параметров matchit не раскладывает по буквам a..z и паникует.
+
+    Наружу это обязано выходить ValueError («Invalid route: ...»), а не
+    PanicException: паника Rust через FFI — не тот отказ, который ловит код
+    приложения (PanicException наследуется от BaseException).
+    """
+    v = Ferronit()
+    pattern = "/" + "/".join(f"{{p{i}}}" for i in range(26))
+    with pytest.raises(ValueError, match="Invalid route"):
+        v.route(pattern)(lambda req: {})
+
+
+def test_route_with_25_params_is_accepted():
+    """25 параметров — предел matchit, шаблон ещё регистрируется."""
+    v = Ferronit()
+    pattern = "/" + "/".join(f"{{p{i}}}" for i in range(25))
+    v.route(pattern)(lambda req: {})

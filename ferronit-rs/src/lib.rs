@@ -30,10 +30,30 @@ impl Router {
             .inner
             .entry(method)
             .or_insert_with(|| MatchitRouter::new());
-        router.insert(pattern, handler).map_err(|e| {
-            pyo3::exceptions::PyValueError::new_err(format!("Invalid route: {}", e))
-        })?;
-        Ok(())
+        // matchit нумерует параметры буквами a..z и ПАНИКУЕТ на шаблоне с >25
+        // параметрами («Too many route parameters.»), а не возвращает ошибку.
+        // Паника через FFI стала бы PanicException (BaseException) и обошла бы
+        // документированный отказ ValueError — превращаем её в обычную ошибку.
+        // Предпроверка нужна, чтобы не писать в stderr паническую простыню:
+        // catch_unwind оставлен вторым рубежом на прочие паники matchit.
+        if pattern.matches('{').count() > 25 {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "Invalid route: too many path parameters (at most 25)",
+            ));
+        }
+        let inserted = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            router.insert(pattern, handler)
+        }));
+        match inserted {
+            Ok(Ok(_)) => Ok(()),
+            Ok(Err(e)) => Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "Invalid route: {}",
+                e
+            ))),
+            Err(_) => Err(pyo3::exceptions::PyValueError::new_err(
+                "Invalid route: too many path parameters (at most 25)",
+            )),
+        }
     }
 
     /// Fast path lookup. Returns (handler, params) where params is None

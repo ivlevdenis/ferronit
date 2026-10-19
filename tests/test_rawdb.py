@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import pytest
 
+from ferronit.contrib import sql
 from ferronit.contrib.rawdb import Condition, RawRepository, RawUnitOfWork, create_raw_pool
 
 try:  # asyncpg живёт в extra "postgres"
@@ -215,3 +216,198 @@ async def test_same_rows_as_core_repository(pool) -> None:
         fetched = await uow[TABLE].get(saved["id"])
 
     assert fetched == saved
+
+
+# ── настраиваемый RETURNING (фейковое соединение, база не нужна) ─────────────
+#
+# Диалект у заглушки задаётся атрибутом, SQL записывается, строки отдаются
+# заготовленные — так проверяются оба пути: с RETURNING (PostgreSQL/SQLite) и
+# через дочитывание (MySQL, где RETURNING нет).
+
+
+class FakeConnection:
+    """Заглушка соединения: помнит SQL, отдаёт заготовленную строку."""
+
+    def __init__(self, dialect, *, row=None, rows=None, key=7) -> None:
+        self.dialect = dialect
+        self.row = row
+        self.rows = rows or []
+        self.key = key
+        self.calls: list[tuple[str, str]] = []
+
+    async def execute(self, sql_text: str, *params):
+        self.calls.append(("execute", sql_text))
+        return self.key
+
+    async def fetchrow(self, sql_text: str, *params):
+        self.calls.append(("fetchrow", sql_text))
+        return self.row
+
+    async def fetch(self, sql_text: str, *params):
+        self.calls.append(("fetch", sql_text))
+        if self.rows:
+            return self.rows
+        return [self.row] if self.row is not None else []
+
+    async def fetchval(self, sql_text: str, *params):
+        self.calls.append(("fetchval", sql_text))
+        return self.key
+
+
+async def test_save_asks_for_exactly_the_requested_columns() -> None:
+    conn = FakeConnection(sql.POSTGRES, row={"id": 7, "name": "A", "age": 0})
+    repo = RawRepository(conn, TABLE)
+    row = await repo.save({"name": "A"}, returning=("id", "name"))
+
+    assert conn.calls[-1] == (
+        "fetchrow",
+        f"INSERT INTO {TABLE} (name) VALUES ($1) RETURNING id, name",
+    )
+    assert row == {"id": 7, "name": "A"}
+
+
+async def test_save_returning_true_is_the_whole_row() -> None:
+    conn = FakeConnection(sql.POSTGRES, row={"id": 7, "name": "A", "age": 0})
+    repo = RawRepository(conn, TABLE)
+    row = await repo.save({"name": "A"}, returning=True)
+
+    assert conn.calls[-1][1].endswith("RETURNING *")
+    assert row == {"id": 7, "name": "A", "age": 0}
+
+
+async def test_update_returning_reports_a_missing_row() -> None:
+    conn = FakeConnection(sql.POSTGRES, row=None)
+    repo = RawRepository(conn, TABLE)
+    assert await repo.update(404, {"name": "ghost"}, returning=True) is None
+    assert conn.calls[-1] == (
+        "fetchrow",
+        f"UPDATE {TABLE} SET name = $1 WHERE id = $2 RETURNING *",
+    )
+
+
+async def test_update_without_returning_keeps_the_old_shape() -> None:
+    conn = FakeConnection(sql.POSTGRES, row=None)
+    repo = RawRepository(conn, TABLE)
+    assert await repo.update(1, {"name": "B"}) == {"name": "B", "id": 1}
+    assert conn.calls[-1] == ("execute", f"UPDATE {TABLE} SET name = $1 WHERE id = $2")
+
+
+async def test_delete_returning_gives_the_deleted_row() -> None:
+    conn = FakeConnection(sql.POSTGRES, row={"id": 1})
+    repo = RawRepository(conn, TABLE)
+    assert await repo.delete(1, returning=("id",)) == {"id": 1}
+    assert conn.calls[-1] == ("fetchrow", f"DELETE FROM {TABLE} WHERE id = $1 RETURNING id")
+
+    empty = FakeConnection(sql.POSTGRES, row=None)
+    assert await RawRepository(empty, TABLE).delete(1, returning=True) is None
+
+
+async def test_delete_without_returning_stays_a_plain_delete() -> None:
+    conn = FakeConnection(sql.POSTGRES, row={"id": 1})
+    repo = RawRepository(conn, TABLE)
+    assert await repo.delete(1) is None
+    assert conn.calls[-1] == ("execute", f"DELETE FROM {TABLE} WHERE id = $1")
+
+
+async def test_mysql_save_reads_the_row_back_and_projects_it() -> None:
+    """У MySQL нет RETURNING: строка дочитывается вторым запросом."""
+    conn = FakeConnection(sql.MYSQL, row={"id": 7, "name": "A", "age": 0})
+    repo = RawRepository(conn, TABLE)
+    row = await repo.save({"name": "A"}, returning=("name",))
+
+    assert "RETURNING" not in conn.calls[0][1]
+    assert row == {"name": "A"}
+    assert conn.calls[0][0] == "execute" and conn.calls[1][0] == "fetchrow"
+
+
+async def test_mysql_update_and_delete_read_back_without_returning() -> None:
+    conn = FakeConnection(sql.MYSQL, row={"id": 1, "name": "old"})
+    repo = RawRepository(conn, TABLE)
+    assert await repo.update(1, {"name": "new"}, returning=("name",)) == {"name": "old"}
+    assert [call[0] for call in conn.calls] == ["execute", "fetchrow"]
+    assert not any("RETURNING" in call[1] for call in conn.calls)
+
+    conn = FakeConnection(sql.MYSQL, row={"id": 1, "name": "old"})
+    repo = RawRepository(conn, TABLE)
+    assert await repo.delete(1, returning=True) == {"id": 1, "name": "old"}
+    # пред-образ читается ДО удаления, иначе возвращать нечего
+    assert [call[0] for call in conn.calls] == ["fetchrow", "execute"]
+
+
+# ── батч-INSERT (save_many) ──────────────────────────────────────────────────
+
+
+async def test_save_many_splits_into_chunks() -> None:
+    conn = FakeConnection(sql.POSTGRES, rows=[{"id": 1}, {"id": 2}])
+    repo = RawRepository(conn, TABLE)
+    rows = [{"name": f"N{i}", "age": i} for i in range(4)]
+    saved = await repo.save_many(rows, chunk_size=2)
+
+    assert len(conn.calls) == 2  # 4 строки по 2 — два запроса, а не четыре
+    assert all(call[0] == "fetch" for call in conn.calls)
+    assert conn.calls[0][1] == (
+        f"INSERT INTO {TABLE} (name, age) VALUES ($1, $2), ($3, $4) RETURNING id"
+    )
+    assert saved == [
+        {"name": "N0", "age": 0, "id": 1},
+        {"name": "N1", "age": 1, "id": 2},
+        {"name": "N2", "age": 2, "id": 1},
+        {"name": "N3", "age": 3, "id": 2},
+    ]
+
+
+async def test_save_many_chunk_default_follows_the_parameter_limit() -> None:
+    """Размер чанка = лимит плейсхолдеров / число колонок (SQLite: 32 766 / 3)."""
+    conn = FakeConnection(sql.SQLITE, row=None)
+    repo = RawRepository(conn, TABLE)
+    rows = [{"id": i, "a": 1, "b": 2} for i in range(16_384)]
+    await repo.save_many(rows)
+
+    first, second = conn.calls  # id в данных → никакого RETURNING, только execute
+    expected = sql.SQLITE.max_parameters // 3
+    assert first[0] == "execute" and first[1].count("(?, ?, ?)") == expected
+    assert second[1].count("(?, ?, ?)") == 16_384 - expected
+
+
+async def test_save_many_returning_columns_are_projected() -> None:
+    conn = FakeConnection(sql.POSTGRES, rows=[{"id": 5, "name": "Z", "age": 9}])
+    repo = RawRepository(conn, TABLE)
+    saved = await repo.save_many([{"name": "Z", "age": 9}], returning=("id", "name"))
+
+    assert conn.calls[-1][1].endswith("RETURNING id, name")
+    assert saved == [{"id": 5, "name": "Z"}]
+
+
+async def test_save_many_rejects_rows_with_different_columns() -> None:
+    conn = FakeConnection(sql.POSTGRES, row={"id": 1})
+    repo = RawRepository(conn, TABLE)
+    with pytest.raises(ValueError):
+        await repo.save_many([{"name": "A"}, {"age": 1}])
+
+
+async def test_save_many_is_a_no_op_for_no_rows() -> None:
+    conn = FakeConnection(sql.POSTGRES, row={"id": 1})
+    assert await RawRepository(conn, TABLE).save_many([]) == []
+    assert conn.calls == []
+
+
+async def test_save_many_on_mysql_without_returning_is_one_statement() -> None:
+    conn = FakeConnection(sql.MYSQL, row={"id": 1})
+    repo = RawRepository(conn, TABLE)
+    saved = await repo.save_many([{"name": "A"}, {"name": "B"}])
+
+    assert conn.calls == [
+        ("execute", f"INSERT INTO `{TABLE}` (name) VALUES (%s), (%s)")
+    ]
+    # у MySQL нет RETURNING — ключи не выдумываем
+    assert saved == [{"name": "A"}, {"name": "B"}]
+
+
+async def test_save_many_on_mysql_with_returning_falls_back_per_row() -> None:
+    conn = FakeConnection(sql.MYSQL, row={"id": 1, "name": "A"})
+    repo = RawRepository(conn, TABLE)
+    saved = await repo.save_many([{"name": "A"}, {"name": "B"}], returning=("name",))
+
+    assert saved == [{"name": "A"}, {"name": "A"}]
+    # на каждую строку: INSERT + дочитывание
+    assert [call[0] for call in conn.calls] == ["execute", "fetchrow", "execute", "fetchrow"]

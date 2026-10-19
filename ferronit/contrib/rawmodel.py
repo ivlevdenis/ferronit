@@ -229,13 +229,16 @@ class Column:
             return sql.IsNull(self.name, negated=True)
         return sql.Compare(self.name, "!=", other)
 
-    def in_(self, values: Sequence[Any]) -> sql.InList:
-        """``IN``: поле входит в набор значений (на PostgreSQL ``col = ANY($1)``)."""
-        return sql.InList(self.name, list(values))
+    def in_(self, values: Sequence[Any] | sql.Subquery) -> sql.InList:
+        """``IN``: поле входит в набор значений (на PostgreSQL ``col = ANY($1)``).
 
-    def not_in(self, values: Sequence[Any]) -> sql.InList:
-        """``NOT IN``: поле не входит в набор значений."""
-        return sql.InList(self.name, list(values), negated=True)
+        Вместо значений можно передать подзапрос — ``col IN (SELECT …)``.
+        """
+        return sql.InList(self.name, values)
+
+    def not_in(self, values: Sequence[Any] | sql.Subquery) -> sql.InList:
+        """``NOT IN``: поле не входит в набор значений (или в подзапрос)."""
+        return sql.InList(self.name, values, negated=True)
 
     def like(self, pattern: str) -> sql.Like:
         """``LIKE`` с wildcard-паттерном (``%``/``_``)."""
@@ -1309,21 +1312,26 @@ class RawModelRepository[M: Model](Adapter):
         """
         if not objs:
             return []
+        limit = max(1, self._dialect.max_parameters // max(1, len(self._insert_columns)))
         if self._dialect.supports_returning:
-            sql_text = sql.compile_statement(
-                sql.Insert(
-                    self._table,
-                    self._insert_columns,
-                    rows=len(objs),
-                    returning=self._columns,
-                ),
-                self._dialect,
-            )[0]
-            values: builtins.list[Any] = []
-            for obj in objs:
-                values.extend(getattr(obj, name) for name in self._insert_columns)
-            rows = await self._conn.fetch(sql_text, *values)
-            return [self._model(*row) for row in rows]
+            saved_returning: builtins.list[M] = []
+            for start in range(0, len(objs), limit):
+                chunk = objs[start : start + limit]
+                sql_text = sql.compile_statement(
+                    sql.Insert(
+                        self._table,
+                        self._insert_columns,
+                        rows=len(chunk),
+                        returning=self._columns,
+                    ),
+                    self._dialect,
+                )[0]
+                values: builtins.list[Any] = []
+                for obj in chunk:
+                    values.extend(getattr(obj, name) for name in self._insert_columns)
+                rows = await self._conn.fetch(sql_text, *values)
+                saved_returning.extend(self._model(*row) for row in rows)
+            return saved_returning
         row_sql = sql.compile_statement(
             sql.Insert(self._table, self._insert_columns), self._dialect
         )[0]

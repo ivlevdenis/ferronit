@@ -27,20 +27,45 @@ from collections.abc import Sequence
 from typing import Any
 
 __all__ = [
+    "BOOLEAN",
+    "BYTES",
+    "CAST_TYPES",
+    "DATE",
+    "EXCEPT",
     "FULL",
     "INNER",
+    "INT",
+    "INTERSECT",
     "JOIN_KINDS",
+    "JSON",
     "LEFT",
     "MYSQL",
+    "NUMERIC",
     "POSTGRES",
+    "REAL",
     "RIGHT",
+    "SET_KINDS",
     "SQLITE",
+    "TEXT",
+    "TIME",
+    "TIMESTAMP",
+    "UNION",
+    "UUID",
+    "AddColumn",
     "And",
+    "As",
     "Between",
+    "Cast",
+    "Column",
     "Compare",
+    "CreateIndex",
+    "CreateTable",
+    "Cte",
     "Delete",
     "Dialect",
     "DialectError",
+    "DropTable",
+    "Exists",
     "Expr",
     "Func",
     "InList",
@@ -51,6 +76,7 @@ __all__ = [
     "MySQLDialect",
     "Not",
     "Or",
+    "Over",
     "Param",
     "Paren",
     "PostgresDialect",
@@ -58,8 +84,10 @@ __all__ = [
     "Ref",
     "SQLiteDialect",
     "Select",
+    "SetOp",
     "Subquery",
     "Update",
+    "With",
     "compile_expr",
     "compile_statement",
     "renumber_placeholders",
@@ -70,6 +98,27 @@ _PLACEHOLDER_RE = re.compile(r"\$(\d+)")
 
 class DialectError(Exception):
     """Raised when a statement needs a feature the dialect cannot express."""
+
+
+# Канонические цели приведения типов: имя не зависит от движка (в дереве пишется
+# `Cast(x, NUMERIC)`), а SQL-тип подбирает диалект — Dialect.cast_type. Движковые
+# типы (JSON, UUID, TIME, BYTES) есть не везде: где движок их не знает — DialectError.
+INT = "int"
+TEXT = "text"
+NUMERIC = "numeric"
+REAL = "real"
+BOOLEAN = "boolean"
+DATE = "date"
+TIMESTAMP = "timestamp"
+TIME = "time"
+BYTES = "bytes"
+JSON = "json"
+UUID = "uuid"
+
+CAST_TYPES = (INT, TEXT, NUMERIC, REAL, BOOLEAN, DATE, TIMESTAMP, TIME, BYTES, JSON, UUID)
+
+# Типы, у которых есть параметры точности (`numeric(10, 2)`); остальное — ValueError.
+CAST_PARAMETERISED = (NUMERIC,)
 
 
 class Dialect:
@@ -89,6 +138,22 @@ class Dialect:
             (``$1 … $1``) instead of repeating the placeholder.
         supports_full_join: Engine understands ``FULL JOIN`` (MySQL has no
             ``FULL OUTER JOIN``; PostgreSQL and SQLite 3.39+ do).
+        supports_set_op_all: Engine understands ``EXCEPT ALL``/``INTERSECT ALL``
+            (``UNION ALL`` is understood everywhere; SQLite has no ``ALL``
+            variants beyond ``UNION``).
+        supports_set_op_parens: Engine accepts a parenthesised operand of a set
+            operation (``(SELECT … LIMIT 1) UNION …``) — PostgreSQL and MySQL do,
+            SQLite does not, so a branch with its own ``ORDER BY``/``LIMIT`` is
+            an error there rather than "almost right" SQL.
+        max_parameters: Placeholders one statement may carry — the cap a bulk
+            ``INSERT`` has to respect (the caller turns it into a chunk size).
+        supports_index_if_not_exists: Engine understands ``CREATE INDEX IF NOT
+            EXISTS`` (MySQL does not) — a migration asking for it there is a
+            :class:`DialectError`, not a statement that fails halfway.
+        column_types: Canonical type (:data:`CAST_TYPES`) → column-type spelling.
+            Separate from :attr:`cast_types` because the two roles differ: MySQL
+            *casts* to ``SIGNED`` but *declares* ``int``, and a column may be
+            ``uuid``/``json``/``text`` where a cast of that name is meaningless.
         excluded_keyword: Keyword for the conflicting row in an upsert.
     """
 
@@ -99,6 +164,52 @@ class Dialect:
     supports_upsert = False
     supports_placeholder_reuse = False
     supports_full_join = False
+    supports_set_op_all = False
+    supports_set_op_parens = False
+    max_parameters = 32_767
+    supports_index_if_not_exists = False
+    cast_types: dict[str, str] = {}
+    column_types: dict[str, str] = {}
+
+    def column_type(
+        self, name: str, precision: int | None = None, scale: int | None = None
+    ) -> str:
+        """Spell a canonical type (:data:`CAST_TYPES`) as a column type.
+
+        Args:
+            name: Canonical type name (``INT``, ``TEXT``, ``NUMERIC``, …).
+            precision: Total digits, for parameterised types (``NUMERIC``).
+            scale: Digits after the point, together with ``precision``.
+
+        Returns:
+            The engine's column-type spelling, with parameters when given.
+
+        Raises:
+            DialectError: If the engine has no such column type.
+        """
+        try:
+            spelling = self.column_types[name]
+        except KeyError:
+            raise DialectError(f"{self.name}: no column type for {name!r}") from None
+        if precision is None:
+            return spelling
+        if scale is None:
+            return f"{spelling}({precision})"
+        return f"{spelling}({precision}, {scale})"
+
+    def primary_key_clause(self, column: Column) -> str:
+        """Render the primary-key tail of a column definition.
+
+        The base dialect knows only ``PRIMARY KEY``; engines that fill the key
+        themselves override this with their identity form.
+
+        Args:
+            column: The column being defined.
+
+        Returns:
+            The clause, e.g. ``PRIMARY KEY``.
+        """
+        return "PRIMARY KEY"
 
     def placeholder(self, index: int) -> str:
         """Render the placeholder of one bound parameter.
@@ -122,6 +233,43 @@ class Dialect:
             override this.
         """
         return name
+
+    def cast_type(
+        self,
+        name: str,
+        precision: int | None = None,
+        scale: int | None = None,
+    ) -> str:
+        """Spell a canonical cast target (:data:`CAST_TYPES`) for this engine.
+
+        The type map lives on the dialect because the same intent is written
+        differently everywhere: ``cast(x, NUMERIC)`` is ``numeric`` on
+        PostgreSQL, ``DECIMAL`` on MySQL and ``NUMERIC`` on SQLite; the money
+        form is ``numeric(10, 2)`` / ``DECIMAL(10, 2)`` / ``NUMERIC(10, 2)``.
+
+        Args:
+            name: Canonical type name (``INT``, ``TEXT``, ``NUMERIC``, …).
+            precision: Total digits, for parameterised types (``NUMERIC``).
+            scale: Digits after the point, together with ``precision``.
+
+        Returns:
+            The engine's spelling of that type, with parameters when given.
+
+        Raises:
+            DialectError: If the engine has no faithful equivalent — SQLite has
+                no date/time/uuid/json type and silently ignores such a cast
+                (``CAST('…' AS UUID)`` gives ``0``), so it is refused loudly
+                instead of producing an "almost right" value.
+        """
+        try:
+            spelling = self.cast_types[name]
+        except KeyError:
+            raise DialectError(f"{self.name}: cast to {name!r} is not supported") from None
+        if precision is None:
+            return spelling
+        if scale is None:
+            return f"{spelling}({precision})"
+        return f"{spelling}({precision}, {scale})"
 
     def conflict_clause(self, key: str, update_columns: Sequence[str]) -> str:
         """Render the upsert tail of an ``INSERT`` (conflict handling).
@@ -153,6 +301,39 @@ class PostgresDialect(Dialect):
     supports_upsert = True
     supports_placeholder_reuse = True
     supports_full_join = True
+    supports_set_op_all = True
+    supports_set_op_parens = True
+    supports_index_if_not_exists = True
+
+    def primary_key_clause(self, column: Column) -> str:
+        """Render an integer key as an identity column.
+
+        Args:
+            column: The column being defined.
+
+        Returns:
+            ``PRIMARY KEY GENERATED BY DEFAULT AS IDENTITY`` for an integer key;
+            plain ``PRIMARY KEY`` otherwise — a uuid/text key is filled by the
+            application, not by the server.
+        """
+        if column.type_name != INT:
+            return "PRIMARY KEY"
+        return "PRIMARY KEY GENERATED BY DEFAULT AS IDENTITY"
+    cast_types = {
+        INT: "integer",
+        TEXT: "text",
+        NUMERIC: "numeric",
+        REAL: "double precision",
+        BOOLEAN: "boolean",
+        DATE: "date",
+        TIMESTAMP: "timestamptz",
+        TIME: "time",
+        BYTES: "bytea",
+        JSON: "jsonb",
+        UUID: "uuid",
+    }
+    # У PostgreSQL роль совпадает: чем приводим — тем и объявляем.
+    column_types = cast_types
 
     def placeholder(self, index: int) -> str:
         """Render ``$index``.
@@ -202,6 +383,53 @@ class MySQLDialect(Dialect):
 
     name = "mysql"
     supports_upsert = True
+    supports_set_op_all = True
+    supports_set_op_parens = True
+    max_parameters = 65_535
+    cast_types = {
+        # MySQL не умеет CAST(x AS INTEGER)/AS BOOLEAN: целые — SIGNED, признак — тоже SIGNED.
+        # Типа uuid в MySQL нет (его роль играют CHAR(36)/BINARY(16)) — поэтому его здесь нет.
+        INT: "SIGNED",
+        TEXT: "CHAR",
+        NUMERIC: "DECIMAL",
+        REAL: "DOUBLE",
+        BOOLEAN: "SIGNED",
+        DATE: "DATE",
+        TIMESTAMP: "DATETIME",
+        TIME: "TIME",
+        BYTES: "BINARY",
+        JSON: "JSON",
+    }
+    column_types = {
+        # Здесь роль другая, чем у cast_types: объявляем колонки, а не приводим
+        # значения (MySQL приводит к SIGNED, но колонку объявляет int).
+        # TEXT → varchar(255), а не text: у MySQL TEXT нельзя ни DEFAULT, ни
+        # в индекс без префикса длины. Длиннее 255 — своим Raw("text").
+        INT: "int",
+        TEXT: "varchar(255)",
+        NUMERIC: "decimal",
+        REAL: "double",
+        BOOLEAN: "tinyint(1)",
+        DATE: "date",
+        TIMESTAMP: "datetime",
+        TIME: "time",
+        BYTES: "blob",
+        JSON: "json",
+        UUID: "char(36)",  # отдельного типа uuid в MySQL нет — его роль играет char(36)
+    }
+
+    def primary_key_clause(self, column: Column) -> str:
+        """Render an integer key as ``AUTO_INCREMENT`` (MySQL has no identity clause).
+
+        Args:
+            column: The column being defined.
+
+        Returns:
+            ``PRIMARY KEY AUTO_INCREMENT`` for an integer key, else ``PRIMARY KEY``.
+        """
+        if column.type_name != INT:
+            return "PRIMARY KEY"
+        return "PRIMARY KEY AUTO_INCREMENT"
 
     def placeholder(self, index: int) -> str:
         """Render ``%s`` (the position is implied by the order of values).
@@ -256,6 +484,50 @@ class SQLiteDialect(Dialect):
     supports_returning = True
     supports_upsert = True
     supports_full_join = True
+    supports_index_if_not_exists = True
+    # SQLITE_MAX_VARIABLE_NUMBER зависит от сборки: пол 32 766, в этой — 250 000
+    # (замерено 16.10.2026). Берём пол, чтобы чанки были безопасны на любой сборке.
+    max_parameters = 32_766
+    cast_types = {
+        # У SQLite типы — это «affinity», и незнакомое имя он молча принимает
+        # (CAST('…' AS UUID) даёт 0, AS TIME — 12), поэтому в карте только те типы,
+        # у которых поведение честное: текст, числа, BLOB.
+        INT: "INTEGER",
+        TEXT: "TEXT",
+        NUMERIC: "NUMERIC",
+        REAL: "REAL",
+        BOOLEAN: "INTEGER",
+        BYTES: "BLOB",
+    }
+    column_types = {
+        # У SQLite нет дат/uuid/json как типов: их роль играют TEXT/BLOB по
+        # соглашению (ISO-8601 для времени) — это осознанный выбор, в отличие от
+        # CAST, где такое имя молча ничего не делает и потому отвергается.
+        INT: "INTEGER",
+        TEXT: "TEXT",
+        NUMERIC: "NUMERIC",
+        REAL: "REAL",
+        BOOLEAN: "INTEGER",
+        DATE: "TEXT",
+        TIMESTAMP: "TEXT",
+        TIME: "TEXT",
+        BYTES: "BLOB",
+        JSON: "TEXT",
+        UUID: "TEXT",
+    }
+
+    def primary_key_clause(self, column: Column) -> str:
+        """Render an integer key as ``INTEGER PRIMARY KEY AUTOINCREMENT`` (rowid alias).
+
+        Args:
+            column: The column being defined.
+
+        Returns:
+            ``PRIMARY KEY AUTOINCREMENT`` for an integer key, else ``PRIMARY KEY``.
+        """
+        if column.type_name != INT:
+            return "PRIMARY KEY"
+        return "PRIMARY KEY AUTOINCREMENT"
 
     def quote(self, name: str) -> str:
         """Quote an identifier with double quotes.
@@ -336,6 +608,51 @@ class Expr:
     def __invert__(self) -> Not:
         """Negate (``~a`` → ``NOT (a)``)."""
         return Not(self)
+
+    def over(self, *, partition_by: Sequence[Any] = (), order: Sequence[str] = ()) -> Over:
+        """Wrap in a window: ``Func("sum", "total").over(partition_by=["user_id"])``.
+
+        Args:
+            partition_by: ``PARTITION BY`` terms — column names or nodes.
+            order: ``ORDER BY`` terms of the window, already rendered.
+
+        Returns:
+            The :class:`Over` node.
+        """
+        return Over(self, partition_by=partition_by, order=order)
+
+    def as_(self, alias: str) -> As:
+        """Name the expression as an output column: ``Func("sum", "x").as_("total")``.
+
+        Args:
+            alias: Output column name (quoted per dialect).
+
+        Returns:
+            The :class:`As` node.
+        """
+        return As(self, alias)
+
+    def cast(
+        self,
+        type_name: str,
+        *,
+        precision: int | None = None,
+        scale: int | None = None,
+    ) -> Cast:
+        """Convert to a canonical type: ``Func("sum", "total").cast(NUMERIC)``.
+
+        Args:
+            type_name: One of :data:`CAST_TYPES` (``INT``, ``TEXT``, ``NUMERIC``,
+                ``REAL``, ``BOOLEAN``, ``DATE``, ``TIMESTAMP``, ``TIME``,
+                ``BYTES``, ``JSON``, ``UUID``).
+            precision: Total digits, for ``NUMERIC`` — e.g. ``precision=10,
+                scale=2`` for money.
+            scale: Digits after the point.
+
+        Returns:
+            The :class:`Cast` node.
+        """
+        return Cast(self, type_name, precision=precision, scale=scale)
 
 
 class Raw(Expr):
@@ -454,16 +771,36 @@ class InList(Expr):
     Args:
         column: Column name.
         values: The candidate values, bound as one list parameter on engines
-            that support ``ANY``.
+            that support ``ANY``, or a :class:`Subquery` for ``IN (SELECT …)``
+            (a subquery is never a bound parameter, on any engine).
         negated: Wrap the predicate in ``NOT (…)``.
     """
 
     __slots__ = ("column", "negated", "values")
 
-    def __init__(self, column: str, values: Sequence[Any], *, negated: bool = False) -> None:
+    def __init__(
+        self, column: str, values: Sequence[Any] | Subquery, *, negated: bool = False
+    ) -> None:
         self.column = column
-        self.values = list(values)
+        if isinstance(values, Subquery):
+            self.values: Sequence[Any] | Subquery = values
+        else:
+            self.values = list(values)
         self.negated = negated
+
+
+class Exists(Expr):
+    """``EXISTS (SELECT …)`` — the correlated-existence predicate.
+
+    Args:
+        subquery: The inner statement as a :class:`Subquery` (an alias is not
+            printed in a predicate, so it may be left out).
+    """
+
+    __slots__ = ("subquery",)
+
+    def __init__(self, subquery: Subquery) -> None:
+        self.subquery = subquery
 
 
 class Like(Expr):
@@ -554,6 +891,105 @@ class Not(Expr):
 
     def __init__(self, operand: Any) -> None:
         self.operand = operand
+
+
+class Cast(Expr):
+    """``CAST(<expression> AS <type>)`` with a portable type name.
+
+    The target is a canonical name (:data:`CAST_TYPES`), not engine syntax: the
+    dialect spells it (``NUMERIC`` → ``numeric`` on PostgreSQL, ``DECIMAL`` on
+    MySQL) and refuses a target it cannot express faithfully — SQLite has no
+    uuid/json/time type and silently returns nonsense for such a cast
+    (``CAST('x' AS UUID)`` → ``0``), so it is a :class:`DialectError` there.
+
+    Money is the reason ``precision``/``scale`` exist: ``Cast(x, NUMERIC,
+    precision=10, scale=2)`` renders ``numeric(10, 2)`` on PostgreSQL,
+    ``DECIMAL(10, 2)`` on MySQL and ``NUMERIC(10, 2)`` on SQLite, so the result
+    comes back exact (``Decimal``) instead of a float.
+
+    Args:
+        expression: Expression to convert.
+        type_name: One of :data:`CAST_TYPES`; validated on construction.
+        precision: Total digits — only for :data:`CAST_PARAMETERISED` types.
+        scale: Digits after the point; needs ``precision``.
+    """
+
+    __slots__ = ("expression", "precision", "scale", "type_name")
+
+    def __init__(
+        self,
+        expression: Any,
+        type_name: str,
+        *,
+        precision: int | None = None,
+        scale: int | None = None,
+    ) -> None:
+        if type_name not in CAST_TYPES:
+            raise ValueError(
+                f"unknown cast type: {type_name!r}, expected one of {CAST_TYPES}"
+            )
+        if scale is not None and precision is None:
+            raise ValueError("scale without precision: Cast(x, NUMERIC, precision=10, scale=2)")
+        if precision is not None and type_name not in CAST_PARAMETERISED:
+            raise ValueError(f"{type_name!r} takes no precision/scale")
+        self.expression = expression
+        self.type_name = type_name
+        self.precision = precision
+        self.scale = scale
+
+
+class As(Expr):
+    """``<expression> AS <alias>`` — names an output column.
+
+    Needed when the outer query has to refer to a computed column (a window
+    function, an aggregate, an arithmetic expression): without the name, a
+    filter over it would have to repeat the whole expression.
+
+    Args:
+        expression: The expression to name (any node).
+        alias: Output column name; quoted with the dialect, so an outer
+            :class:`Ref` on the same name renders identically.
+    """
+
+    __slots__ = ("alias", "expression")
+
+    def __init__(self, expression: Any, alias: str) -> None:
+        if not alias:
+            raise ValueError("As needs an alias")
+        self.expression = expression
+        self.alias = alias
+
+
+class Over(Expr):
+    """A windowed call: ``<function> OVER (PARTITION BY … ORDER BY …)``.
+
+    Args:
+        function: The windowed expression — usually :class:`Func`
+            (``Func("row_number")``, ``Func("sum", "total")``).
+        partition_by: ``PARTITION BY`` terms — column names (quoted per dialect)
+            or nodes, as in :attr:`Select.group_by`.
+        order: ``ORDER BY`` terms of the window, already rendered
+            (``placed_at DESC``), as in :attr:`Select.order`.
+
+    Note:
+        No frame clause is modelled: without one the engine's default applies
+        (with ``ORDER BY`` that is ``RANGE UNBOUNDED PRECEDING … CURRENT ROW``,
+        i.e. a running total). A frame such as ``ROWS 3 PRECEDING`` can be
+        written as a :class:`Raw` fragment until it is modelled.
+    """
+
+    __slots__ = ("function", "order", "partition_by")
+
+    def __init__(
+        self,
+        function: Any,
+        *,
+        partition_by: Sequence[Any] = (),
+        order: Sequence[str] = (),
+    ) -> None:
+        self.function = function
+        self.partition_by = list(partition_by)
+        self.order = list(order)
 
 
 class Paren(Expr):
@@ -648,6 +1084,16 @@ def _render(
     """Render ``node`` into SQL text, appending values to ``params``."""
     if isinstance(node, Raw):
         return _render_raw(node.sql, node.params, dialect, params, offset)
+    if isinstance(node, Subquery):
+        # Подзапрос в позиции предиката: `(SELECT …)`; алиас печатает только
+        # FROM-источник (_render_source).
+        return f"({_compile_statement(node.statement, dialect, params)})"
+    if isinstance(node, SetOp):
+        # Множественная операция в выражении — в скобках (IN (SELECT … UNION …)).
+        return f"({_render_set_op(node, dialect, params)})"
+    if isinstance(node, With):
+        # CTE в выражении — тоже в скобках: IN (WITH … SELECT …).
+        return f"({_render_with(node, dialect, params)})"
     if not isinstance(node, Expr):
         sql = getattr(node, "sql", None)
         values = getattr(node, "params", None)
@@ -693,7 +1139,10 @@ def _render(
         return f"{dialect.quote(node.column)} IS {'NOT ' if node.negated else ''}NULL"
     if isinstance(node, InList):
         column = dialect.quote(node.column)
-        if dialect.supports_any:
+        if isinstance(node.values, Subquery):
+            # `IN (SELECT …)`: подзапрос — не значение, ANY не применим нигде.
+            inner = f"{column} IN {_render(node.values, dialect, params, offset)}"
+        elif dialect.supports_any:
             inner = f"{column} = ANY({_bind(params, dialect, node.values, offset)})"
         elif not node.values:
             inner = f"{column} IN (NULL)"
@@ -701,6 +1150,8 @@ def _render(
             marks = ", ".join(_bind(params, dialect, value, offset) for value in node.values)
             inner = f"{column} IN ({marks})"
         return f"NOT ({inner})" if node.negated else inner
+    if isinstance(node, Exists):
+        return f"EXISTS {_render(node.subquery, dialect, params, offset)}"
     if isinstance(node, Like):
         column = dialect.quote(node.column)
         keyword = "ILIKE" if node.insensitive and dialect.supports_ilike else "LIKE"
@@ -723,6 +1174,27 @@ def _render(
         return f"NOT ({_render(node.operand, dialect, params, offset)})"
     if isinstance(node, Paren):
         return f"({_render(node.operand, dialect, params, offset)})"
+    if isinstance(node, Cast):
+        expression = _render(node.expression, dialect, params, offset)
+        target = dialect.cast_type(node.type_name, node.precision, node.scale)
+        return f"CAST({expression} AS {target})"
+    if isinstance(node, As):
+        expression = _render(node.expression, dialect, params, offset)
+        return f"{expression} AS {dialect.quote(node.alias)}"
+    if isinstance(node, Over):
+        parts = []
+        if node.partition_by:
+            terms = ", ".join(
+                _render(item, dialect, params, offset)
+                if isinstance(item, Expr)
+                else dialect.quote(item)
+                for item in node.partition_by
+            )
+            parts.append(f"PARTITION BY {terms}")
+        if node.order:
+            parts.append("ORDER BY " + ", ".join(node.order))
+        function = _render(node.function, dialect, params, offset)
+        return f"{function} OVER ({' '.join(parts)})"
     raise TypeError(f"unsupported node: {node!r}")
 
 
@@ -737,24 +1209,133 @@ FULL = "FULL"
 JOIN_KINDS = (LEFT, INNER, RIGHT, FULL)
 
 
-class Subquery:
-    """A ``SELECT`` used as a ``FROM`` source — a derived table ``(…) alias``.
+class Subquery(Expr):
+    """A ``SELECT`` used inside another statement — a ``FROM`` source or a predicate.
 
-    The parenthesised source is what makes a join over a filtered, paginated
-    query unambiguous: the inner statement keeps its own ``WHERE``/``ORDER
-    BY``/``LIMIT``, while the outer one refers to its columns through ``alias``
-    (:class:`Ref`).
+    As a ``FROM`` source it is a derived table, rendered ``(…) alias``: the inner
+    statement keeps its own ``WHERE``/``ORDER BY``/``LIMIT``, while the outer one
+    refers to its columns through ``alias`` (:class:`Ref`). In a predicate —
+    ``IN``, ``EXISTS``, comparison with a scalar — it renders as a bare
+    ``(SELECT …)`` and the alias is not printed at all, so it may be left out.
 
     Args:
         statement: The inner statement (a :class:`Select`).
-        alias: Alias for the derived table; ``t0`` by convention in the data layer.
+        alias: Alias of the derived table; required as a ``FROM`` source,
+            unused in predicate position.
     """
 
     __slots__ = ("alias", "statement")
 
-    def __init__(self, statement: Any, alias: str) -> None:
+    def __init__(self, statement: Any, alias: str | None = None) -> None:
         self.statement = statement
         self.alias = alias
+
+
+UNION = "UNION"
+EXCEPT = "EXCEPT"
+INTERSECT = "INTERSECT"
+
+SET_KINDS = (UNION, EXCEPT, INTERSECT)
+
+
+class SetOp(Expr):
+    """Two statements combined by ``UNION``/``EXCEPT``/``INTERSECT``.
+
+    The result is a row set, so it can stand for a statement (top level, or
+    inside :class:`Subquery`) and in an expression (``IN (SELECT … UNION …)``).
+
+    Args:
+        left: First operand — a :class:`Select` or a nested :class:`SetOp`.
+        right: Second operand.
+        kind: One of :data:`SET_KINDS`; ``UNION`` by default.
+        all: Emit the ``ALL`` variant (duplicates kept). ``UNION ALL`` works on
+            every dialect; ``EXCEPT ALL``/``INTERSECT ALL`` only where
+            :attr:`Dialect.supports_set_op_all` is set — otherwise
+            :class:`DialectError`.
+        order: ``ORDER BY`` terms of the whole compound (not of one operand).
+        limit: Row limit of the compound; bound as a parameter when set.
+        offset: Row offset of the compound; bound as a parameter when set.
+
+    Note:
+        An operand carrying its own ``ORDER BY``/``LIMIT``, or a nested set
+        operation, is parenthesised — without the parentheses those clauses
+        attach to the whole compound. SQLite accepts no such parentheses
+        (:attr:`Dialect.supports_set_op_parens`), so there it is
+        :class:`DialectError`.
+    """
+
+    __slots__ = ("all", "kind", "left", "limit", "offset", "order", "right")
+
+    def __init__(
+        self,
+        left: Any,
+        right: Any,
+        *,
+        kind: str = UNION,
+        all: bool = False,
+        order: Sequence[str] = (),
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> None:
+        if kind not in SET_KINDS:
+            raise ValueError(f"unknown set operation: {kind!r}")
+        self.left = left
+        self.right = right
+        self.kind = kind
+        self.all = all
+        self.order = list(order)
+        self.limit = limit
+        self.offset = offset
+
+
+class Cte:
+    """One named sub-statement of a ``WITH`` clause.
+
+    Args:
+        name: CTE name; afterwards it is referenced as a table name
+            (``Select(name, …)``) — no separate node is needed for that.
+        statement: The sub-statement (a :class:`Select` or :class:`SetOp`).
+    """
+
+    __slots__ = ("name", "statement")
+
+    def __init__(self, name: str, statement: Any) -> None:
+        if not name:
+            raise ValueError("a CTE needs a name")
+        self.name = name
+        self.statement = statement
+
+
+class With(Expr):
+    """``WITH name AS (SELECT …) …`` — common table expressions.
+
+    The CTEs are rendered before the main statement, in the order given, so
+    parameter numbering stays continuous across the whole query.
+
+    Args:
+        statement: The main statement, which sees the CTEs by name.
+        ctes: The CTE list (:class:`Cte`), in order.
+        recursive: Emit ``WITH RECURSIVE`` (a CTE referring to itself) —
+            PostgreSQL, MySQL 8+ and SQLite all understand it.
+
+    Note:
+        Usable anywhere a statement is (top level, inside :class:`Subquery`,
+        around a :class:`SetOp`), and in an expression as ``(WITH … SELECT …)``.
+    """
+
+    __slots__ = ("ctes", "recursive", "statement")
+
+    def __init__(
+        self, statement: Any, *, ctes: Sequence[Cte], recursive: bool = False
+    ) -> None:
+        if not ctes:
+            raise ValueError("WITH needs at least one CTE")
+        names = [cte.name for cte in ctes]
+        if len(set(names)) != len(names):
+            raise ValueError(f"duplicate CTE name: {names}")
+        self.statement = statement
+        self.ctes = list(ctes)
+        self.recursive = recursive
 
 
 class Join:
@@ -812,9 +1393,12 @@ class Select:
         limit: Row limit; bound as a parameter when set.
         offset: Row offset; bound as a parameter when set.
         joins: :class:`Join` clauses, rendered between ``FROM`` and ``WHERE``.
+        alias: Alias of a plain-table ``FROM`` source (``FROM users t0``); a
+            derived table carries its own alias inside :class:`Subquery`.
     """
 
     __slots__ = (
+        "alias",
         "columns",
         "distinct",
         "group_by",
@@ -840,8 +1424,13 @@ class Select:
         limit: int | None = None,
         offset: int | None = None,
         joins: Sequence[Join] = (),
+        alias: str | None = None,
     ) -> None:
+        if alias is not None and isinstance(table, Subquery):
+            # Как и у Join: алиас задаётся ровно один раз (иначе «t0 t0»).
+            raise ValueError("derived table: alias belongs to Subquery")
         self.table = table
+        self.alias = alias
         self.columns = list(columns)
         self.where = list(where)
         self.distinct = distinct
@@ -915,18 +1504,202 @@ class Update:
 
 
 class Delete:
-    """``DELETE`` by one key column.
+    """``DELETE`` by one key column, optionally ``RETURNING``.
+
+    ``RETURNING`` is what makes a delete tell you *what* it removed (or that it
+    removed nothing) in one round-trip; engines without it raise
+    :class:`DialectError` rather than silently dropping the clause.
 
     Args:
         table: Table name.
         key: Key column of the ``WHERE`` clause.
+        returning: Columns of the ``RETURNING`` clause (empty = none); ``("*",)``
+            asks for the whole row.
     """
 
-    __slots__ = ("key", "table")
+    __slots__ = ("key", "returning", "table")
 
-    def __init__(self, table: str, key: str) -> None:
+    def __init__(self, table: str, key: str, *, returning: Sequence[str] = ()) -> None:
         self.table = table
         self.key = key
+        self.returning = list(returning)
+
+
+class Column:
+    """One column of a ``CREATE TABLE`` / ``ADD COLUMN``.
+
+    Args:
+        name: Column name (quoted per dialect).
+        type_name: Canonical type (:data:`CAST_TYPES`) — the dialect spells the
+            column type (``INT`` → ``integer`` / ``int`` / ``INTEGER``).
+        pk: Primary key. An integer key is filled by the engine itself (identity
+            / ``AUTO_INCREMENT`` / ``rowid``); any other type gets a plain
+            ``PRIMARY KEY`` and the value comes from the application.
+        nullable: ``False`` adds ``NOT NULL``.
+        default: Literal for ``DEFAULT``, or a parameter-free :class:`Raw`
+            fragment (``Raw("now()")``) when a literal will not do — DDL has no
+            bound values, so a fragment carrying values is refused.
+        unique: Add ``UNIQUE`` to the column.
+        precision: Total digits, for parameterised types (``NUMERIC``).
+        scale: Digits after the point.
+    """
+
+    __slots__ = ("default", "name", "nullable", "pk", "precision", "scale", "type_name", "unique")
+
+    def __init__(
+        self,
+        name: str,
+        type_name: str,
+        *,
+        pk: bool = False,
+        nullable: bool = True,
+        default: Any = None,
+        unique: bool = False,
+        precision: int | None = None,
+        scale: int | None = None,
+    ) -> None:
+        if not name:
+            raise ValueError("a column needs a name")
+        if type_name not in CAST_TYPES:
+            raise ValueError(
+                f"unknown column type: {type_name!r}, expected one of {CAST_TYPES}"
+            )
+        if isinstance(default, Raw) and default.params:
+            raise ValueError(
+                "DEFAULT takes no bound values: pass a literal or Raw(sql) without params"
+            )
+        self.name = name
+        self.type_name = type_name
+        self.pk = pk
+        self.nullable = nullable
+        self.default = default
+        self.unique = unique
+        self.precision = precision
+        self.scale = scale
+
+
+class CreateTable:
+    """``CREATE TABLE`` — one :class:`Column` per column.
+
+    Args:
+        table: Table name.
+        columns: Column definitions, in order.
+        if_not_exists: Emit ``IF NOT EXISTS``: a migration that has already run
+            once must not blow up the second time.
+    """
+
+    __slots__ = ("columns", "if_not_exists", "table")
+
+    def __init__(
+        self, table: str, columns: Sequence[Column], *, if_not_exists: bool = True
+    ) -> None:
+        if not columns:
+            raise ValueError("CREATE TABLE needs at least one column")
+        names = [column.name for column in columns]
+        if len(set(names)) != len(names):
+            raise ValueError(f"duplicate column name: {names}")
+        self.table = table
+        self.columns = list(columns)
+        self.if_not_exists = if_not_exists
+
+
+class AddColumn:
+    """``ALTER TABLE … ADD COLUMN …``.
+
+    Args:
+        table: Table name.
+        column: The column to add.
+    """
+
+    __slots__ = ("column", "table")
+
+    def __init__(self, table: str, column: Column) -> None:
+        self.table = table
+        self.column = column
+
+
+class CreateIndex:
+    """``CREATE [UNIQUE] INDEX`` over one table's columns.
+
+    Args:
+        name: Index name.
+        table: Table name.
+        columns: Indexed columns, in order.
+        unique: Emit ``UNIQUE``.
+        if_not_exists: Emit ``IF NOT EXISTS`` where the engine has that form.
+            Off by default: MySQL has no such form, so the portable default is
+            plain ``CREATE INDEX`` (re-running a migration is prevented by the
+            bookkeeping table, not by this clause); turning it on for MySQL is a
+            :class:`DialectError` rather than a statement that fails halfway.
+    """
+
+    __slots__ = ("columns", "if_not_exists", "name", "table", "unique")
+
+    def __init__(
+        self,
+        name: str,
+        table: str,
+        columns: Sequence[str],
+        *,
+        unique: bool = False,
+        if_not_exists: bool = False,
+    ) -> None:
+        if not columns:
+            raise ValueError("CREATE INDEX needs at least one column")
+        self.name = name
+        self.table = table
+        self.columns = list(columns)
+        self.unique = unique
+        self.if_not_exists = if_not_exists
+
+
+class DropTable:
+    """``DROP TABLE [IF EXISTS]``.
+
+    Args:
+        table: Table name.
+        if_exists: Emit ``IF EXISTS`` (the rollback of a migration may run twice).
+    """
+
+    __slots__ = ("if_exists", "table")
+
+    def __init__(self, table: str, *, if_exists: bool = True) -> None:
+        self.table = table
+        self.if_exists = if_exists
+
+
+def _literal(value: Any) -> str:
+    """Render a ``DEFAULT`` value — DDL carries no bound parameters.
+
+    A :class:`Raw` fragment goes in as written (``Raw("now()")``); a string is
+    quoted with the only escaping DDL itself needs.
+    """
+    if isinstance(value, Raw):
+        return value.sql
+    if value is None:
+        return "NULL"
+    if isinstance(value, bool):
+        return "TRUE" if value else "FALSE"
+    if isinstance(value, (int, float)):
+        return repr(value)
+    return "'" + str(value).replace("'", "''") + "'"
+
+
+def _render_column(column: Column, dialect: Dialect) -> str:
+    """Render one column definition: name, type, key, nullability, default, unique."""
+    parts = [
+        dialect.quote(column.name),
+        dialect.column_type(column.type_name, column.precision, column.scale),
+    ]
+    if column.pk:
+        parts.append(dialect.primary_key_clause(column))
+    if not column.nullable:
+        parts.append("NOT NULL")
+    if column.default is not None:
+        parts.append(f"DEFAULT {_literal(column.default)}")
+    if column.unique:
+        parts.append("UNIQUE")
+    return " ".join(parts)
 
 
 def _returning_sql(columns: Sequence[str], dialect: Dialect) -> str:
@@ -942,8 +1715,10 @@ def compile_statement(statement: Any, dialect: Dialect = POSTGRES) -> tuple[str,
     """Render a statement node to ``(sql, params)``.
 
     Args:
-        statement: :class:`Select`, :class:`Insert`, :class:`Update` or
-            :class:`Delete`.
+        statement: :class:`Select`, :class:`Insert`, :class:`Update`,
+            :class:`Delete`, a set operation (:class:`SetOp`), a CTE
+            (:class:`With`) or DDL (:class:`CreateTable`, :class:`AddColumn`,
+            :class:`CreateIndex`, :class:`DropTable`).
         dialect: Target dialect; PostgreSQL by default.
 
     Returns:
@@ -968,8 +1743,14 @@ def _render_source(source: str | Subquery, dialect: Dialect, params: list[Any]) 
 
     Returns:
         ``users`` or ``(SELECT …) t0``.
+
+    Raises:
+        ValueError: If the derived table has no alias — ``FROM (SELECT …)``
+            without one is not valid SQL.
     """
     if isinstance(source, Subquery):
+        if source.alias is None:
+            raise ValueError("derived table needs an alias: Subquery(statement, alias)")
         return f"({_compile_statement(source.statement, dialect, params)}) {source.alias}"
     return dialect.quote(source)
 
@@ -997,6 +1778,93 @@ def _render_join(join: Join, dialect: Dialect, params: list[Any]) -> str:
     return f" {join.kind} JOIN {source}{alias} ON {condition}"
 
 
+def _render_set_operand(statement: Any, dialect: Dialect, params: list[Any]) -> str:
+    """Render one operand of a set operation, parenthesised when it has to be.
+
+    An operand with its own ``ORDER BY``/``LIMIT``/``OFFSET``, or a nested set
+    operation, must be parenthesised: without the parentheses those clauses
+    attach to the whole compound. SQLite accepts no parentheses there, so it
+    gets a loud error instead of an "almost right" statement (its limit —
+    upgrade when a dialect appears that can express it another way).
+
+    Args:
+        statement: The operand statement.
+        dialect: Dialect of the whole statement.
+        params: Parameter list of the whole statement.
+
+    Returns:
+        The operand's SQL, in parentheses when needed.
+
+    Raises:
+        DialectError: If parentheses are needed and the dialect has none.
+    """
+    parenthesised = isinstance(statement, SetOp) or (
+        isinstance(statement, Select)
+        and (bool(statement.order) or statement.limit is not None or statement.offset is not None)
+    )
+    if not parenthesised:
+        return _compile_statement(statement, dialect, params)
+    if not dialect.supports_set_op_parens:
+        raise DialectError(
+            f"{dialect.name}: an operand of a set operation cannot be parenthesised "
+            "(branch with its own ORDER BY/LIMIT, or a nested operation)"
+        )
+    return f"({_compile_statement(statement, dialect, params)})"
+
+
+def _render_set_op(statement: SetOp, dialect: Dialect, params: list[Any]) -> str:
+    """Render ``SELECT … UNION ALL SELECT …`` plus the compound's own tail.
+
+    Args:
+        statement: The set operation.
+        dialect: Dialect of the whole statement.
+        params: Parameter list the bound values are appended to.
+
+    Returns:
+        The SQL text, without outer parentheses.
+
+    Raises:
+        DialectError: If the dialect has no ``ALL`` variant for this operator,
+            or cannot parenthesise an operand.
+    """
+    if statement.all and statement.kind != UNION and not dialect.supports_set_op_all:
+        raise DialectError(f"{dialect.name}: {statement.kind} ALL is not supported")
+    keyword = f"{statement.kind} ALL" if statement.all else statement.kind
+    left = _render_set_operand(statement.left, dialect, params)
+    right = _render_set_operand(statement.right, dialect, params)
+    text = f"{left} {keyword} {right}"
+    if statement.order:
+        text += " ORDER BY " + ", ".join(statement.order)
+    if statement.limit is not None:
+        text += f" LIMIT {_bind(params, dialect, statement.limit)}"
+    if statement.offset is not None:
+        text += f" OFFSET {_bind(params, dialect, statement.offset)}"
+    return text
+
+
+def _render_with(statement: With, dialect: Dialect, params: list[Any]) -> str:
+    """Render ``WITH name AS (…) <statement>``.
+
+    The CTEs are rendered first, in order, so their values land in ``params``
+    before those of the main statement — the placeholders stay continuous.
+
+    Args:
+        statement: The ``WITH`` node.
+        dialect: Dialect of the whole statement.
+        params: Parameter list the bound values are appended to.
+
+    Returns:
+        The SQL text, without outer parentheses.
+    """
+    ctes = ", ".join(
+        f"{dialect.quote(cte.name)} AS ({_compile_statement(cte.statement, dialect, params)})"
+        for cte in statement.ctes
+    )
+    keyword = "WITH RECURSIVE" if statement.recursive else "WITH"
+    body = _compile_statement(statement.statement, dialect, params)
+    return f"{keyword} {ctes} {body}"
+
+
 def _compile_statement(statement: Any, dialect: Dialect, params: list[Any]) -> str:
     """Render a statement into ``params`` and return the SQL text.
 
@@ -1013,15 +1881,22 @@ def _compile_statement(statement: Any, dialect: Dialect, params: list[Any]) -> s
     Returns:
         The SQL text.
     """
+    if isinstance(statement, SetOp):
+        return _render_set_op(statement, dialect, params)
+
+    if isinstance(statement, With):
+        return _render_with(statement, dialect, params)
+
     if isinstance(statement, Select):
         select_list = ", ".join(
             _render(item, dialect, params) if isinstance(item, Expr) else item
             for item in statement.columns
         )
         head = "SELECT DISTINCT" if statement.distinct else "SELECT"
-        sql_text = (
-            f"{head} {select_list} FROM {_render_source(statement.table, dialect, params)}"
-        )
+        source = _render_source(statement.table, dialect, params)
+        if statement.alias:
+            source += f" {statement.alias}"
+        sql_text = f"{head} {select_list} FROM {source}"
         for join in statement.joins:
             sql_text += _render_join(join, dialect, params)
         if statement.where:
@@ -1077,6 +1952,35 @@ def _compile_statement(statement: Any, dialect: Dialect, params: list[Any]) -> s
     if isinstance(statement, Delete):
         table = dialect.quote(statement.table)
         key = dialect.quote(statement.key)
-        return f"DELETE FROM {table} WHERE {key} = {dialect.placeholder(1)}"
+        sql_text = f"DELETE FROM {table} WHERE {key} = {dialect.placeholder(1)}"
+        return sql_text + _returning_sql(statement.returning, dialect)
+
+    if isinstance(statement, CreateTable):
+        head = "CREATE TABLE IF NOT EXISTS" if statement.if_not_exists else "CREATE TABLE"
+        columns = ", ".join(_render_column(column, dialect) for column in statement.columns)
+        return f"{head} {dialect.quote(statement.table)} ({columns})"
+
+    if isinstance(statement, AddColumn):
+        return (
+            f"ALTER TABLE {dialect.quote(statement.table)}"
+            f" ADD COLUMN {_render_column(statement.column, dialect)}"
+        )
+
+    if isinstance(statement, CreateIndex):
+        if statement.if_not_exists and not dialect.supports_index_if_not_exists:
+            raise DialectError(
+                f"{dialect.name}: CREATE INDEX IF NOT EXISTS is not supported"
+            )
+        unique = "UNIQUE " if statement.unique else ""
+        exists = "IF NOT EXISTS " if statement.if_not_exists else ""
+        columns = ", ".join(dialect.quote(name) for name in statement.columns)
+        return (
+            f"CREATE {unique}INDEX {exists}{dialect.quote(statement.name)}"
+            f" ON {dialect.quote(statement.table)} ({columns})"
+        )
+
+    if isinstance(statement, DropTable):
+        head = "DROP TABLE IF EXISTS" if statement.if_exists else "DROP TABLE"
+        return f"{head} {dialect.quote(statement.table)}"
 
     raise TypeError(f"not a SQL statement: {statement!r}")

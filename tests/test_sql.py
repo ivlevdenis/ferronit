@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+import sys
+
 import pytest
 
 from ferronit.contrib import sql
@@ -515,3 +517,692 @@ def test_subquery_keeps_placeholders_continuous() -> None:
         "LEFT JOIN `posts` t1 ON t1.`user_id` = t0.`id` WHERE t0.`id` < %s",
         [30, 5, 100],
     )
+
+
+# ── подзапрос в предикате ────────────────────────────────────────────────────
+
+
+def test_in_subquery_keeps_placeholders_continuous() -> None:
+    """`IN (SELECT …)`: значения подзапроса и наружного WHERE — один список."""
+    inner = sql.Subquery(
+        sql.Select("orders", ["user_id"], where=[sql.Compare("total", ">", 100)])
+    )
+    statement = sql.Select(
+        "users",
+        ["id"],
+        where=[sql.InList("id", inner), sql.Compare("age", ">", 30)],
+    )
+    assert sql.compile_statement(statement) == (
+        "SELECT id FROM users WHERE id IN (SELECT user_id FROM orders WHERE total > $1) "
+        "AND age > $2",
+        [100, 30],
+    )
+
+
+def test_not_in_subquery() -> None:
+    inner = sql.Subquery(sql.Select("bans", ["user_id"]))
+    assert sql.compile_expr(sql.InList("id", inner, negated=True)) == (
+        "NOT (id IN (SELECT user_id FROM bans))",
+        [],
+    )
+
+
+def test_scalar_subquery_in_comparison() -> None:
+    """Скалярный подзапрос справа от сравнения — это SQL, а не параметр."""
+    average = sql.Subquery(sql.Select("users", [sql.Func("avg", "age")]))
+    assert sql.compile_expr(sql.Compare("age", ">", average)) == (
+        "age > (SELECT avg(age) FROM users)",
+        [],
+    )
+
+
+def test_exists_with_correlation() -> None:
+    """`EXISTS` со ссылкой на наружную таблицу (коррелированный подзапрос)."""
+    inner = sql.Subquery(
+        sql.Select(
+            "orders",
+            ["1"],
+            where=[sql.Compare(sql.Ref("user_id", "orders"), "=", sql.Ref("id", "users"))],
+        )
+    )
+    assert sql.compile_expr(sql.Exists(inner)) == (
+        "EXISTS (SELECT 1 FROM orders WHERE orders.user_id = users.id)",
+        [],
+    )
+    assert sql.compile_expr(~sql.Exists(inner)) == (
+        "NOT (EXISTS (SELECT 1 FROM orders WHERE orders.user_id = users.id))",
+        [],
+    )
+
+
+def test_predicate_subquery_per_dialect() -> None:
+    """Переносимость: `$N`/`?`/`%s`; `ANY` под подзапрос не подставляется."""
+    inner = sql.Subquery(
+        sql.Select("orders", ["user_id"], where=[sql.Compare("total", ">", 100)])
+    )
+    node = sql.InList("id", inner)
+    assert sql.compile_expr(node, sql.POSTGRES) == (
+        "id IN (SELECT user_id FROM orders WHERE total > $1)",
+        [100],
+    )
+    assert sql.compile_expr(node, sql.SQLITE) == (
+        '"id" IN (SELECT user_id FROM "orders" WHERE "total" > ?)',
+        [100],
+    )
+    assert sql.compile_expr(node, sql.MYSQL) == (
+        "`id` IN (SELECT user_id FROM `orders` WHERE `total` > %s)",
+        [100],
+    )
+
+
+def test_column_in_accepts_a_subquery() -> None:
+    """Публичный путь: `User.c.id.in_(подзапрос)` внутри Query."""
+    inner = sql.Subquery(
+        sql.Select("orders", ["user_id"], where=[sql.Compare("total", ">", 10)])
+    )
+    compiled, params = select(User).where(User.c.id.in_(inner)).compile()
+    assert compiled == (
+        "SELECT id, name, email FROM users"
+        " WHERE (id IN (SELECT user_id FROM orders WHERE total > $1))"
+    )
+    assert params == [10]
+
+
+def test_derived_table_requires_an_alias() -> None:
+    """`FROM (SELECT …)` без алиаса — ValueError; в предикате алиас не печатается."""
+    inner = sql.Select("posts", ["id"])
+    with pytest.raises(ValueError):
+        sql.compile_statement(sql.Select(sql.Subquery(inner), ["id"]))
+    assert sql.compile_expr(sql.Exists(sql.Subquery(inner, "t0"))) == (
+        "EXISTS (SELECT id FROM posts)",
+        [],
+    )
+
+
+# ── множественные операции (UNION/EXCEPT/INTERSECT) ──────────────────────────
+
+
+def test_union_all_keeps_placeholders_continuous() -> None:
+    """Значения обеих ветвей — один список параметров."""
+    left = sql.Select("users", ["id"], where=[sql.Compare("age", ">", 30)])
+    right = sql.Select("admins", ["id"], where=[sql.Compare("level", ">", 5)])
+    statement = sql.SetOp(left, right, all=True)
+    assert sql.compile_statement(statement) == (
+        "SELECT id FROM users WHERE age > $1 UNION ALL SELECT id FROM admins WHERE level > $2",
+        [30, 5],
+    )
+
+
+def test_union_order_and_limit_belong_to_the_compound() -> None:
+    statement = sql.SetOp(
+        sql.Select("users", ["id"]),
+        sql.Select("admins", ["id"]),
+        order=["id"],
+        limit=10,
+        offset=5,
+    )
+    assert sql.compile_statement(statement) == (
+        "SELECT id FROM users UNION SELECT id FROM admins ORDER BY id LIMIT $1 OFFSET $2",
+        [10, 5],
+    )
+
+
+def test_intersect_and_except() -> None:
+    a = sql.Select("users", ["id"])
+    b = sql.Select("bans", ["id"])
+    assert sql.compile_statement(sql.SetOp(a, b, kind=sql.INTERSECT)) == (
+        "SELECT id FROM users INTERSECT SELECT id FROM bans",
+        [],
+    )
+    assert sql.compile_statement(sql.SetOp(a, b, kind=sql.EXCEPT)) == (
+        "SELECT id FROM users EXCEPT SELECT id FROM bans",
+        [],
+    )
+
+
+def test_all_variant_is_dialect_dependent() -> None:
+    """`UNION ALL` — везде, `EXCEPT ALL`/`INTERSECT ALL` — только PG и MySQL."""
+    a = sql.Select("users", ["id"])
+    b = sql.Select("bans", ["id"])
+    assert sql.compile_statement(sql.SetOp(a, b, all=True), sql.SQLITE) == (
+        'SELECT id FROM "users" UNION ALL SELECT id FROM "bans"',
+        [],
+    )
+    except_all = sql.SetOp(a, b, kind=sql.EXCEPT, all=True)
+    assert sql.compile_statement(except_all, sql.POSTGRES)[0] == (
+        "SELECT id FROM users EXCEPT ALL SELECT id FROM bans"
+    )
+    assert sql.compile_statement(except_all, sql.MYSQL)[0] == (
+        "SELECT id FROM `users` EXCEPT ALL SELECT id FROM `bans`"
+    )
+    with pytest.raises(sql.DialectError):
+        sql.compile_statement(except_all, sql.SQLITE)
+
+
+def test_operand_with_its_own_limit_is_parenthesised() -> None:
+    """Свой LIMIT у ветви — скобки; SQLite скобок не принимает (замерено)."""
+    branch = sql.Select("users", ["id"], limit=5)
+    statement = sql.SetOp(branch, sql.Select("admins", ["id"]))
+    assert sql.compile_statement(statement, sql.POSTGRES) == (
+        "(SELECT id FROM users LIMIT $1) UNION SELECT id FROM admins",
+        [5],
+    )
+    assert sql.compile_statement(statement, sql.MYSQL) == (
+        "(SELECT id FROM `users` LIMIT %s) UNION SELECT id FROM `admins`",
+        [5],
+    )
+    with pytest.raises(sql.DialectError):
+        sql.compile_statement(statement, sql.SQLITE)
+
+
+def test_nested_set_op_is_parenthesised() -> None:
+    first, second, third = (sql.Select(name, ["id"]) for name in ("a", "b", "c"))
+    statement = sql.SetOp(sql.SetOp(first, second, kind=sql.EXCEPT), third, kind=sql.INTERSECT)
+    assert sql.compile_statement(statement)[0] == (
+        "(SELECT id FROM a EXCEPT SELECT id FROM b) INTERSECT SELECT id FROM c"
+    )
+    with pytest.raises(sql.DialectError):
+        sql.compile_statement(statement, sql.SQLITE)
+
+
+def test_set_op_as_derived_table_and_in_predicate() -> None:
+    """Результат — множество строк: годится и в FROM, и в предикат."""
+    both = sql.SetOp(sql.Select("users", ["id"]), sql.Select("admins", ["id"]))
+    derived = sql.Select(sql.Subquery(both, "t0"), [sql.Ref("id", "t0")])
+    assert sql.compile_statement(derived) == (
+        "SELECT t0.id FROM (SELECT id FROM users UNION SELECT id FROM admins) t0",
+        [],
+    )
+    predicate = sql.InList("id", sql.Subquery(both))
+    assert sql.compile_expr(predicate) == (
+        "id IN (SELECT id FROM users UNION SELECT id FROM admins)",
+        [],
+    )
+
+
+def test_set_op_rejects_an_unknown_kind() -> None:
+    with pytest.raises(ValueError):
+        sql.SetOp(sql.Select("users", ["id"]), sql.Select("admins", ["id"]), kind="JOIN")
+
+
+# ── CTE (WITH) ───────────────────────────────────────────────────────────────
+
+
+def test_with_keeps_placeholders_continuous() -> None:
+    """Значения CTE идут в общий список перед значениями основного запроса."""
+    recent = sql.Cte(
+        "recent", sql.Select("orders", ["user_id"], where=[sql.Compare("total", ">", 100)])
+    )
+    statement = sql.With(
+        sql.Select("recent", ["user_id"], where=[sql.Compare("user_id", ">", 0)]),
+        ctes=[recent],
+    )
+    assert sql.compile_statement(statement) == (
+        "WITH recent AS (SELECT user_id FROM orders WHERE total > $1) "
+        "SELECT user_id FROM recent WHERE user_id > $2",
+        [100, 0],
+    )
+
+
+def test_with_two_ctes_and_a_join_by_name() -> None:
+    """На CTE потом ссылаются как на таблицу — отдельного узла не нужно."""
+    first = sql.Cte("a", sql.Select("users", ["id"]))
+    second = sql.Cte("b", sql.Select("orders", ["user_id"]))
+    statement = sql.With(
+        sql.Select(
+            "a",
+            [sql.Ref("id", "t0")],
+            joins=[
+                sql.Join(
+                    "b",
+                    sql.Compare(sql.Ref("user_id", "t1"), "=", sql.Ref("id", "t0")),
+                    alias="t1",
+                )
+            ],
+        ),
+        ctes=[first, second],
+    )
+    assert sql.compile_statement(statement) == (
+        "WITH a AS (SELECT id FROM users), b AS (SELECT user_id FROM orders) "
+        "SELECT t0.id FROM a LEFT JOIN b t1 ON t1.user_id = t0.id",
+        [],
+    )
+
+
+def test_with_recursive_per_dialect() -> None:
+    counter = sql.Cte("counter", sql.Select("numbers", ["n"], where=[sql.Compare("n", "=", 1)]))
+    statement = sql.With(sql.Select("counter", ["n"]), ctes=[counter], recursive=True)
+    assert sql.compile_statement(statement, sql.POSTGRES) == (
+        "WITH RECURSIVE counter AS (SELECT n FROM numbers WHERE n = $1) SELECT n FROM counter",
+        [1],
+    )
+    assert sql.compile_statement(statement, sql.SQLITE) == (
+        'WITH RECURSIVE "counter" AS (SELECT n FROM "numbers" WHERE "n" = ?)'
+        ' SELECT n FROM "counter"',
+        [1],
+    )
+    assert sql.compile_statement(statement, sql.MYSQL) == (
+        "WITH RECURSIVE `counter` AS (SELECT n FROM `numbers` WHERE `n` = %s)"
+        " SELECT n FROM `counter`",
+        [1],
+    )
+
+
+def test_with_wraps_a_set_op_and_nests_into_a_subquery() -> None:
+    cte = sql.Cte("c", sql.Select("users", ["id"]))
+    body = sql.SetOp(sql.Select("c", ["id"]), sql.Select("admins", ["id"]), all=True)
+    assert sql.compile_statement(sql.With(body, ctes=[cte]))[0] == (
+        "WITH c AS (SELECT id FROM users) SELECT id FROM c UNION ALL SELECT id FROM admins"
+    )
+    nested = sql.With(sql.Select("c", ["id"]), ctes=[cte])
+    derived = sql.Select(sql.Subquery(nested, "t0"), [sql.Ref("id", "t0")])
+    assert sql.compile_statement(derived)[0] == (
+        "SELECT t0.id FROM (WITH c AS (SELECT id FROM users) SELECT id FROM c) t0"
+    )
+    assert sql.compile_expr(sql.InList("id", sql.Subquery(nested)))[0] == (
+        "id IN (WITH c AS (SELECT id FROM users) SELECT id FROM c)"
+    )
+
+
+def test_with_validates_its_ctes() -> None:
+    body = sql.Select("users", ["id"])
+    with pytest.raises(ValueError):
+        sql.With(body, ctes=[])
+    with pytest.raises(ValueError):
+        sql.With(body, ctes=[sql.Cte("a", body), sql.Cte("a", body)])
+    with pytest.raises(ValueError):
+        sql.Cte("", body)
+
+
+# ── оконные функции ──────────────────────────────────────────────────────────
+
+
+def test_window_over_partition_and_order() -> None:
+    """`Func(...).over(...)` и узел `Over(...)` дают одно дерево."""
+    expected = ("row_number() OVER (PARTITION BY user_id ORDER BY placed_at DESC)", [])
+    assert sql.compile_expr(
+        sql.Over(sql.Func("row_number"), partition_by=["user_id"], order=["placed_at DESC"])
+    ) == expected
+    assert sql.compile_expr(
+        sql.Func("row_number").over(partition_by=["user_id"], order=["placed_at DESC"])
+    ) == expected
+
+
+def test_window_in_a_select_list_keeps_params_continuous() -> None:
+    running = sql.Func("sum", "total").over(partition_by=["user_id"], order=["id"])
+    statement = sql.Select(
+        "orders",
+        ["id", running],
+        where=[sql.Compare("total", ">", 100)],
+        order=["id"],
+    )
+    assert sql.compile_statement(statement) == (
+        "SELECT id, sum(total) OVER (PARTITION BY user_id ORDER BY id) FROM orders"
+        " WHERE total > $1 ORDER BY id",
+        [100],
+    )
+
+
+def test_window_without_partition_or_order() -> None:
+    """Пустое окно — весь результат целиком, но это валидный SQL."""
+    assert sql.compile_expr(sql.Func("avg", "total").over()) == ("avg(total) OVER ()", [])
+
+
+def test_window_partition_by_accepts_nodes() -> None:
+    node = sql.Func("sum", "total").over(partition_by=[sql.Func("lower", "name")])
+    assert sql.compile_expr(node) == ("sum(total) OVER (PARTITION BY lower(name))", [])
+
+
+def test_window_per_dialect() -> None:
+    node = sql.Func("count", "*").over(partition_by=["user_id"])
+    assert sql.compile_expr(node, sql.POSTGRES) == ("count(*) OVER (PARTITION BY user_id)", [])
+    assert sql.compile_expr(node, sql.SQLITE) == ('count(*) OVER (PARTITION BY "user_id")', [])
+    assert sql.compile_expr(node, sql.MYSQL) == ("count(*) OVER (PARTITION BY `user_id`)", [])
+
+
+# ── алиасы: источник FROM и выражение ───────────────────────────────────────
+
+
+def test_from_source_can_be_aliased() -> None:
+    statement = sql.Select("users", [sql.Ref("id", "t0")], alias="t0")
+    assert sql.compile_statement(statement) == ("SELECT t0.id FROM users t0", [])
+
+
+def test_self_join_with_source_and_join_aliases() -> None:
+    """Само-джойн таблицы: `FROM users t0 LEFT JOIN users t1`."""
+    statement = sql.Select(
+        "users",
+        [sql.Ref("id", "t0")],
+        alias="t0",
+        joins=[
+            sql.Join(
+                "users",
+                sql.Compare(sql.Ref("manager_id", "t0"), "=", sql.Ref("id", "t1")),
+                alias="t1",
+            )
+        ],
+        where=[sql.Compare(sql.Ref("name", "t1"), "=", "Ann")],
+    )
+    assert sql.compile_statement(statement) == (
+        "SELECT t0.id FROM users t0 LEFT JOIN users t1 ON t0.manager_id = t1.id"
+        " WHERE t1.name = $1",
+        ["Ann"],
+    )
+
+
+def test_source_alias_for_a_derived_table_is_rejected() -> None:
+    """Алиас задаётся один раз: у производной таблицы он внутри Subquery."""
+    inner = sql.Select("posts", ["id"])
+    with pytest.raises(ValueError):
+        sql.Select(sql.Subquery(inner, "t0"), ["id"], alias="t0")
+
+
+def test_as_names_an_output_column() -> None:
+    expected = ("sum(total) AS total_sum", [])
+    assert sql.compile_expr(sql.As(sql.Func("sum", "total"), "total_sum")) == expected
+    assert sql.compile_expr(sql.Func("sum", "total").as_("total_sum")) == expected
+
+
+def test_as_is_quoted_per_dialect() -> None:
+    node = sql.Func("count", "*").as_("total")
+    assert sql.compile_expr(node, sql.POSTGRES) == ("count(*) AS total", [])
+    assert sql.compile_expr(node, sql.SQLITE) == ('count(*) AS "total"', [])
+    assert sql.compile_expr(node, sql.MYSQL) == ("count(*) AS `total`", [])
+
+
+def test_top_n_per_group_with_nodes_only() -> None:
+    """Тот же top-N, что раньше требовал строки с `AS rn`, — теперь узлами."""
+    ranked = sql.Select(
+        "orders",
+        [
+            "id",
+            "user_id",
+            "total",
+            sql.Func("row_number")
+            .over(partition_by=["user_id"], order=["total DESC"])
+            .as_("rn"),
+        ],
+    )
+    statement = sql.Select(
+        sql.Subquery(ranked, "t0"),
+        [sql.Ref("id", "t0"), sql.Ref("rn", "t0")],
+        where=[sql.Compare(sql.Ref("rn", "t0"), "=", 1)],
+    )
+    assert sql.compile_statement(statement) == (
+        "SELECT t0.id, t0.rn FROM (SELECT id, user_id, total,"
+        " row_number() OVER (PARTITION BY user_id ORDER BY total DESC) AS rn FROM orders) t0"
+        " WHERE t0.rn = $1",
+        [1],
+    )
+
+
+def test_as_requires_an_alias() -> None:
+    with pytest.raises(ValueError):
+        sql.As(sql.Func("sum", "total"), "")
+
+
+# ── приведения типов (CAST) ──────────────────────────────────────────────────
+
+
+def test_cast_uses_the_dialect_type_map() -> None:
+    """Одно каноническое имя — три разных SQL-типа."""
+    node = sql.Func("sum", "total").cast(sql.NUMERIC)
+    assert sql.compile_expr(node, sql.POSTGRES) == ("CAST(sum(total) AS numeric)", [])
+    assert sql.compile_expr(node, sql.MYSQL) == ("CAST(sum(`total`) AS DECIMAL)", [])
+    assert sql.compile_expr(node, sql.SQLITE) == ('CAST(sum("total") AS NUMERIC)', [])
+
+
+def test_cast_type_map_covers_the_common_targets() -> None:
+    def rendered(type_name: str, dialect: sql.Dialect) -> str:
+        return sql.compile_expr(sql.Cast(sql.Ref("x"), type_name), dialect)[0]
+
+    assert rendered(sql.INT, sql.POSTGRES) == "CAST(x AS integer)"
+    assert rendered(sql.INT, sql.MYSQL) == "CAST(`x` AS SIGNED)"
+    assert rendered(sql.TEXT, sql.MYSQL) == "CAST(`x` AS CHAR)"
+    assert rendered(sql.REAL, sql.POSTGRES) == "CAST(x AS double precision)"
+    assert rendered(sql.BOOLEAN, sql.SQLITE) == 'CAST("x" AS INTEGER)'
+
+
+def test_cast_to_date_is_refused_where_there_is_no_date_type() -> None:
+    """PG/MySQL дату умеют, SQLite — нет (там это молчаливая пустышка)."""
+    assert sql.compile_expr(sql.Cast(sql.Ref("placed_at"), sql.DATE), sql.POSTGRES) == (
+        "CAST(placed_at AS date)",
+        [],
+    )
+    assert sql.compile_expr(sql.Cast(sql.Ref("placed_at"), sql.TIMESTAMP), sql.MYSQL) == (
+        "CAST(`placed_at` AS DATETIME)",
+        [],
+    )
+    with pytest.raises(sql.DialectError):
+        sql.compile_expr(sql.Cast(sql.Ref("placed_at"), sql.DATE), sql.SQLITE)
+    with pytest.raises(sql.DialectError):
+        sql.compile_expr(sql.Cast(sql.Ref("placed_at"), sql.TIMESTAMP), sql.SQLITE)
+
+
+def test_cast_rejects_an_unknown_type_name() -> None:
+    """Только канонические имена: движковый SQL-тип здесь не примут."""
+    with pytest.raises(ValueError):
+        sql.Cast(sql.Ref("x"), "varchar")
+
+
+def test_cast_in_a_select_list_with_alias() -> None:
+    statement = sql.Select(
+        "orders",
+        [sql.Func("avg", "total").cast(sql.NUMERIC).as_("avg_total")],
+        where=[sql.Compare("user_id", "=", 1)],
+    )
+    assert sql.compile_statement(statement) == (
+        "SELECT CAST(avg(total) AS numeric) AS avg_total FROM orders WHERE user_id = $1",
+        [1],
+    )
+
+
+def test_cast_participates_in_a_comparison() -> None:
+    node = sql.Compare(sql.Cast(sql.Ref("total"), sql.NUMERIC), ">", 100)
+    assert sql.compile_expr(node) == ("CAST(total AS numeric) > $1", [100])
+
+
+def test_numeric_with_precision_and_scale_is_money() -> None:
+    """Главный практический случай: деньги без float."""
+    node = sql.Func("sum", "total").cast(sql.NUMERIC, precision=10, scale=2)
+    assert sql.compile_expr(node, sql.POSTGRES) == ("CAST(sum(total) AS numeric(10, 2))", [])
+    assert sql.compile_expr(node, sql.MYSQL) == ("CAST(sum(`total`) AS DECIMAL(10, 2))", [])
+    assert sql.compile_expr(node, sql.SQLITE) == ('CAST(sum("total") AS NUMERIC(10, 2))', [])
+
+
+def test_precision_without_scale() -> None:
+    node = sql.Cast(sql.Ref("total"), sql.NUMERIC, precision=10)
+    assert sql.compile_expr(node, sql.POSTGRES) == ("CAST(total AS numeric(10))", [])
+    assert sql.compile_expr(node, sql.SQLITE) == ('CAST("total" AS NUMERIC(10))', [])
+
+
+def test_cast_parameters_are_validated() -> None:
+    with pytest.raises(ValueError):
+        sql.Cast(sql.Ref("total"), sql.NUMERIC, scale=2)
+    with pytest.raises(ValueError):
+        sql.Cast(sql.Ref("total"), sql.INT, precision=5)
+
+
+def test_engine_specific_types_where_they_exist() -> None:
+    def rendered(type_name: str, dialect: sql.Dialect) -> str:
+        return sql.compile_expr(sql.Cast(sql.Ref("value"), type_name), dialect)[0]
+
+    assert rendered(sql.JSON, sql.POSTGRES) == "CAST(value AS jsonb)"
+    assert rendered(sql.JSON, sql.MYSQL) == "CAST(`value` AS JSON)"
+    with pytest.raises(sql.DialectError):
+        sql.compile_expr(sql.Cast(sql.Ref("value"), sql.JSON), sql.SQLITE)
+
+    assert rendered(sql.UUID, sql.POSTGRES) == "CAST(value AS uuid)"
+    with pytest.raises(sql.DialectError):
+        sql.compile_expr(sql.Cast(sql.Ref("value"), sql.UUID), sql.MYSQL)
+    with pytest.raises(sql.DialectError):
+        sql.compile_expr(sql.Cast(sql.Ref("value"), sql.UUID), sql.SQLITE)
+
+    assert rendered(sql.TIME, sql.POSTGRES) == "CAST(value AS time)"
+    assert rendered(sql.TIME, sql.MYSQL) == "CAST(`value` AS TIME)"
+    with pytest.raises(sql.DialectError):
+        sql.compile_expr(sql.Cast(sql.Ref("value"), sql.TIME), sql.SQLITE)
+
+    assert rendered(sql.BYTES, sql.POSTGRES) == "CAST(value AS bytea)"
+    assert rendered(sql.BYTES, sql.MYSQL) == "CAST(`value` AS BINARY)"
+    assert rendered(sql.BYTES, sql.SQLITE) == 'CAST("value" AS BLOB)'
+
+
+def test_no_cast_type_is_silently_dropped() -> None:
+    """Каждый канонический тип либо получает SQL-имя, либо отказ — третьего нет."""
+    for dialect in (sql.POSTGRES, sql.MYSQL, sql.SQLITE):
+        for type_name in sql.CAST_TYPES:
+            try:
+                spelled = dialect.cast_type(type_name)
+            except sql.DialectError:
+                continue
+            assert spelled, f"{dialect.name}: {type_name} отрендерился пустым"
+
+
+# ── RETURNING у DELETE ───────────────────────────────────────────────────────
+
+
+def test_delete_without_returning_is_unchanged() -> None:
+    assert sql.compile_statement(sql.Delete("users", "id"))[0] == (
+        "DELETE FROM users WHERE id = $1"
+    )
+
+
+def test_multi_row_insert_renders_one_group_per_row() -> None:
+    """Многострочный INSERT — то, на чём стоит батч: один статьмент на чанк."""
+    statement = sql.Insert("users", ("name", "age"), rows=3)
+    assert sql.compile_statement(statement) == (
+        "INSERT INTO users (name, age) VALUES ($1, $2), ($3, $4), ($5, $6)",
+        [],
+    )
+    assert sql.compile_statement(statement, sql.MYSQL)[0] == (
+        "INSERT INTO `users` (name, age) VALUES (%s, %s), (%s, %s), (%s, %s)"
+    )
+
+
+def test_parameter_limit_is_per_dialect() -> None:
+    """Из лимита плейсхолдеров считается размер чанка батча."""
+    assert sql.POSTGRES.max_parameters == 32_767
+    assert sql.MYSQL.max_parameters == 65_535
+    assert sql.SQLITE.max_parameters == 32_766
+
+
+def test_delete_returning_per_dialect() -> None:
+    """`DELETE … RETURNING` есть у PG и SQLite, у MySQL — отказ."""
+    statement = sql.Delete("users", "id", returning=("id", "name"))
+    assert sql.compile_statement(statement, sql.POSTGRES) == (
+        "DELETE FROM users WHERE id = $1 RETURNING id, name",
+        [],
+    )
+    assert sql.compile_statement(statement, sql.SQLITE)[0] == (
+        'DELETE FROM "users" WHERE "id" = ? RETURNING id, name'
+    )
+    with pytest.raises(sql.DialectError):
+        sql.compile_statement(statement, sql.MYSQL)
+
+
+# ── DDL (миграции) ───────────────────────────────────────────────────────────
+
+
+def test_create_table_renders_per_dialect() -> None:
+    """Один и тот же `CreateTable` — три разных CREATE TABLE."""
+    statement = sql.CreateTable(
+        "orders",
+        [
+            sql.Column("id", sql.INT, pk=True),
+            sql.Column("total", sql.NUMERIC, nullable=False, precision=12, scale=2),
+            sql.Column("status", sql.TEXT, default="new"),
+        ],
+    )
+    assert sql.compile_statement(statement, sql.POSTGRES) == (
+        "CREATE TABLE IF NOT EXISTS orders (id integer PRIMARY KEY GENERATED BY DEFAULT AS"
+        " IDENTITY, total numeric(12, 2) NOT NULL, status text DEFAULT 'new')",
+        [],
+    )
+    assert sql.compile_statement(statement, sql.MYSQL) == (
+        "CREATE TABLE IF NOT EXISTS `orders` (`id` int PRIMARY KEY AUTO_INCREMENT,"
+        " `total` decimal(12, 2) NOT NULL, `status` varchar(255) DEFAULT 'new')",
+        [],
+    )
+    assert sql.compile_statement(statement, sql.SQLITE) == (
+        'CREATE TABLE IF NOT EXISTS "orders" ("id" INTEGER PRIMARY KEY AUTOINCREMENT,'
+        ' "total" NUMERIC(12, 2) NOT NULL, "status" TEXT DEFAULT \'new\')',
+        [],
+    )
+
+
+def test_column_default_is_escaped_and_raw_goes_as_written() -> None:
+    """В DDL нет bound-значений: строка экранируется, Raw уходит как написан."""
+    quoted = sql.CreateTable("people", [sql.Column("name", sql.TEXT, default="O'Brien")])
+    assert "DEFAULT 'O''Brien'" in sql.compile_statement(quoted)[0]
+
+    stamp = sql.Column("placed_at", sql.TIMESTAMP, default=sql.Raw("CURRENT_TIMESTAMP"))
+    with_stamp = sql.CreateTable("orders", [sql.Column("id", sql.INT, pk=True), stamp])
+    assert "DEFAULT CURRENT_TIMESTAMP" in sql.compile_statement(with_stamp)[0]
+
+    with pytest.raises(ValueError):
+        sql.Column("x", sql.TEXT, default=sql.Raw("$1", ["a"]))
+
+
+def test_add_column_and_drop_table() -> None:
+    assert sql.compile_statement(sql.AddColumn("orders", sql.Column("note", sql.TEXT)))[0] == (
+        "ALTER TABLE orders ADD COLUMN note text"
+    )
+    assert sql.compile_statement(sql.DropTable("orders"))[0] == "DROP TABLE IF EXISTS orders"
+    assert sql.compile_statement(sql.DropTable("orders", if_exists=False))[0] == "DROP TABLE orders"
+
+
+def test_index_if_not_exists_is_dialect_dependent() -> None:
+    """`IF NOT EXISTS` у индекса — только там, где движок это умеет."""
+    plain = sql.CreateIndex("ix", "orders", ["user_id"])
+    assert sql.compile_statement(plain, sql.MYSQL)[0] == (
+        "CREATE INDEX `ix` ON `orders` (`user_id`)"
+    )
+    marked = sql.CreateIndex("ix", "orders", ["user_id"], unique=True, if_not_exists=True)
+    assert sql.compile_statement(marked, sql.POSTGRES)[0] == (
+        "CREATE UNIQUE INDEX IF NOT EXISTS ix ON orders (user_id)"
+    )
+    with pytest.raises(sql.DialectError):
+        sql.compile_statement(marked, sql.MYSQL)
+
+
+def test_column_types_differ_from_cast_types() -> None:
+    """Роли разные: `CAST(x AS SIGNED)` — не объявление колонки `int`."""
+    assert sql.MYSQL.cast_types[sql.INT] == "SIGNED"
+    assert sql.MYSQL.column_type(sql.INT) == "int"
+    assert sql.MYSQL.column_type(sql.TEXT) == "varchar(255)"
+    assert sql.MYSQL.column_type(sql.UUID) == "char(36)"
+    assert sql.SQLITE.column_type(sql.TIMESTAMP) == "TEXT"
+    assert sql.SQLITE.column_type(sql.JSON) == "TEXT"
+
+
+def test_ddl_validates_its_input() -> None:
+    with pytest.raises(ValueError):
+        sql.Column("", sql.INT)
+    with pytest.raises(ValueError):
+        sql.Column("x", "varchar")
+    with pytest.raises(ValueError):
+        sql.CreateTable("t", [])
+    with pytest.raises(ValueError):
+        sql.CreateTable("t", [sql.Column("a", sql.INT), sql.Column("a", sql.INT)])
+    with pytest.raises(ValueError):
+        sql.CreateIndex("ix", "t", [])
+
+
+def test_the_example_migration_compiles_for_every_dialect() -> None:
+    """Файл-пример из examples/migrations собирается под все три движка без значений."""
+    import importlib.util
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parents[1] / "examples/migrations/0001_orders.py"
+    spec = importlib.util.spec_from_file_location("example_migration_0001", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["example_migration_0001"] = module
+    spec.loader.exec_module(module)
+
+    for dialect in (sql.POSTGRES, sql.MYSQL, sql.SQLITE):
+        for step in (*module.UP, *module.DOWN):
+            text, params = sql.compile_statement(step, dialect)
+            assert text, f"{dialect.name}: empty step"
+            assert params == [], f"{dialect.name}: DDL must carry no values"

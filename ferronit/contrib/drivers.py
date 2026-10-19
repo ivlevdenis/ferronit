@@ -120,6 +120,15 @@ class Connection(Protocol):
         """Run a statement; on INSERT return the generated key when available."""
         ...
 
+    async def executemany(self, sql_text: str, rows: Sequence[Sequence[Any]]) -> None:
+        """Run one statement per row; the driver pipelines them into one batch.
+
+        Args:
+            sql_text: Statement with placeholders (no row count baked in).
+            rows: Argument tuple per row, in placeholder order.
+        """
+        ...
+
     def is_in_transaction(self) -> bool:
         """Whether a transaction is currently open on this connection."""
         ...
@@ -278,6 +287,19 @@ class MySQLConnection:
         finally:
             await cursor.close()
 
+    async def executemany(self, sql_text: str, rows: Sequence[Sequence[Any]]) -> None:
+        """Run one statement per row on a single cursor.
+
+        Args:
+            sql_text: Statement with ``%s`` placeholders.
+            rows: Argument tuple per row.
+        """
+        cursor = await self._raw.cursor()
+        try:
+            await cursor.executemany(sql_text, rows)
+        finally:
+            await cursor.close()
+
     def is_in_transaction(self) -> bool:
         """Whether the connection runs with autocommit off (explicit transactions)."""
         return not self._raw.get_autocommit()
@@ -367,6 +389,19 @@ class SQLiteConnection:
             return cursor.lastrowid
         finally:
             await cursor.close()
+
+    async def executemany(self, sql_text: str, rows: Sequence[Sequence[Any]]) -> None:
+        """Run one statement per row on a single cursor.
+
+        Args:
+            sql_text: Statement with ``?`` placeholders.
+            rows: Argument tuple per row.
+        """
+        cursor = await self._raw.executemany(sql_text, rows)
+        try:
+            await cursor.close()
+        except AttributeError:  # pragma: no cover - зависит от версии aiosqlite
+            return
 
     def is_in_transaction(self) -> bool:
         """Whether an explicit transaction is open."""

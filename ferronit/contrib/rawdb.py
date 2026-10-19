@@ -15,6 +15,7 @@ Lifecycle rules worth knowing:
 
 from __future__ import annotations
 
+import builtins
 from collections.abc import Sequence
 from typing import Any
 
@@ -178,38 +179,69 @@ class RawRepository(Adapter):
         rows = await self._conn.fetch(sql_text, *params)
         return [dict(row) for row in rows]
 
-    async def save(self, data: dict[str, Any], *, returning: bool = False) -> dict[str, Any]:
+    def _returning_columns(self, returning: bool | Sequence[str]) -> Sequence[str]:
+        """Normalise the ``returning`` argument into a column list.
+
+        Args:
+            returning: ``False`` — no clause at all; ``True`` — the whole row
+                (``*``); a sequence — exactly those columns.
+
+        Returns:
+            Columns of the ``RETURNING`` clause; empty means none.
+        """
+        if returning is True:
+            return ("*",)
+        if returning is False:
+            return ()
+        return tuple(returning)
+
+    @staticmethod
+    def _project(row: Any, wanted: Sequence[str]) -> dict[str, Any]:
+        """Return the row as a dict, narrowed to the requested columns."""
+        if tuple(wanted) == ("*",):
+            return dict(row)
+        return {column: row[column] for column in wanted}
+
+    async def save(
+        self, data: dict[str, Any], *, returning: bool | Sequence[str] = False
+    ) -> dict[str, Any]:
         """INSERT a row and return it as a dict.
 
         Where the engine supports ``RETURNING`` (PostgreSQL, SQLite) the inserted
         row comes back in one round-trip; MySQL has no ``RETURNING``, so the
-        generated key is taken from the driver and the full row is read back with a
-        second query (only when ``returning=True``).
+        generated key is taken from the driver and the row is read back with a
+        second query (only when ``returning`` asks for it).
 
         Args:
             data: Column name → value mapping to insert.
-            returning: Return the full server-side row instead of the input
-                columns plus the generated primary key.
+            returning: What to read back instead of the input columns plus the
+                generated primary key — ``True`` for the whole server row, or an
+                explicit column list.
 
         Returns:
-            The inserted row as a dict.
+            The inserted row as a dict; with a column list only those columns.
         """
         columns = list(data)
+        wanted = self._returning_columns(returning)
         if not self._dialect.supports_returning:
             key = await self._conn.execute(
                 sql.compile_statement(sql.Insert(self._table, columns), self._dialect)[0],
                 *data.values(),
             )
-            if returning and self._pk not in data:
-                row = await self.get(key)
-                return row if row is not None else {**data, self._pk: key}
+            if wanted:
+                row = await self.get(self._pk if self._pk in data else key)
+                if row is None:
+                    return {**data, self._pk: key}
+                return self._project(row, wanted)
             return {**data, self._pk: key} if self._pk not in data else dict(data)
-        if returning:
+        if wanted:
             sql_text, _ = sql.compile_statement(
-                sql.Insert(self._table, columns, returning=("*",)), self._dialect
+                sql.Insert(self._table, columns, returning=wanted), self._dialect
             )
             row = await self._conn.fetchrow(sql_text, *data.values())
-            return dict(row) if row is not None else dict(data)
+            if row is None:
+                return dict(data)
+            return self._project(row, wanted)
         if self._pk in data:
             sql_text, _ = sql.compile_statement(
                 sql.Insert(self._table, columns), self._dialect
@@ -222,32 +254,172 @@ class RawRepository(Adapter):
         value = await self._conn.fetchval(sql_text, *data.values())
         return {**data, self._pk: value}
 
-    async def update(self, id: Any, data: dict[str, Any]) -> dict[str, Any]:
+    async def save_many(
+        self,
+        rows: Sequence[dict[str, Any]],
+        *,
+        returning: bool | Sequence[str] = False,
+        chunk_size: int | None = None,
+    ) -> builtins.list[dict[str, Any]]:
+        """INSERT many rows in bulk — one multi-row statement per chunk.
+
+        A chunk travels as a single statement, so the batch costs one round-trip
+        per chunk instead of one per row, and the chunk size keeps that statement
+        inside the engine's placeholder limit (:attr:`sql.Dialect.max_parameters`)
+        — that limit, not the row count, is what breaks a naive bulk insert.
+
+        On engines with ``RETURNING`` (PostgreSQL, SQLite) the server rows come
+        back with the generated keys. MySQL has no ``RETURNING``: the chunk still
+        goes in as one statement, but per-row generated keys are only available
+        one row at a time — so ``returning`` there falls back to the single-row
+        path (N round-trips), and without ``returning`` the input rows come back
+        as they were.
+
+        Args:
+            rows: Mappings to insert; all must have the same column names.
+            returning: What to read back per row — ``True`` for the whole server
+                row, a column list for exactly those columns.
+            chunk_size: Rows per statement; by default the placeholder limit
+                divided by the number of columns.
+
+        Returns:
+            The inserted rows as dicts, in input order.
+
+        Raises:
+            ValueError: If the rows do not carry the same columns.
+        """
+        if not rows:
+            return []
+        columns = list(rows[0])
+        if any(list(row) != columns for row in rows):
+            raise ValueError("save_many needs rows with the same columns")
+        wanted = self._returning_columns(returning)
+        can_return = self._dialect.supports_returning
+        if wanted and not can_return:
+            return [await self.save(dict(row), returning=returning) for row in rows]
+        limit: int = (
+            chunk_size
+            if chunk_size is not None
+            else max(1, self._dialect.max_parameters // max(1, len(columns)))
+        )
+        keys_wanted = (self._pk,) if can_return and self._pk not in columns else ()
+        saved: list[dict[str, Any]] = []
+        for start in range(0, len(rows), limit):
+            chunk = rows[start : start + limit]
+            values: list[Any] = []
+            for row in chunk:
+                values.extend(row.values())
+            if wanted or keys_wanted:
+                sql_text, _ = sql.compile_statement(
+                    sql.Insert(
+                        self._table,
+                        columns,
+                        rows=len(chunk),
+                        returning=wanted or keys_wanted,
+                    ),
+                    self._dialect,
+                )
+                fetched = await self._conn.fetch(sql_text, *values)
+                if wanted:
+                    saved.extend(self._project(row, wanted) for row in fetched)
+                else:
+                    saved.extend(
+                        {**row, self._pk: key[self._pk]}
+                        for row, key in zip(chunk, fetched, strict=True)
+                    )
+                continue
+            sql_text, _ = sql.compile_statement(
+                sql.Insert(self._table, columns, rows=len(chunk)), self._dialect
+            )
+            await self._conn.execute(sql_text, *values)
+            saved.extend(dict(row) for row in chunk)
+        return saved
+
+    async def update(
+        self,
+        id: Any,
+        data: dict[str, Any],
+        *,
+        returning: bool | Sequence[str] = False,
+    ) -> dict[str, Any] | None:
         """UPDATE a row by primary key and return the merged dict.
 
         Args:
             id: Primary key value of the row to update.
             data: Column name → new value mapping.
+            returning: What to read back instead of the merged input — ``True``
+                for the whole server row, or an explicit column list. On an
+                engine without ``RETURNING`` (MySQL) the row is read back with a
+                second query.
 
         Returns:
-            ``data`` merged with the primary key (no read-back is performed).
+            ``data`` merged with the primary key (no read-back is performed), or
+            the server row when ``returning`` is set — and then ``None`` means no
+            row carried that key.
         """
         if not data:
             return {self._pk: id}
+        wanted = self._returning_columns(returning)
+        if not wanted:
+            sql_text, _ = sql.compile_statement(
+                sql.Update(self._table, list(data), self._pk), self._dialect
+            )
+            await self._conn.execute(sql_text, *data.values(), id)
+            return {**data, self._pk: id}
+        # RETURNING подставляем только там, где движок его понимает: MySQL
+        # дочитывает строку вторым запросом.
         sql_text, _ = sql.compile_statement(
-            sql.Update(self._table, list(data), self._pk), self._dialect
+            sql.Update(
+                self._table,
+                list(data),
+                self._pk,
+                returning=wanted if self._dialect.supports_returning else (),
+            ),
+            self._dialect,
         )
-        await self._conn.execute(sql_text, *data.values(), id)
-        return {**data, self._pk: id}
+        if self._dialect.supports_returning:
+            row = await self._conn.fetchrow(sql_text, *data.values(), id)
+        else:
+            await self._conn.execute(sql_text, *data.values(), id)
+            row = await self.get(id)
+        return None if row is None else self._project(row, wanted)
 
-    async def delete(self, id: Any) -> None:
+    async def delete(
+        self, id: Any, *, returning: bool | Sequence[str] = False
+    ) -> dict[str, Any] | None:
         """Delete a row by primary key.
 
         Args:
             id: Primary key value of the row to delete.
+            returning: What to report about the deleted row — ``True`` for the
+                whole row, or an explicit column list. Without ``RETURNING`` on
+                the engine (MySQL) the row is read *before* the delete, so the
+                answer is the row as it was.
+
+        Returns:
+            ``None`` for a plain delete (the signature it always had); with
+            ``returning`` — the deleted row (or the requested columns), and
+            ``None`` when there was no such row.
         """
-        sql_text, _ = sql.compile_statement(sql.Delete(self._table, self._pk), self._dialect)
-        await self._conn.execute(sql_text, id)
+        wanted = self._returning_columns(returning)
+        if not wanted:
+            sql_text, _ = sql.compile_statement(
+                sql.Delete(self._table, self._pk), self._dialect
+            )
+            await self._conn.execute(sql_text, id)
+            return None
+        if self._dialect.supports_returning:
+            sql_text, _ = sql.compile_statement(
+                sql.Delete(self._table, self._pk, returning=wanted), self._dialect
+            )
+            row = await self._conn.fetchrow(sql_text, id)
+        else:
+            row = await self.get(id)
+            sql_text, _ = sql.compile_statement(
+                sql.Delete(self._table, self._pk), self._dialect
+            )
+            await self._conn.execute(sql_text, id)
+        return None if row is None else self._project(row, wanted)
 
 
 class RawUnitOfWork(UnitOfWork):

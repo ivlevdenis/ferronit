@@ -114,7 +114,7 @@ maturin (см. `[tool.maturin]` в `pyproject.toml`), поэтому сам пр
 
 ```bash
 # версия правится в двух файлах: ferronit/__init__.py и ferronit-rs/Cargo.toml
-git tag -a v0.20.0 -m "Ferronit 0.20.0" && git push origin v0.20.0
+git tag -a v0.21.0 -m "Ferronit 0.21.0" && git push origin v0.21.0
 ```
 
 Тег `v*` запускает `.github/workflows/release.yml`: проверки и тесты → колёса (Linux glibc/musl,
@@ -125,8 +125,8 @@ macOS, Windows) и sdist → GitHub Release с артефактами → пуб
 ## Docker
 
 ```bash
-docker build -t ferronit:0.20.0 .
-docker run --rm -p 8000:8000 ferronit:0.20.0
+docker build -t ferronit:0.21.0 .
+docker run --rm -p 8000:8000 ferronit:0.21.0
 ```
 
 ## Лицензия

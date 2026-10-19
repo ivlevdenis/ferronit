@@ -9,7 +9,7 @@ Ferronit — высокопроизводительный Python ASGI-фрейм
 написан на Rust: **роутинг, парсинг запроса, JSON-сериализация, gzip и CORS**. Бизнес-логика
 остаётся обычным Python: DDD / CQRS, hexagonal (порты и адаптеры), DI-контейнер.
 
-Версия 0.20.0, требуется Python ≥ 3.12. Скорость: 97 365 req/s на granian/1000 маршрутов
+Версия 0.21.0, требуется Python ≥ 3.12. Скорость: 97 365 req/s на granian/1000 маршрутов
 (×1.1 к BlackSheep — основному конкуренту, ×31 к FastAPI), полный hot path ~10 мкс на запрос.
 
 Репозиторий — **один дистрибутив** `ferronit` (maturin mixed):
@@ -103,7 +103,7 @@ poetry run ferronit dev --server granian   # dev-сервер с reload
 poetry run ferronit run --workers 4        # прод: Granian, fallback uvicorn
 
 # docker
-docker build -t ferronit:0.20.0 . && ./scripts/docker_smoke.sh
+docker build -t ferronit:0.21.0 . && ./scripts/docker_smoke.sh
 ```
 
 Тесты Postgres (`tests/test_postgres_real.py`, 4 шт.) требуют контейнер на :5432:

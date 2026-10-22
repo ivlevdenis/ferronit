@@ -42,7 +42,7 @@ async def inspect(req):
 
 ```python
 body: bytes = await req.body()          # всё тело; BodyTooLarge при превышении лимита
-data = await req.json()                 # разбор JSON; RequestError (→400) при ошибке
+data = await req.json()                 # разбор JSON; RequestError (→400, код invalid_json) при ошибке
 user = await req.model(UserModel)       # декод в msgspec/dataclass/pydantic
 ```
 

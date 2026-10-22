@@ -138,9 +138,12 @@ DI-зависимость резолвится на каждом запросе,
 
 ## Missing против invalid
 
-- **Missing** параметр без default → `RequestError` → **400** (path → **404**).
-- **Invalid** значение (например `page=abc` для `int`) → `RequestError` → **400**
-  (path → **404**).
+- **Missing** параметр без default → `ValidationError` (код `missing`, `field` —
+  имя параметра) → **400** (path → **404**).
+- **Invalid** значение (например `page=abc` для `int`) → `ValidationError`
+  (код `invalid_type`) → **400** (path → **404**).
 - Пустая строка `""` откатывается к default, если он объявлен.
 - **Query-модель**: невалидное поле (тип или констрейнт `msgspec.Meta`)
-  откатывается к default; без default — **400**.
+  откатывается к default; без default — **400**, причём ошибки собираются все
+  сразу (`too_small`, `too_large`, `pattern_mismatch`… — см.
+  [коды ошибок](errors.md)).

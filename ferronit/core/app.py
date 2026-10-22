@@ -5,11 +5,13 @@ from __future__ import annotations
 import inspect
 from contextlib import asynccontextmanager
 
+import msgspec
+
 from ferronit._core import FerronitApp as RustApp
 from ferronit._core import Response as RustResp
 from ferronit.contrib.tracing import current_trace_id
-from ferronit.core.request import BodyTooLarge, PathParamError, RequestError, UnsupportedMediaType
 from ferronit.core.request import Request as PyRequest
+from ferronit.core.request import RequestError
 from ferronit.core.response import (
     JSONResponse,
     Response,
@@ -18,6 +20,7 @@ from ferronit.core.response import (
     _msgspec_json,
 )
 from ferronit.di import Container
+from ferronit.errors import InternalError, NotFoundError
 from ferronit.middleware import Middleware
 from ferronit.openapi import OpenAPI
 
@@ -295,7 +298,7 @@ class Ferronit:
 
         result = self._app.resolve(method, path)
         if result is None:
-            await _send_empty(send, 404)
+            await _send_error(send, NotFoundError("Route not found"))
             return
 
         handler_py, params = result
@@ -309,22 +312,13 @@ class Ferronit:
             py_result = wrapped(req)
             if hasattr(py_result, "__await__"):
                 py_result = await py_result
-        except PathParamError:
-            await _send_empty(send, 404)
-            return
-        except RequestError:
-            await _send_empty(send, 400)
-            return
-        except UnsupportedMediaType:
-            await _send_empty(send, 415)
-            return
-        except BodyTooLarge:
-            await _send_empty(send, 413)
+        except RequestError as exc:
+            await _send_error(send, exc)
             return
         except Exception:
             if self._debug:
                 raise
-            await _send_empty(send, 500)
+            await _send_error(send, InternalError("Internal server error"))
             return
 
         resp = _to_response(py_result)
@@ -472,16 +466,26 @@ def _to_response(result) -> Response:
     return TextResponse(str(result))
 
 
-async def _send_empty(send, status: int) -> None:
-    """Send an empty ``text/plain`` response with the given status.
+async def _send_error(send, exc: RequestError) -> None:
+    """Send a structured JSON error response.
+
+    The body is the same for every failure::
+
+        {"code": "validation_error", "message": "...", "errors": [...]}
+
+    so a client parses one contract for 4xx and 5xx alike.
 
     Args:
         send: ASGI send channel.
-        status: HTTP status code for the response.
+        exc: The error to render — its ``status``, ``code`` and ``errors`` are used.
     """
+    body = msgspec.json.encode(exc.payload())
     await send({
         "type": "http.response.start",
-        "status": status,
-        "headers": [(b"content-type", b"text/plain")],
+        "status": exc.status,
+        "headers": [
+            (b"content-type", b"application/json"),
+            (b"content-length", str(len(body)).encode()),
+        ],
     })
-    await send({"type": "http.response.body", "body": b""})
+    await send({"type": "http.response.body", "body": body})

@@ -6,6 +6,20 @@
 
 ## Не выпущено
 
+**Добавлено**
+- Структурированные ошибки входа: каждый отказ отдаёт один JSON-конверт
+  `{"code", "message", "errors"}`, где `errors` — непустой массив с кодом на каждую
+  ошибку. Ошибки полей несут `field` (точечный путь `addr.zip`, `tags[0]`), ошибки
+  «не полей» его не несут (битый JSON, корень не объект, 415, 413, 404, 500).
+  Тело-модель валидируется повторным обходом полей, поэтому отдаются ВСЕ ошибки, а
+  не первая; query-модель сохраняет мягкий откат к default и собирает ошибки
+  обязательных полей. Коды: `missing`, `invalid_type`, `invalid_value`, `too_small`,
+  `too_large`, `too_short`, `too_long`, `not_multiple_of`, `pattern_mismatch`,
+  `invalid_enum`, `invalid_json`, `not_found`, `unsupported_media_type`,
+  `body_too_large`, `internal_error`. Из хендлера можно поднять свои:
+  `raise ValidationError([FieldError("email_taken", "...", "email")])`. Модуль —
+  `ferronit/errors.py`, доки — `docs/errors.md`, тесты — `tests/test_validation_errors.py`.
+
 **Изменено**
 - asyncpg больше не обязательная зависимость: драйвер PostgreSQL переехал в extra
   `ferronit[postgres]` (рядом с `[mysql]` и `[sqlite]`). `ferronit.contrib.rawdb`

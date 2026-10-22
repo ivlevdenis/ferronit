@@ -9,6 +9,17 @@ import msgspec
 
 from ferronit._core import Request as RustRequest
 from ferronit.contrib.pydantic import decode_json
+from ferronit.errors import (
+    INVALID_JSON,
+    INVALID_TYPE,
+    BodyTooLarge,
+    FieldError,
+    PathParamError,
+    RequestError,
+    UnsupportedMediaType,
+    ValidationError,
+    validation_error_for_body,
+)
 
 __all__ = [
     "BodyTooLarge",
@@ -18,40 +29,6 @@ __all__ = [
     "UnsupportedMediaType",
     "UploadedFile",
 ]
-
-
-class RequestError(Exception):
-    """Invalid client body or JSON → HTTP 400.
-
-    Raised by :meth:`Request.json` (malformed JSON) and :meth:`Request.model`
-    (payload that is not an object or array). The application maps it to a 400
-    response.
-    """
-
-
-class BodyTooLarge(Exception):
-    """Request body exceeds ``max_body_size`` → HTTP 413.
-
-    Raised by :meth:`Request.body` while streaming chunks, as soon as the
-    accumulated size passes ``ferronit.max_body_size`` taken from the ASGI scope.
-    The application maps it to a 413 response.
-    """
-
-
-class UnsupportedMediaType(Exception):
-    """Content-Type is not supported for the requested operation → HTTP 415.
-
-    Raised by :meth:`Request.form` and :meth:`Request.files` when the body is
-    neither urlencoded nor multipart. The application maps it to a 415 response.
-    """
-
-
-class PathParamError(Exception):
-    """A path parameter failed type coercion → HTTP 404 (ASVS 2.1.1).
-
-    The application maps it to a 404 so a malformed parameter never reveals
-    that the route exists.
-    """
 
 
 def _parse_cookies(header: str | None) -> dict[str, str]:
@@ -274,7 +251,7 @@ class Request:
         try:
             return self._rust.json()
         except ValueError as e:
-            raise RequestError(f"Invalid JSON: {e}") from None
+            raise RequestError(f"Malformed JSON body: {e}", code=INVALID_JSON) from None
 
     async def model(self, target: type):
         """Parse the JSON body into a ``msgspec.Struct``, Pydantic model or dataclass.
@@ -293,17 +270,28 @@ class Request:
             RequestError: If the body is malformed JSON, fails validation, or is
                 not a JSON object/array — mapped to HTTP 400.
         """
-        # Fast path: msgspec.Struct — декод из байт одним C-проходом.
+        # Fast path: msgspec.Struct — декод из байт одним C-проходом. Он падает на
+        # первой ошибке, поэтому при отказе тело разбирается заново и ошибки
+        # собираются все сразу (с путями полей и кодами).
         if isinstance(target, type) and hasattr(target, "__struct_fields__"):
             body = await self.body()
             try:
                 return msgspec.json.decode(body, type=target)
-            except ValueError as exc:
-                raise RequestError(f"Invalid JSON: {exc}") from None
+            except msgspec.ValidationError as exc:
+                raise validation_error_for_body(body, target, exc) from None
+            except msgspec.DecodeError as exc:
+                raise RequestError(
+                    f"Malformed JSON body: {exc}", code=INVALID_JSON
+                ) from None
 
         data = await self.json()
         if not isinstance(data, (dict, list)):
-            raise RequestError("JSON body must be an object or array")
+            raise ValidationError([
+                FieldError(
+                    INVALID_TYPE,
+                    f"JSON body must be an object or array, got `{type(data).__name__}`",
+                )
+            ])
         return decode_json(data, target)
 
     async def form(self) -> dict[str, list[str]]:

@@ -10,6 +10,18 @@ from typing import Annotated, Any, Union, get_args, get_origin, get_type_hints
 import msgspec
 
 from ferronit.core.request import PathParamError, Request, RequestError
+from ferronit.errors import (
+    INVALID_TYPE,
+    MISSING,
+    NOT_MULTIPLE_OF,
+    PATTERN_MISMATCH,
+    TOO_LARGE,
+    TOO_LONG,
+    TOO_SHORT,
+    TOO_SMALL,
+    FieldError,
+    ValidationError,
+)
 
 __all__ = ["Body", "Header", "Query", "bind", "build", "plan"]
 
@@ -294,7 +306,7 @@ def _make_coercer(hint: Any):
                     if coercer is None:
                         return value  # str / неизвестный тип — как есть
                     return coercer(value, name, source)
-                except (RequestError, PathParamError):
+                except RequestError:
                     continue
             raise _invalid(name, value, source)
         return to_union
@@ -326,7 +338,9 @@ def _bind_values(req: Request, resolvers: list, body_values: dict, container=Non
             value = req.get_header(extra)
             if value is None:
                 if default is inspect.Parameter.empty:
-                    raise RequestError(f"Missing header parameter '{name}'")
+                    raise ValidationError([
+                        FieldError(MISSING, f"Missing header parameter '{name}'", name)
+                    ])
                 value = default
             if value is not None and coercer is not None:
                 value = coercer(value, name, "header")
@@ -355,7 +369,9 @@ def _bind_values(req: Request, resolvers: list, body_values: dict, container=Non
             val, source, present = default, "query", False
         if not present:
             if default is inspect.Parameter.empty:
-                raise RequestError(f"Missing {source} parameter '{name}'")
+                raise ValidationError([
+                    FieldError(MISSING, f"Missing {source} parameter '{name}'", name)
+                ])
             val = default
         else:
             if val == "" and default is not inspect.Parameter.empty:
@@ -367,12 +383,12 @@ def _bind_values(req: Request, resolvers: list, body_values: dict, container=Non
 
 
 def _invalid(name: str, value: Any, source: str):
-    """Invalid typed parameter → 404 (path) or 400 (query/header)."""
+    """Invalid typed parameter → 404 (path) or 400 (query/header), with a code."""
+    message = f"Invalid {source} parameter '{name}': {value!r}"
+    error = FieldError(INVALID_TYPE, message, name)
     if source == "path":
-        return PathParamError(f"Invalid path parameter '{name}': {value!r}")
-    if source == "header":
-        return RequestError(f"Invalid header parameter '{name}': {value!r}")
-    return RequestError(f"Invalid query parameter '{name}': {value!r}")
+        return PathParamError(message, errors=[error])
+    return ValidationError([error])
 
 
 # ── Query-модель (msgspec.Struct → query-параметры) ────────────────────
@@ -390,25 +406,39 @@ def _split_constraint(t: Any) -> tuple[Any, Any]:
     return t, None
 
 
-def _check_constraints(value: Any, meta: Any) -> bool:
-    """Проверить значение против ``msgspec.Meta``-констрейнтов."""
+def _constraint_error(name: str, value: Any, meta: Any) -> FieldError | None:
+    """Code and message for the first violated ``msgspec.Meta`` constraint.
+
+    Args:
+        name: Query parameter name (becomes ``FieldError.field``).
+        value: Coerced value to check.
+        meta: ``msgspec.Meta`` of the annotation, or ``None``.
+
+    Returns:
+        The matching FieldError, or ``None`` when every constraint holds.
+    """
     if meta is None:
-        return True
+        return None
+    prefix = f"Invalid query parameter '{name}'"
     if meta.ge is not None and value < meta.ge:
-        return False
+        return FieldError(TOO_SMALL, f"{prefix}: must be >= {meta.ge}", name)
     if meta.gt is not None and value <= meta.gt:
-        return False
+        return FieldError(TOO_SMALL, f"{prefix}: must be > {meta.gt}", name)
     if meta.le is not None and value > meta.le:
-        return False
+        return FieldError(TOO_LARGE, f"{prefix}: must be <= {meta.le}", name)
     if meta.lt is not None and value >= meta.lt:
-        return False
+        return FieldError(TOO_LARGE, f"{prefix}: must be < {meta.lt}", name)
     if meta.multiple_of is not None and value % meta.multiple_of != 0:
-        return False
+        return FieldError(
+            NOT_MULTIPLE_OF, f"{prefix}: must be a multiple of {meta.multiple_of}", name
+        )
     if meta.min_length is not None and len(value) < meta.min_length:
-        return False
+        return FieldError(TOO_SHORT, f"{prefix}: length must be >= {meta.min_length}", name)
     if meta.max_length is not None and len(value) > meta.max_length:
-        return False
-    return meta.pattern is None or re.match(meta.pattern, str(value)) is not None
+        return FieldError(TOO_LONG, f"{prefix}: length must be <= {meta.max_length}", name)
+    if meta.pattern is not None and re.match(meta.pattern, str(value)) is None:
+        return FieldError(PATTERN_MISMATCH, f"{prefix}: must match {meta.pattern!r}", name)
+    return None
 
 
 def _coerce_field(raw: list[str], base: Any) -> Any:
@@ -423,12 +453,24 @@ def _coerce_field(raw: list[str], base: Any) -> Any:
 
 
 def _resolve_query_model(req: Request, model_cls: type) -> Any:
-    """Построить query-модель из строки запроса, поле за полем.
+    """Build a query model from the query string, field by field.
 
-    Невалидное значение (тип или констрейнт ``msgspec.Meta``) откатывается к
-    default поля; если default нет — ``RequestError`` (400).
+    An invalid value (wrong type or violated ``msgspec.Meta`` constraint) falls
+    back to the field default; if the field has no default the error is collected
+    and every such error is reported at once (``ValidationError`` → 400).
+
+    Args:
+        req: Current request.
+        model_cls: ``msgspec.Struct`` with the query fields.
+
+    Returns:
+        The built model instance.
+
+    Raises:
+        ValidationError: If a field without a default is missing or invalid.
     """
     values: dict[str, Any] = {}
+    errors: list[FieldError] = []
     for f in msgspec.structs.fields(model_cls):
         name = f.name
         has_default = (
@@ -437,16 +479,27 @@ def _resolve_query_model(req: Request, model_cls: type) -> Any:
         )
         if name not in req.query:
             if not has_default:
-                raise RequestError(f"Missing query parameter '{name}'")
+                errors.append(
+                    FieldError(MISSING, f"Missing query parameter '{name}'", name)
+                )
             continue
         base, meta = _split_constraint(f.type)
         try:
             value = _coerce_field(req.query[name], base)
-        except (RequestError, PathParamError, ValueError, TypeError):
+        except (RequestError, ValueError, TypeError):
             value = None
-        if value is None or not _check_constraints(value, meta):
-            if has_default:
-                continue
-            raise RequestError(f"Invalid query parameter '{name}'")
+        if value is None:
+            if not has_default:
+                errors.append(
+                    FieldError(INVALID_TYPE, f"Invalid query parameter '{name}'", name)
+                )
+            continue
+        violated = _constraint_error(name, value, meta)
+        if violated is not None:
+            if not has_default:
+                errors.append(violated)
+            continue
         values[name] = value
+    if errors:
+        raise ValidationError(errors)
     return model_cls(**values)

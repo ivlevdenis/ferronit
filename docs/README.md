@@ -13,6 +13,7 @@ Ferronit — быстрая замена легаси Python-сервисов, �
 - [Маршрутизация и хендлеры](routing.md) — роуты, path-параметры, возвращаемые значения, ответы, ошибки
 - [Запросы](requests.md) — `Request`: query, заголовки, cookies, тело, JSON, формы, файлы
 - [Привязка параметров хендлера](binding.md) — типизированные параметры, `Header`, query/body-модели (`msgspec.Struct`), DI из контейнера
+- [Ошибки и валидация](errors.md) — код на каждую ошибку, `errors` с ошибками полей и не только
 - [Ответы и сериализация](responses.md) — `Response`/`JSONResponse`/стриминг, модели, кодеки
 - [Middleware и contrib](middleware.md) — CORS, security-заголовки, rate limiting, трассировка, health, статика
 - [WebSocket](websocket.md) — текстовые, бинарные и JSON-сообщения, Origin-защита

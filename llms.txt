@@ -3,7 +3,8 @@
 > Ferronit — высокопроизводительный Python ASGI-фреймворк с Rust-ядром: роутинг, парсинг
 > запроса, JSON, gzip и CORS реализованы на Rust (`ferronit._core`), а бизнес-логика остаётся
 > обычным Python с DDD/CQRS, hexagonal-портами и DI. Слой данных — rawdb + rawmodel
-> (asyncpg без ORM). Python ≥ 3.12, abi3-py312 (один wheel на 3.12+).
+> для PostgreSQL (asyncpg), MySQL (aiomysql), SQLite (aiosqlite); все три драйвера —
+> необязательные extras. Python ≥ 3.12, abi3-py312 (один wheel на 3.12+).
 > Замеры: 88 768 req/s на Granian против 11 082 у FastAPI (×8.0), hot path ~11 мкс на запрос.
 
 Этот файл — краткая карта для языковых моделей и агентов.
@@ -24,7 +25,7 @@
 - DDD: `ferronit.ddd` — `AggregateRoot`, `Command`, `Query` (оба `msgspec.Struct`, то есть сериализуемы), `CommandBus`, `QueryBus`, `Repository`
 - Порты и адаптеры: `ferronit.hexagonal` — `Port`, `Adapter`, `UnitOfWork`, `ApplicationService`, `Logger`, `Cache`, `MessageBus`, `EventBus`
 - DI: `ferronit.di.Container` (singleton/factory/get/has); привязка параметров — `ferronit.binding`; конфиг: `ferronit.config.EnvConfig`
-- БД: `ferronit.contrib.rawdb` + `rawmodel` (asyncpg без ORM) — `Pool`, `create_pool`, `RawUnitOfWork`, `Model`, `Relation`, query DSL
+- БД: `ferronit.contrib.rawdb` + `rawmodel` (без ORM, три необязательных драйвера: asyncpg/aiomysql/aiosqlite) — `Pool`, `create_pool`, `RawUnitOfWork`, `Model`, `Relation`, query DSL
 - LLM: `ferronit.contrib.llm` — `LlmPort`, `OpenAiAdapter`, `ClaudeAdapter`, `MockLlmAdapter`
 - Векторный поиск: `ferronit.contrib.vectordb` — `VectorDbPort`, `QdrantAdapter`, `ChromaAdapter`, `MockVectorDb`
 - Прочее: `ferronit.contrib.cors`, `security`, `ratelimit`, `staticfiles`, `tracing`, `health`, `kafka`, `pydantic`

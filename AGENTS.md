@@ -41,7 +41,7 @@ ferronit/
 ├── cli.py                 # ferronit new / dev / run + шаблоны scaffold-проекта
 └── contrib/               # инфраструктурные адаптеры (опциональные зависимости)
     ├── sql.py             # дерево выражений + диалекты (POSTGRES/SQLITE/MYSQL) и компиляция SQL
-    ├── drivers.py         # адаптеры соединений и пулов: asyncpg, aiomysql (MySQL), aiosqlite (SQLite)
+    ├── drivers.py         # адаптеры соединений/пулов: asyncpg (PostgreSQL), aiomysql (MySQL), aiosqlite (SQLite) — все три драйвера в extras
     ├── rawdb.py           # тонкий слой поверх драйвера: RawRepository/RawUnitOfWork/Condition (без ORM)
     ├── rawmodel.py        # декларативные модели + Query/select + связи (Relation) поверх rawdb
     ├── llm.py             # LlmPort + OpenAiAdapter, ClaudeAdapter, MockLlmAdapter
@@ -121,8 +121,10 @@ docker run -d --name ferronit-pg -e POSTGRES_PASSWORD=postgres -e POSTGRES_USER=
 2. **`Cargo.lock` в репозитории** — фичи pyo3 менять только через `Cargo.toml` + пересборку.
 3. **`abi3-py312`, не понижать**: `PyString::to_str` требует `PyUnicode_AsUTF8AndSize`, которого
    нет в limited API до 3.10; Python-слой и так требует ≥ 3.12. Один wheel покрывает 3.12+.
-4. **Python-ядро: stdlib + `ferronit._core` + `msgspec` + `asyncpg` (обязательные)**. Всё остальное —
-   optional extras (`server`, `pydantic`).
+4. **Python-ядро: stdlib + `ferronit._core` + `msgspec` — единственная обязательная зависимость**.
+   Драйверы БД — extras (`postgres` → asyncpg, `mysql` → aiomysql, `sqlite` → aiosqlite) и
+   импортируются лениво (в `create_pool`), поэтому `import ferronit.contrib.rawdb` работает без них;
+   остальное — optional extras (`server`, `pydantic`).
 5. **`ferronit._core.Response` — не тот же объект, что Python `Response`**: импортировать
    `from ferronit._core import Response as RustResp`.
 6. **PyO3 `#[getter]` срезает префикс `get_`**: Rust `fn get_status()` → в Python `.status`.
@@ -174,7 +176,7 @@ docker run -d --name ferronit-pg -e POSTGRES_PASSWORD=postgres -e POSTGRES_USER=
 | Типы параметров в хендлерах | `ferronit/binding.py` |
 | DDD / CQRS | `ferronit/ddd.py` |
 | Порты и адаптеры | `ferronit/hexagonal.py`, `ferronit/contrib/*` |
-| Доступ к БД | `ferronit/contrib/rawdb.py` + `rawmodel.py` (asyncpg без ORM) — единственный слой данных |
+| Доступ к БД | `ferronit/contrib/rawdb.py` + `rawmodel.py` — единый слой без ORM для трёх движков: PostgreSQL (asyncpg), MySQL (aiomysql), SQLite (aiosqlite); драйверы необязательные (extras) |
 | LLM / векторный поиск | `ferronit/contrib/llm.py`, `ferronit/contrib/vectordb.py` |
 | Безопасность (заголовки, лимиты, rate limit) | `ferronit/contrib/security.py`, `ratelimit.py`, `docs/security/ASVS.md` |
 | Scaffold новых проектов | `ferronit/cli.py` (шаблоны в начале файла) |
@@ -188,8 +190,9 @@ docker run -d --name ferronit-pg -e POSTGRES_PASSWORD=postgres -e POSTGRES_USER=
 
 ## Границы работ
 
-- Не добавлять новые внешние зависимости в `ferronit/` без необходимости (msgspec уже обязательная;
-  остальное — только optional extras в `pyproject.toml`).
+- Не добавлять новые внешние зависимости в `ferronit/` без необходимости (msgspec — единственная
+  обязательная; драйверы БД и прочее — только optional extras в `pyproject.toml`, импорт внутри
+  фабрики, чтобы модуль импортировался без extra).
 - Не трогать `bench/` (стенд замеров) при работе над фреймворком.
 - Не коммитить: `.venv/`, `dist/`, `ferronit-rs/target/`, `*.session`, `.env`.
 - Не переписывать числа в README без реального замера (`ab -n 30000 -c 50 -k`, Granian/uvicorn

@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import pathlib
 import re
+import subprocess
+import sys
 from importlib import metadata
 
 import ferronit
@@ -47,12 +49,52 @@ def test_msgspec_is_runtime_dependency() -> None:
     )
 
 
-def test_asyncpg_is_runtime_dependency() -> None:
-    """asyncpg — обязательная runtime-зависимость (слой данных rawdb/rawmodel)."""
+def test_asyncpg_is_optional_postgres_extra() -> None:
+    """asyncpg — необязательный драйвер: только в extra «postgres», не в ядре."""
     requires = metadata.requires("ferronit") or []
-    assert any("asyncpg" in d.replace(" ", "") for d in requires), (
-        f"asyncpg должен быть обязательной зависимостью: {requires}"
+    core = [d for d in requires if ";" not in d]
+    assert not any("asyncpg" in d.replace(" ", "") for d in core), (
+        f"asyncpg не должен быть обязательной зависимостью: {core}"
     )
+    assert any(
+        "asyncpg" in d.replace(" ", "")
+        and 'extra=="postgres"' in d.replace(" ", "").replace("'", '"')
+        for d in requires
+    ), f"asyncpg должен быть в extra postgres: {requires}"
+
+
+def _run_without_asyncpg(code: str) -> subprocess.CompletedProcess[str]:
+    """Запустить код в отдельном процессе, где импорт asyncpg запрещён."""
+    return subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, cwd=ROOT, timeout=120
+    )
+
+
+def test_data_layer_imports_without_asyncpg() -> None:
+    """Без extra «postgres» слой данных импортируется — драйвер загружается лениво."""
+    result = _run_without_asyncpg(
+        "import sys; sys.modules['asyncpg'] = None\n"
+        "import ferronit.contrib.drivers, ferronit.contrib.rawdb, ferronit.contrib.rawmodel\n"
+        "print('ok')\n"
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "ok"
+
+
+def test_postgres_pool_without_driver_explains_extra() -> None:
+    """Без asyncpg create_pool для postgresql:// говорит, какой extra поставить."""
+    result = _run_without_asyncpg(
+        "import asyncio, sys; sys.modules['asyncpg'] = None\n"
+        "from ferronit.contrib.rawdb import create_pool\n"
+        "try:\n"
+        "    asyncio.run(create_pool('postgresql://user@host/db'))\n"
+        "except ModuleNotFoundError as exc:\n"
+        "    print(exc)\n"
+        "else:\n"
+        "    raise SystemExit('create_pool must fail without asyncpg')\n"
+    )
+    assert result.returncode == 0, result.stderr
+    assert "ferronit[postgres]" in result.stdout
 
 
 def test_version_matches_cargo() -> None:

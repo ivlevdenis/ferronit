@@ -26,8 +26,10 @@ pip install ferronit        # installs the Python layer and the native core toge
 
 Ferronit is a **single package** built with [maturin](https://www.maturin.rs) as a
 mixed project. The core (`ferronit._core`) is compiled with the `abi3-py312` feature, so
-one wheel works on every CPython from 3.12 to 3.15+. Its only runtime dependencies are
-`msgspec` (fast JSON/validation) and `asyncpg` (the rawdb/rawmodel data layer).
+one wheel works on every CPython from 3.12 to 3.15+. Its only runtime dependency is
+`msgspec` (fast JSON/validation). Database drivers are extras — `ferronit[postgres]`
+(asyncpg), `ferronit[mysql]`, `ferronit[sqlite]` — and the data layer imports them
+lazily, when a pool is created.
 
 ```python
 # app.py

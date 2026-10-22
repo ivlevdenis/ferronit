@@ -6,6 +6,11 @@ Ferronit использует **один** способ работы с БД: т
 Движок выбирается схемой DSN в `create_pool`, SQL собирается деревом выражений и компилируется
 под диалект соединения.
 
+Драйверы — extras: `ferronit[postgres]` (asyncpg), `ferronit[mysql]` (aiomysql),
+`ferronit[sqlite]` (aiosqlite). Модули слоя импортируются и без них — драйвер
+загружается при создании пула, а его отсутствие даёт `ModuleNotFoundError`
+с подсказкой, какой extra поставить.
+
 | Модуль | Что даёт |
 |---|---|
 | `ferronit.contrib.sql` | дерево выражений и операторы (`Compare`, `Func`, `Select`…), диалекты (`POSTGRES`/`SQLITE`/`MYSQL`), компиляция |

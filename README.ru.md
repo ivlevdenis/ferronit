@@ -25,8 +25,10 @@ pip install ferronit        # ставит сразу Python-слой и нат�
 
 Ferronit — **один пакет**, собранный [maturin](https://www.maturin.rs)-ом как
 mixed-проект. Ядро (`ferronit._core`) собирается с фичей `abi3-py312` — один wheel
-работает на всех CPython от 3.12 до 3.15+. Обязательные runtime-зависимости —
-`msgspec` (быстрый JSON/валидация) и `asyncpg` (слой данных rawdb/rawmodel).
+работает на всех CPython от 3.12 до 3.15+. Обязательная runtime-зависимость одна —
+`msgspec` (быстрый JSON/валидация). Драйверы БД — extras (`ferronit[postgres]` на
+asyncpg, `ferronit[mysql]`, `ferronit[sqlite]`), слой данных импортирует их лениво,
+при создании пула.
 
 ```python
 # app.py

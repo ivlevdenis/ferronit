@@ -15,7 +15,7 @@ Ferronit — высокопроизводительный ASGI-фреймвор�
 | Rust-ядро | `ferronit._core` (maturin, `ferronit-rs/`) | radix-роутинг, JSON, gzip, CORS, multipart |
 | Ядро Python | `ferronit/core/` | ASGI-диспетчер, Request/Response |
 | Сериализация | Rust `serde_json` + msgspec (C fast-path) | stdlib `json` выпилен полностью |
-| БД | asyncpg + rawdb/rawmodel | явный SQL, типизированные модели, без ORM |
+| БД | rawdb/rawmodel + драйвер (asyncpg / aiomysql / aiosqlite — extras) | явный SQL, типизированные модели, без ORM |
 | Домен | `ddd.py`, `hexagonal.py` | Command/Query, агрегаты, порты/адаптеры, UoW |
 | Конфиг/CLI | `config.py`, `cli.py` | EnvConfig, генератор проекта, dev/run |
 
@@ -26,8 +26,8 @@ Ferronit — высокопроизводительный ASGI-фреймвор�
 2. **Python — только бизнес-логика.** Хендлер получает уже распарсенный запрос и
    возвращает данные; dict/list и msgspec-модели сериализует msgspec (C fast-path),
    а Rust (`serde_json`) — fallback для dataclass/rawmodel и неподдерживаемых типов.
-3. **Явный SQL вместо ORM.** rawdb/rawmodel на asyncpg — максимум throughput и
-   предсказуемость.
+3. **Явный SQL вместо ORM.** rawdb/rawmodel поверх драйвера (PostgreSQL, MySQL
+   или SQLite) — максимум throughput и предсказуемость.
 4. **Домен отделён от HTTP.** DDD/гексагональные блоки поставляются из коробки,
    но не навязываются — можно писать и простые хендлеры.
 
@@ -60,8 +60,8 @@ Ferronit — высокопроизводительный ASGI-фреймвор�
    └─────────────┘          └────────┬────────┘          │ kafka, ...  │
                                      │                   └─────────────┘
                               ┌──────▼──────┐
-                              │   asyncpg   │
-                              │  PostgreSQL │
+                              │  драйверы   │
+                              │   3 движка  │
                               └─────────────┘
 ```
 
@@ -148,7 +148,7 @@ HTTP и БД. Это опционально: минимальное прилож
   конструктора рекурсивно по type-аннотациям (PEP 563 обрабатывается). Несколько
   экземпляров одного типа различаются через `Annotated[Pool, "shop"]`.
 - **Lifespan** — одна async-генераторная функция (`@app.lifespan`): ресурсы
-  (пул asyncpg и т.п.) создаются до `yield`, кладутся в `app.container`, на
+  (драйвер БД и т.п.) создаются до `yield`, кладутся в `app.container`, на
   shutdown закрываются.
 - **Binding** — параметры хендлера привязываются автоматически: path/query/
   headers/`Request`, а DI-параметры pre-bind на старте. Подробно —
@@ -158,13 +158,15 @@ HTTP и БД. Это опционально: минимальное прилож
 
 ## Слой данных — rawdb + rawmodel
 
-Единственный путь к PostgreSQL: тонкий `rawdb` на asyncpg + типизированные модели
-и query DSL `rawmodel`. Никакого ORM — явный SQL, bound-параметры, максимум
-throughput.
+Единственный слой данных — `rawdb` + `rawmodel`, и он работает на трёх движках:
+PostgreSQL (asyncpg), MySQL (aiomysql), SQLite (aiosqlite). Драйверы — необязательные
+extras (`ferronit[postgres]`, `[mysql]`, `[sqlite]`) и импортируются при создании
+пула, так что без них модули слоя импортируются. Никакого ORM — явный SQL,
+bound-параметры, максимум throughput.
 
 | Модуль | Что даёт |
 |---|---|
-| `contrib.rawdb` | `Pool`, `create_pool`, `RawUnitOfWork`, `RawRepository`, `Condition` — сырые dict-строки на asyncpg |
+| `contrib.rawdb` | `Pool`, `create_pool`, `RawUnitOfWork`, `RawRepository`, `Condition` — сырые dict-строки поверх драйвера |
 | `contrib.rawmodel` | `Model` (неизменяемый `msgspec.Struct`), `Query`/`select`, `Relation`, `RawModelRepository`, `IdentityMap` |
 
 - `pool.uow(readonly=True)` для чтений — пропускает `BEGIN`, экономит round-trip.
@@ -192,7 +194,7 @@ throughput.
 |---|---|
 | Горячий путь в Rust | radix-роутинг O(1), JSON/gzip/CORS/multipart без Python на запрос |
 | JSON в Rust | `serde_json` в `ferronit._core` (fallback / dataclass / парсинг) + msgspec C fast-path (dict/list/Struct и `JSONResponse`); stdlib `json` выпилен |
-| asyncpg + явный SQL | максимум throughput, предсказуемость, без ORM-накладных |
+| Явный SQL без ORM | rawdb/rawmodel на драйвере (asyncpg/aiomysql/aiosqlite): максимум throughput, предсказуемость, без ORM-накладных |
 | Позиционный маппинг rawmodel | `cls(*row)` дешевле dict-маппинга |
 | granian как сервер | ~4× быстрее uvicorn на этом фреймворке; uvicorn — fallback |
 | Pre-bind DI на старте | зависимости резолвятся один раз, а не на каждый запрос |

@@ -18,18 +18,26 @@ Ferronit — **один пакет**, собранный [maturin](https://www.m
 
 - Python-слой (`ferronit`) — ASGI-движок, DDD/CQRS, DI, contrib;
 - нативное ядро (`ferronit._core`) — маршрутизация, разбор запроса, JSON, gzip, CORS;
-- слой данных (`ferronit.contrib.rawdb` + `rawmodel`) — asyncpg без ORM, модели и query DSL.
+- слой данных (`ferronit.contrib.rawdb` + `rawmodel`) — явный SQL без ORM; драйвер
+  выбирается схемой DSN (asyncpg / aiomysql / aiosqlite).
 
 Ядро собрано с фичей `abi3-py312`, поэтому один wheel работает на любом
-CPython 3.12+ — матрица версий Python не нужна. Обязательные runtime-зависимости —
-`msgspec` (быстрый JSON/валидация) и `asyncpg` (слой данных); ставятся автоматически.
+CPython 3.12+ — матрица версий Python не нужна. Обязательная runtime-зависимость
+одна — `msgspec` (быстрый JSON/валидация).
 
 Опциональные extras (только то, что реально используете):
 
 ```bash
 pip install "ferronit[server]"     # granian, uvicorn — для запуска
+pip install "ferronit[postgres]"   # asyncpg — драйвер PostgreSQL
+pip install "ferronit[mysql]"      # aiomysql — драйвер MySQL
+pip install "ferronit[sqlite]"     # aiosqlite — драйвер SQLite
 pip install "ferronit[pydantic]"   # pydantic v2
 ```
+
+Без нужного extra слой данных всё равно импортируется, а `create_pool` при выборе
+движка скажет, какой extra поставить (`ModuleNotFoundError: … pip install
+'ferronit[postgres]'`).
 
 ## Первое приложение
 
@@ -127,4 +135,4 @@ PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 poetry run maturin develop --release
 ## Что дальше
 
 - [Маршрутизация](routing.md) → [Запросы](requests.md) → [Ответы](responses.md)
-- [Слой данных](data/overview.md) — rawdb + rawmodel (asyncpg, без ORM)
+- [Слой данных](data/overview.md) — rawdb + rawmodel без ORM: PostgreSQL, MySQL, SQLite (драйверы — extras)

@@ -7,9 +7,10 @@ license = "Apache-2.0"
 license-files = ["LICENSE"]
 requires-python = ">=3.12"
 # Единый пакет: нативное ядро (ferronit._core) собирается в этот же wheel.
-# Обязательные runtime-зависимости: msgspec (быстрый JSON/валидация) и asyncpg
-# (слой данных rawdb/rawmodel — единственный способ доступа к PostgreSQL).
-dependencies = ["msgspec>=0.19", "asyncpg>=0.29"]
+# Обязательная runtime-зависимость одна — msgspec (быстрый JSON/валидация).
+# Драйверы СУБД — extras: слой данных (rawdb/rawmodel/drivers) импортирует драйвер
+# лениво, при создании пула, поэтому `import ferronit.contrib.rawdb` работает и без них.
+dependencies = ["msgspec>=0.19"]
 classifiers = [
     "Framework :: AsyncIO",
     "Intended Audience :: Developers",
@@ -30,15 +31,18 @@ ferronit = "ferronit.cli:main"
 [project.optional-dependencies]
 server = ["granian[reload]>=2.8", "uvicorn[standard]>=0.30"]
 pydantic = ["pydantic>=2.0"]
-# Драйверы других СУБД. Слой данных (rawdb/rawmodel) работает на трёх движках:
-# PostgreSQL — обязательный asyncpg, MySQL и SQLite — эти extras. Тесты бэкендов:
+# Драйверы СУБД — extras. Слой данных (rawdb/rawmodel) работает на трёх движках и
+# импортирует драйвер только при создании пула: без extra модули импортируются,
+# а `create_pool` скажет, что поставить. Тесты бэкендов:
 # tests/test_backends_repository.py (+ test_sql_backends.py); SQLite — библиотека
 # в процессе, MySQL — контейнер ferronit-mysql (scripts/dbs_up.sh).
+postgres = ["asyncpg>=0.29"]
 sqlite = ["aiosqlite>=0.20"]
 mysql = ["aiomysql>=0.2"]
-# Зеркалит группу Poetry ниже — для установки без Poetry: pip install "ferronit[dev]"
+# Зеркалит группу Poetry ниже — для установки без Poetry: pip install "ferronit[dev]".
+# asyncpg здесь, чтобы сюита не пропускала тесты rawdb/rawmodel.
 dev = ["pytest>=8", "pytest-asyncio", "pytest-benchmark", "httpx", "maturin>=1.14,<2",
-       "ruff>=0.6", "mypy>=1.11"]
+       "ruff>=0.6", "mypy>=1.11", "asyncpg>=0.29"]
 
 # ── Poetry ────────────────────────────────────────────────────────────
 # Poetry ведёт окружение и зависимости. Сам проект Poetry не устанавливает

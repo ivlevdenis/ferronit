@@ -1,9 +1,12 @@
-# Сырой asyncpg + модели — `rawdb` и `rawmodel`
+# Сырой слой и модели — `rawdb` и `rawmodel`
 
 ## Зачем
 
-Самый быстрый способ ходить в PostgreSQL из Python — без ORM. `rawdb` — тонкий,
-явный слой на asyncpg (dict-строки, фильтры — SQL-фрагменты с bound-параметрами).
+Самый быстрый способ ходить в БД из Python — без ORM. `rawdb` — тонкий явный слой
+поверх драйвера (dict-строки, фильтры — SQL-фрагменты с bound-параметрами):
+PostgreSQL (asyncpg), MySQL (aiomysql), SQLite (aiosqlite). Все три драйвера —
+необязательные extras (`ferronit[postgres]`, `[mysql]`, `[sqlite]`) и подгружаются
+при создании пула, поэтому без них модули слоя всё равно импортируются.
 Поверх него `rawmodel` даёт типизированные модели строк и query DSL, почти не
 теряя в скорости.
 
@@ -22,7 +25,8 @@ async with pool.uow() as uow:                     # BEGIN / COMMIT (или rollb
     await repo.delete(1)
 ```
 
-- `Pool` — обёртка над asyncpg-пулом; `pool.uow(readonly=False)` отдаёт
+- `Pool` — обёртка над пулом драйвера (asyncpg/aiomysql; у SQLite пул —
+  одно соединение); `pool.uow(readonly=False)` отдаёт
   `RawUnitOfWork` (одно соединение, одна транзакция), `pool.close()` закрывает.
 - `RawUnitOfWork(pool, readonly=False)` — то же напрямую.
   `readonly=True` пропускает `BEGIN` (экономия одного round-trip) для read-only.

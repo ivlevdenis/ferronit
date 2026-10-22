@@ -7,9 +7,9 @@ An ``asyncpg`` connection already looks like that, so this module adapts MySQL
 (``aiomysql``) and SQLite (``aiosqlite``) to the same shape: repositories then run
 unchanged on all three engines.
 
-Driver imports happen inside the factories: ``aiomysql``/``aiosqlite`` are
-optional extras (``ferronit[mysql]``, ``ferronit[sqlite]``), PostgreSQL ships with
-the package.
+Driver imports happen inside the factories: every driver is an extra
+(``ferronit[postgres]``, ``ferronit[mysql]``, ``ferronit[sqlite]``), so the data
+layer imports without any of them installed.
 
 DSN shape (the scheme picks the driver)::
 

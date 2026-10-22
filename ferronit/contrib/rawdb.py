@@ -11,18 +11,23 @@ Lifecycle rules worth knowing:
   where the server runs (``create_raw_pool``), not at import time;
 * one ``RawUnitOfWork`` serves one request; sharing a single instance between
   concurrent tasks corrupts the connection state.
+
+The PostgreSQL driver lives in the ``postgres`` extra and is imported lazily, so
+this module imports fine in projects that only use MySQL or SQLite.
 """
 
 from __future__ import annotations
 
 import builtins
 from collections.abc import Sequence
-from typing import Any
-
-import asyncpg
+from typing import TYPE_CHECKING, Any
 
 from ferronit.contrib import sql
+from ferronit.contrib.drivers import MISSING_EXTRA_HINT
 from ferronit.hexagonal import Adapter, UnitOfWork
+
+if TYPE_CHECKING:  # драйвер ставится extra "postgres", в рантайме его может не быть
+    import asyncpg
 
 __all__ = [
     "Condition",
@@ -32,6 +37,25 @@ __all__ = [
     "create_pool",
     "create_raw_pool",
 ]
+
+
+def _require_asyncpg() -> Any:
+    """Import ``asyncpg``, or explain which extra provides it.
+
+    The driver is imported here, not at module import time, so that the data
+    layer stays importable without the ``postgres`` extra.
+
+    Returns:
+        The ``asyncpg`` module.
+
+    Raises:
+        ModuleNotFoundError: If the ``postgres`` extra is not installed.
+    """
+    try:
+        import asyncpg
+    except ImportError as exc:  # pragma: no cover - зависит от окружения
+        raise ModuleNotFoundError(MISSING_EXTRA_HINT.format(extra="postgres")) from exc
+    return asyncpg
 
 
 class Condition:
@@ -589,7 +613,11 @@ async def create_raw_pool(
     Returns:
         A ready-to-use ``asyncpg`` pool with ``dict``-style row access disabled
         (rows are converted to dicts by the repository).
+
+    Raises:
+        ModuleNotFoundError: If the ``postgres`` extra is not installed.
     """
+    asyncpg = _require_asyncpg()
     return await asyncpg.create_pool(dsn, min_size=min_size, max_size=max_size)
 
 
@@ -598,7 +626,7 @@ async def create_pool(
 ) -> Pool:
     """Create a :class:`Pool` over the engine named by the DSN scheme.
 
-    ``postgresql://`` → ``asyncpg`` (ships with the package), ``mysql://`` →
+    ``postgresql://`` → ``asyncpg`` (extra ``postgres``), ``mysql://`` →
     ``aiomysql`` (extra ``mysql``), ``sqlite://`` → ``aiosqlite`` (extra
     ``sqlite``; SQLite is a library, so the "pool" is one connection). The returned
     object is the same :class:`Pool` for every engine, so ``uow()``, the
@@ -623,6 +651,7 @@ async def create_pool(
     """
     scheme = dsn.split("://", 1)[0].lower() if "://" in dsn else ""
     if scheme.startswith("postgres"):
+        asyncpg = _require_asyncpg()
         return Pool(await asyncpg.create_pool(dsn, min_size=min_size, max_size=max_size))
     if scheme.startswith(("mysql", "sqlite")):
         from ferronit.contrib import drivers

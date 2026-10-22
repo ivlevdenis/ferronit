@@ -1,8 +1,8 @@
 """Serialization layer — protocol-based codecs for request/response bodies.
 
 Supported codecs: Pydantic v2 (pydantic), attrs (attrs + cattrs).
-The codecs are optional (imported only when used); the core itself requires
-``msgspec`` and ``asyncpg``.
+The codecs are optional (imported only when used); the core itself requires only
+``msgspec`` — database drivers are extras (``ferronit[postgres]`` etc.).
 """
 
 from __future__ import annotations

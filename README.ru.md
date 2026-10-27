@@ -96,6 +96,21 @@ async def orders():
     return {"orders": rows}   # items вложенно в JSON, один WHERE fk = ANY($1)
 ```
 
+## Логирование
+
+Неблокирующий пайплайн с гарантией доставки: JSON или человекочитаемый вывод,
+access-log и error-log с трейсбеком.
+
+```python
+from ferronit import Ferronit
+from ferronit.contrib.logging import Logger, LogConfig
+
+logger = Logger(LogConfig())                    # JSON → stderr
+app = Ferronit(logger=logger, access_log=True)  # access-log через логгер
+```
+
+Подробнее — [docs/logging.md](docs/logging.md).
+
 ## Разработка
 
 ```bash

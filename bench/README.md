@@ -37,6 +37,7 @@ UPDATE/UPSERT/DELETE били по существующим строкам, а �
 | Скрипт | Что мерит |
 |---|---|
 | `api_bench.py` | ping + строки из БД (query-limit) + одиночные записи — Ferronit vs BlackSheep/Litestar/FastAPI/Django, **на `ab`** |
+| `api_bench_logging.py` | ping с access-логированием (одна строка на запрос в stdout) — Ferronit (свой неблокирующий `Logger`) vs stdlib-логирование остальных фреймворков, **на `ab`** |
 | `queries_vs_sqlalchemy.py` | запросы к БД **без HTTP**: Ferronit (rawmodel/rawdb) vs SQLAlchemy Core/ORM vs сырой asyncpg; `get_1`/`list_100`/`insert_1`/`update_1`/`upsert_1`/`delete_1`, 1 клиент |
 | `http_cpu_bench.py` | CPU **под HTTP-нагрузкой** (`ab -c 50`): сервер (процесс приложения), PostgreSQL (cgroup), клиент (rusage) — мкс на запрос |
 | `micro_bench_sql_compile.py` | цена сборки SQL в слое Ferronit (0,9 мкс на оператор) |

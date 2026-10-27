@@ -205,8 +205,11 @@ docker run -d --name ferronit-pg -e POSTGRES_PASSWORD=postgres -e POSTGRES_USER=
 
 - **Жизненный цикл — одна функция `@app.lifespan`** (async-генератор: setup → `yield` → teardown),
   ресурсы кладутся в `app.container.singleton(...)` на старте. Отдельных `on_startup`/`on_shutdown` нет.
-- **Логирования нет**: необработанное исключение → 500 без трейсбека (в `debug=True` исключение
-  поднимается наружу). Для прода нужен свой access/error-лог.
+- **Логирование опционально** (`ferronit.contrib.logging`): неблокирующий пайплайн
+  (JSON или человекочитаемый) с гарантией доставки (`flush()`/`shutdown()` + `atexit`),
+  access-log (`event="access"`, `method/path/status/duration_ms`) и error-log
+  (`event="error"` + трейсбек). Логгер инъектируется:
+  `Ferronit(logger=Logger(LogConfig(...)), access_log=True)` из `ferronit.contrib.logging`.
 - Rate limiter in-memory: при `--workers > 1` лимиты умножаются на число воркеров (для
   мультипроцессной работы нужен Redis-бэкенд).
 - `EnvConfig.int/float/bool` при ошибке парсинга молча возвращают дефолт — «fail-fast» нет.

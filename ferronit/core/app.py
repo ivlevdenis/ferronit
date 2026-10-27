@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import inspect
+import time
 from contextlib import asynccontextmanager
 from typing import Any
 
 import msgspec
 
 from ferronit._core import FerronitApp as RustApp
+from ferronit.contrib.logging import LoggerProtocol, StdlibLogger
 from ferronit.contrib.tracing import current_trace_id
 from ferronit.core.request import Request as PyRequest
 from ferronit.core.request import RequestError
@@ -38,6 +40,12 @@ class Ferronit:
     Args:
         debug: When ``True``, re-raise handler exceptions instead of turning
             them into a 500 response.
+        access_log: When ``True``, log every request (method, path, status,
+            duration) through the injected ``logger``.
+        logger: The logger the framework writes to (see
+            :class:`ferronit.contrib.logging.LoggerProtocol`). Defaults to a
+            :class:`~ferronit.contrib.logging.StdlibLogger` bound to the
+            ``"ferronit"`` standard-library logger.
         max_body_size: Maximum accepted request body in bytes; larger bodies
             yield HTTP 413. ``None`` disables the limit.
 
@@ -47,15 +55,18 @@ class Ferronit:
     """
 
     __slots__ = (
+        "_access_log",
         "_app",
         "_container",
         "_debug",
         "_deferred_routes",
         "_lifespan_fn",
+        "_logger",
         "_max_body_size",
         "_middleware",
         "_mw_cache",
         "_openapi",
+        "_rsgi_lifespan_cm",
         "_ws_origins",
     )
 
@@ -63,6 +74,8 @@ class Ferronit:
         self,
         *,
         debug: bool = False,
+        access_log: bool = False,
+        logger: LoggerProtocol | None = None,
         max_body_size: int | None = None,
         container: Container | None = None,
         lifespan=None,
@@ -70,13 +83,41 @@ class Ferronit:
         self._app = RustApp()
         self._openapi = OpenAPI()
         self._debug = debug
+        self._access_log = access_log
+        self._logger = logger if logger is not None else StdlibLogger("ferronit")
         self._middleware = Middleware()
         self._mw_cache: dict = {}
         self._ws_origins: dict[str, list[str]] = {}
         self._max_body_size = max_body_size
         self._container = container if container is not None else Container()
         self._lifespan_fn = lifespan
+        self._rsgi_lifespan_cm: Any = None
         self._deferred_routes: list = []
+
+    def _log_access(self, method: str, path: str, status: int, start_ns: int) -> None:
+        """Log one access line (method, path, status, duration) when enabled.
+
+        The duration is measured from ``start_ns`` (a ``time.perf_counter_ns()``
+        taken before the handler ran). Structured fields (``event``, ``method``,
+        ``path``, ``status``, ``duration_ms``) become top-level JSON fields.
+
+        Args:
+            method: HTTP method.
+            path: Request path (without query string).
+            status: Response status code.
+            start_ns: ``time.perf_counter_ns()`` taken before handler execution.
+        """
+        if not self._access_log:
+            return
+        duration_ms = (time.perf_counter_ns() - start_ns) / 1_000_000
+        self._logger.info(
+            f"{method} {path} {status} {duration_ms:.3f}ms",
+            event="access",
+            method=method,
+            path=path,
+            status=status,
+            duration_ms=round(duration_ms, 3),
+        )
 
     @property
     def openapi(self) -> OpenAPI:
@@ -279,6 +320,7 @@ class Ferronit:
 
         method = scope.get("method", "GET")
         path = scope.get("path", "/")
+        start_ns = time.perf_counter_ns()
 
         # Rust CORS preflight — только для разрешённого Origin
         if method == "OPTIONS" and self._app.has_cors():
@@ -291,6 +333,7 @@ class Ferronit:
                     "headers": [(k.encode(), v.encode()) for k, v in preflight.items()],
                 })
                 await send({"type": "http.response.body", "body": b""})
+                self._log_access(method, path, 204, start_ns)
                 return
 
         # тело не читается здесь — только прокидываем лимит в Request
@@ -299,6 +342,7 @@ class Ferronit:
 
         result = self._app.resolve(method, path)
         if result is None:
+            self._log_access(method, path, 404, start_ns)
             await _send_error(send, NotFoundError("Route not found"))
             return
 
@@ -314,15 +358,19 @@ class Ferronit:
             if hasattr(py_result, "__await__"):
                 py_result = await py_result
         except RequestError as exc:
+            self._log_access(method, path, exc.status, start_ns)
             await _send_error(send, exc)
             return
-        except Exception:
+        except Exception as exc:
             if self._debug:
                 raise
+            self._logger.error("Unhandled exception", exc_info=exc, event="error")
+            self._log_access(method, path, 500, start_ns)
             await _send_error(send, InternalError("Internal server error"))
             return
 
         resp = _to_response(py_result)
+        self._log_access(method, path, resp._status, start_ns)
         # Rust CORS origin header — только для разрешённого Origin
         if self._app.has_cors():
             origin = _scope_header(scope, "origin") or ""
@@ -344,6 +392,113 @@ class Ferronit:
             resp._headers["Content-Encoding"] = "gzip"
 
         await resp._send(send)
+
+    async def __rsgi__(self, scope, proto) -> None:
+        """RSGI entry point (granian) — same dispatch, native transport.
+
+        Mirrors :meth:`__call__` for HTTP: the route is resolved in Rust, the
+        handler runs through the middleware chain, and its result is normalised
+        by :func:`_to_response`. The difference is transport — the request comes
+        from a native RSGI ``scope`` and the response goes out with one
+        ``proto.response_bytes(...)`` call instead of two ASGI ``send`` events.
+
+        Args:
+            scope: Native RSGI scope (``method`` / ``path`` / ``query_string`` /
+                ``headers`` attributes).
+            proto: Native RSGI protocol (``response_*`` methods; ``await proto()``
+                yields the request body).
+        """
+        self._flush_deferred()
+
+        method = scope.method
+        path = scope.path
+        start_ns = time.perf_counter_ns()
+
+        # Rust CORS preflight — только для разрешённого Origin
+        if method == "OPTIONS" and self._app.has_cors():
+            origin = _rsgi_header(scope, "origin") or ""
+            preflight = self._app.cors_preflight_headers(origin)
+            if preflight is not None:
+                proto.response_bytes(204, list(preflight.items()), b"")
+                self._log_access(method, path, 204, start_ns)
+                return
+
+        result = self._app.resolve(method, path)
+        if result is None:
+            self._log_access(method, path, 404, start_ns)
+            _rsgi_error(proto, NotFoundError("Route not found"))
+            return
+
+        handler_py, params = result
+        req = _rsgi_request(scope, proto, params, self._max_body_size)
+
+        try:
+            wrapped = self._mw_cache.get(handler_py)
+            if wrapped is None:
+                wrapped = self._middleware.wrap(handler_py)
+                self._mw_cache[handler_py] = wrapped
+            py_result = wrapped(req)
+            if hasattr(py_result, "__await__"):
+                py_result = await py_result
+        except RequestError as exc:
+            self._log_access(method, path, exc.status, start_ns)
+            _rsgi_error(proto, exc)
+            return
+        except Exception as exc:
+            if self._debug:
+                raise
+            self._logger.error("Unhandled exception", exc_info=exc, event="error")
+            self._log_access(method, path, 500, start_ns)
+            _rsgi_error(proto, InternalError("Internal server error"))
+            return
+
+        resp = _to_response(py_result)
+        self._log_access(method, path, resp._status, start_ns)
+
+        # Rust CORS origin header — только для разрешённого Origin
+        if self._app.has_cors():
+            origin = _rsgi_header(scope, "origin") or ""
+            allowed = self._app.cors_origin(origin)
+            if allowed:
+                resp._headers["Access-Control-Allow-Origin"] = allowed
+
+        # Trace ID propagation
+        tid = current_trace_id()
+        if tid:
+            resp._headers["X-Trace-Id"] = tid
+
+        # Rust GZip — уважаем q-факторы
+        accept_enc = req.get_header("accept-encoding") or ""
+        if _wants_gzip(accept_enc) and resp._body:
+            body_bytes = resp._body if isinstance(resp._body, bytes) else resp._body.encode()
+            resp._body = bytes(self._app.gzip_compress(body_bytes))
+            resp._headers["Content-Encoding"] = "gzip"
+
+        _rsgi_send(proto, resp)
+
+    def __rsgi_init__(self, loop) -> None:
+        """RSGI worker startup (granian) — run lifespan setup, then flush DI.
+
+        RSGI has no ASGI lifespan channel; granian instead calls ``__rsgi_init__``
+        once per worker before serving requests. We run the registered lifespan
+        up to its ``yield`` (pool creation and DI registration), then resolve any
+        deferred DI routes.
+        """
+        fn = self._lifespan_fn
+        if fn is None:
+            self._flush_deferred()
+            return
+        cm = asynccontextmanager(fn) if inspect.isasyncgenfunction(fn) else fn
+        self._rsgi_lifespan_cm = cm()
+        loop.run_until_complete(self._rsgi_lifespan_cm.__aenter__())
+        self._flush_deferred()
+
+    def __rsgi_del__(self, loop) -> None:
+        """RSGI worker shutdown (granian) — run lifespan teardown."""
+        cm = self._rsgi_lifespan_cm
+        if cm is not None:
+            loop.run_until_complete(cm.__aexit__(None, None, None))
+            self._rsgi_lifespan_cm = None
 
 
 def _wants_gzip(accept_encoding: str) -> bool:

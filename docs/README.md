@@ -16,6 +16,7 @@ Ferronit — быстрая замена легаси Python-сервисов, �
 - [Ошибки и валидация](errors.md) — код на каждую ошибку, `errors` с ошибками полей и не только
 - [Ответы и сериализация](responses.md) — `Response`/`JSONResponse`/стриминг, модели, кодеки
 - [Middleware и contrib](middleware.md) — CORS, security-заголовки, rate limiting, трассировка, health, статика
+- [Логирование](logging.md) — неблокирующий JSON/текстовый пайплайн, access-log и error-log
 - [WebSocket](websocket.md) — текстовые, бинарные и JSON-сообщения, Origin-защита
 - [OpenAPI](openapi.md) — автоматическая генерация схемы
 

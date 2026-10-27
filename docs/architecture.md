@@ -209,6 +209,7 @@ bound-параметры, максимум throughput.
 | Привязка параметров | [binding.md](binding.md) |
 | Request / Response | [requests.md](requests.md), [responses.md](responses.md) |
 | Middleware и contrib | [middleware.md](middleware.md) |
+| Логирование | [logging.md](logging.md) |
 | Rust-ядро | [rust-core.md](rust-core.md) |
 | Слой данных | [data/overview.md](data/overview.md), [data/rawdb.md](data/rawdb.md) |
 | OpenAPI | [openapi.md](openapi.md) |

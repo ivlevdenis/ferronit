@@ -1,7 +1,7 @@
 # Ferronit — документация
 
 Ferronit — быстрая замена легаси Python-сервисов, которые упираются в производительность.
-Горячий путь (роутинг, JSON, gzip, CORS) — в Rust-ядре `ferronit._core`,
+Горячий путь (роутинг, gzip, CORS) — в Rust-ядре `ferronit._core`, JSON — msgspec (Python),
 хендлеры — обычный Python.
 
 Документация на русском. Карта:

@@ -1,11 +1,8 @@
 // Прямой замер слоёв доступа к PostgreSQL на Go: pgx (драйвер), sqlx, GORM.
-// Плюс HTTP-сервис с теми же маршрутами, что у Ferronit (Python) и axum (Rust) в этом стенде.
+// Плюс HTTP-сервис на том же контракте, что у api_bench.py (Python-стенд):
+//   GET /ping, GET /rows?limit=N, POST /rows, PUT /rows/{id}, DELETE /rows/{id}, POST /rows/upsert.
 //
-// Замеры слоёв (GOMAXPROCS=1 — аналог одного потока/процесса):
-//   GOMAXPROCS=1 ./go_pg_bench --mode gorm --op select --clients 10 --requests 1000
-//
-// HTTP-сервис:
-//   GOMAXPROCS=1 ./go_pg_bench --serve --mode pgx --port 8301 --pool 16
+// Таблица — bench_rows (та же, что у Python-стенда), 1000 строк.
 package main
 
 import (
@@ -18,6 +15,7 @@ import (
 	"net/http"
 	"runtime"
 	"sort"
+	"strconv"
 	"sync"
 	"time"
 
@@ -28,6 +26,7 @@ import (
 	entsql "entgo.io/ent/dialect/sql"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 	"gorm.io/gorm/logger"
 
 	"ferronit_bench/ent"
@@ -35,30 +34,40 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib" // драйвер для database/sql, sqlx и ent
 )
 
-// fastJSON включает быстрый энкодер (sonic) вместо encoding/json — для проверки
-// гипотезы, что чтение в Go-сервисе упирается в reflection стандартного кодировщика.
 var fastJSON bool
 
 const (
 	dsn       = "postgres://postgres:postgres@127.0.0.1:5432/postgres"
-	selectSQL = "SELECT id, name, email FROM users LIMIT 100"
-	insertSQL = "INSERT INTO users (name, email) VALUES ($1, $2) RETURNING id, name"
+	selectSQL = "SELECT id, name, email FROM bench_rows LIMIT 100" // слои (фикс 100)
+	insertSQL = "INSERT INTO bench_rows (name, email) VALUES ($1, $2) RETURNING id, name"
+	updateSQL = "UPDATE bench_rows SET name = $1, email = $2 WHERE id = $3 RETURNING id"
+	upsertSQL = "INSERT INTO bench_rows (id, name, email) VALUES ($1, $2, $3) " +
+		"ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, email = EXCLUDED.email RETURNING id"
+	deleteSQL = "DELETE FROM bench_rows WHERE id = $1"
+	// rowsSQL — чтение с query-параметром limit (HTTP /rows?limit=N)
+	rowsSQL = "SELECT id, name, email FROM bench_rows LIMIT $1"
 )
 
-// User — одна и та же структура для pgx, sqlx и GORM (аналог dict/модели в Python-стенде).
 type User struct {
 	ID    int    `db:"id" json:"id"`
 	Name  string `db:"name" json:"name"`
 	Email string `db:"email" json:"email"`
 }
 
-type usersResponse struct {
-	Users []User `json:"users"`
+// gorm по умолчанию плюрализует User → users; явно ведём на bench_rows,
+// ту же таблицу, что у pgx/sqlx/ent и Python-стенда.
+func (User) TableName() string { return "bench_rows" }
+
+type rowsResponse struct {
+	Rows []User `json:"rows"`
 }
 
-type createdResponse struct {
-	ID   int    `json:"id"`
-	Name string `json:"name"`
+type idResponse struct {
+	ID int `json:"id"`
+}
+
+type okResponse struct {
+	OK bool `json:"ok"`
 }
 
 type newUser struct {
@@ -66,12 +75,18 @@ type newUser struct {
 	Email string `json:"email"`
 }
 
-// store держит ресурсы одного режима: пул pgx, хендл sqlx, GORM или ent.
+type upsertUser struct {
+	ID    int    `json:"id"`
+	Name  string `json:"name"`
+	Email string `json:"email"`
+}
+
 type store struct {
 	pgPool    *pgxpool.Pool
 	sqlxDB    *sqlx.DB
 	gormDB    *gorm.DB
 	entClient *ent.Client
+	rawDB     *sql.DB // для ent: тот же database/sql, что под ent-driver
 }
 
 func openStore(ctx context.Context, mode string, maxConns int) *store {
@@ -80,7 +95,7 @@ func openStore(ctx context.Context, mode string, maxConns int) *store {
 	case "pgx":
 		cfg, err := pgxpool.ParseConfig(dsn)
 		must(err, "разбор DSN")
-		cfg.MaxConns = int32(maxConns) // задаём ДО создания пула, иначе не применится
+		cfg.MaxConns = int32(maxConns)
 		s.pgPool, err = pgxpool.NewWithConfig(ctx, cfg)
 		must(err, "пул pgx")
 	case "sqlx":
@@ -102,6 +117,7 @@ func openStore(ctx context.Context, mode string, maxConns int) *store {
 		sqlDB, err := sql.Open("pgx", dsn)
 		must(err, "ent: database/sql")
 		sqlDB.SetMaxOpenConns(maxConns)
+		s.rawDB = sqlDB
 		s.entClient = ent.NewClient(ent.Driver(entsql.OpenDB(dialect.Postgres, sqlDB)))
 	default:
 		log.Fatalf("неизвестный режим: %s (есть: pgx, sqlx, gorm, ent)", mode)
@@ -159,7 +175,6 @@ func runBench(mode, op string, clients, requests int) {
 			local := make([]float64, 0, requests)
 
 			if st.pgPool != nil {
-				// одно соединение на клиента, как в asyncpg-пуле Python-стенда
 				conn, err := st.pgPool.Acquire(ctx)
 				must(err, "соединение pgx")
 				defer conn.Release()
@@ -239,67 +254,168 @@ func runBench(mode, op string, clients, requests int) {
 
 // ── HTTP-сервис ──────────────────────────────────────────────────────────────
 
+func (s *store) listUsers(ctx context.Context, limit int) []User {
+	switch {
+	case s.pgPool != nil:
+		rows, err := s.pgPool.Query(ctx, rowsSQL, limit)
+		must(err, "select pgx")
+		users := make([]User, 0, limit)
+		for rows.Next() {
+			var u User
+			must(rows.Scan(&u.ID, &u.Name, &u.Email), "scan pgx")
+			users = append(users, u)
+		}
+		rows.Close()
+		return users
+	case s.sqlxDB != nil:
+		var users []User
+		must(s.sqlxDB.SelectContext(ctx, &users, rowsSQL, limit), "select sqlx")
+		return users
+	case s.entClient != nil:
+		rows, err := s.entClient.User.Query().Limit(limit).All(ctx)
+		must(err, "select ent")
+		users := make([]User, 0, len(rows))
+		for _, u := range rows {
+			users = append(users, User{ID: u.ID, Name: u.Name, Email: u.Email})
+		}
+		return users
+	default:
+		var users []User
+		must(s.gormDB.WithContext(ctx).Limit(limit).Find(&users).Error, "select gorm")
+		return users
+	}
+}
+
+func (s *store) insertUser(ctx context.Context, name, email string) int {
+	switch {
+	case s.pgPool != nil:
+		var id int
+		var n string
+		must(s.pgPool.QueryRow(ctx, insertSQL, name, email).Scan(&id, &n), "insert pgx")
+		return id
+	case s.sqlxDB != nil:
+		var id int
+		var n string
+		must(s.sqlxDB.QueryRowxContext(ctx, insertSQL, name, email).Scan(&id, &n), "insert sqlx")
+		return id
+	case s.entClient != nil:
+		u, err := s.entClient.User.Create().SetName(name).SetEmail(email).Save(ctx)
+		must(err, "insert ent")
+		return u.ID
+	default:
+		u := User{Name: name, Email: email}
+		must(s.gormDB.WithContext(ctx).Create(&u).Error, "insert gorm")
+		return u.ID
+	}
+}
+
+func (s *store) updateUser(ctx context.Context, id int, name, email string) int {
+	switch {
+	case s.pgPool != nil:
+		var out int
+		err := s.pgPool.QueryRow(ctx, updateSQL, name, email, id).Scan(&out)
+		if err != nil {
+			return 0
+		}
+		return out
+	case s.sqlxDB != nil:
+		var out int
+		if err := s.sqlxDB.QueryRowxContext(ctx, updateSQL, name, email, id).Scan(&out); err != nil {
+			return 0
+		}
+		return out
+	case s.entClient != nil:
+		_, err := s.entClient.User.UpdateOneID(id).SetName(name).SetEmail(email).Save(ctx)
+		if err != nil {
+			return 0
+		}
+		return id
+	default:
+		res := s.gormDB.WithContext(ctx).Model(&User{}).Where("id = ?", id).
+			Updates(map[string]any{"name": name, "email": email})
+		if res.RowsAffected == 0 {
+			return 0
+		}
+		return id
+	}
+}
+
+func (s *store) upsertUser(ctx context.Context, id int, name, email string) int {
+	switch {
+	case s.pgPool != nil:
+		var out int
+		must(s.pgPool.QueryRow(ctx, upsertSQL, id, name, email).Scan(&out), "upsert pgx")
+		return out
+	case s.sqlxDB != nil:
+		var out int
+		must(s.sqlxDB.QueryRowxContext(ctx, upsertSQL, id, name, email).Scan(&out), "upsert sqlx")
+		return out
+	case s.entClient != nil:
+		var out int
+		must(s.rawDB.QueryRowContext(ctx, upsertSQL, id, name, email).Scan(&out), "upsert ent")
+		return out
+	default:
+		u := User{ID: id, Name: name, Email: email}
+		err := s.gormDB.WithContext(ctx).Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "id"}},
+			DoUpdates: clause.AssignmentColumns([]string{"name", "email"}),
+		}).Create(&u).Error
+		must(err, "upsert gorm")
+		return id
+	}
+}
+
+func (s *store) deleteUser(ctx context.Context, id int) {
+	switch {
+	case s.pgPool != nil:
+		_, _ = s.pgPool.Exec(ctx, deleteSQL, id)
+	case s.sqlxDB != nil:
+		_, _ = s.sqlxDB.ExecContext(ctx, deleteSQL, id)
+	case s.entClient != nil:
+		_ = s.entClient.User.DeleteOneID(id).Exec(ctx)
+	default:
+		_ = s.gormDB.WithContext(ctx).Delete(&User{}, id).Error
+	}
+}
+
 func serveHTTP(mode string, port, pool int) {
 	ctx := context.Background()
 	st := openStore(ctx, mode, pool)
 	defer st.close()
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/ping", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("GET /ping", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, map[string]bool{"ok": true})
 	})
-	mux.HandleFunc("/users", func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodGet:
-			var users []User
-			switch {
-			case st.pgPool != nil:
-				rows, err := st.pgPool.Query(r.Context(), selectSQL)
-				must(err, "select pgx")
-				users = make([]User, 0, 100)
-				for rows.Next() {
-					var u User
-					must(rows.Scan(&u.ID, &u.Name, &u.Email), "scan pgx")
-					users = append(users, u)
-				}
-				rows.Close()
-			case st.sqlxDB != nil:
-				must(st.sqlxDB.SelectContext(r.Context(), &users, selectSQL), "select sqlx")
-			case st.entClient != nil:
-				rows, err := st.entClient.User.Query().Limit(100).All(r.Context())
-				must(err, "select ent")
-				users = make([]User, 0, len(rows))
-				for _, u := range rows {
-					users = append(users, User{ID: u.ID, Name: u.Name, Email: u.Email})
-				}
-			default:
-				must(st.gormDB.WithContext(r.Context()).Limit(100).Find(&users).Error, "select gorm")
+	mux.HandleFunc("GET /rows", func(w http.ResponseWriter, r *http.Request) {
+		limit := 100
+		if v := r.URL.Query().Get("limit"); v != "" {
+			if n, err := strconv.Atoi(v); err == nil {
+				limit = n
 			}
-			writeJSON(w, usersResponse{Users: users})
-		case http.MethodPost:
-			var body newUser
-			must(json.NewDecoder(r.Body).Decode(&body), "разбор тела")
-			switch {
-			case st.pgPool != nil:
-				var created createdResponse
-				must(st.pgPool.QueryRow(r.Context(), insertSQL, body.Name, body.Email).Scan(&created.ID, &created.Name), "insert pgx")
-				writeJSON(w, created)
-			case st.sqlxDB != nil:
-				var created createdResponse
-				must(st.sqlxDB.QueryRowxContext(r.Context(), insertSQL, body.Name, body.Email).Scan(&created.ID, &created.Name), "insert sqlx")
-				writeJSON(w, created)
-			case st.entClient != nil:
-				u, err := st.entClient.User.Create().SetName(body.Name).SetEmail(body.Email).Save(r.Context())
-				must(err, "insert ent")
-				writeJSON(w, createdResponse{ID: u.ID, Name: u.Name})
-			default:
-				u := User{Name: body.Name, Email: body.Email}
-				must(st.gormDB.WithContext(r.Context()).Create(&u).Error, "insert gorm")
-				writeJSON(w, createdResponse{ID: u.ID, Name: u.Name})
-			}
-		default:
-			w.WriteHeader(http.StatusMethodNotAllowed)
 		}
+		writeJSON(w, rowsResponse{Rows: st.listUsers(r.Context(), limit)})
+	})
+	mux.HandleFunc("POST /rows", func(w http.ResponseWriter, r *http.Request) {
+		var body newUser
+		must(json.NewDecoder(r.Body).Decode(&body), "разбор тела")
+		writeJSON(w, idResponse{ID: st.insertUser(r.Context(), body.Name, body.Email)})
+	})
+	mux.HandleFunc("PUT /rows/{id}", func(w http.ResponseWriter, r *http.Request) {
+		var body newUser
+		must(json.NewDecoder(r.Body).Decode(&body), "разбор тела")
+		id, _ := strconv.Atoi(r.PathValue("id"))
+		writeJSON(w, idResponse{ID: st.updateUser(r.Context(), id, body.Name, body.Email)})
+	})
+	mux.HandleFunc("DELETE /rows/{id}", func(w http.ResponseWriter, r *http.Request) {
+		id, _ := strconv.Atoi(r.PathValue("id"))
+		st.deleteUser(r.Context(), id)
+		writeJSON(w, okResponse{OK: true})
+	})
+	mux.HandleFunc("POST /rows/upsert", func(w http.ResponseWriter, r *http.Request) {
+		var body upsertUser
+		must(json.NewDecoder(r.Body).Decode(&body), "разбор тела")
+		writeJSON(w, idResponse{ID: st.upsertUser(r.Context(), body.ID, body.Name, body.Email)})
 	})
 
 	fmt.Printf("go_pg_bench сервис готов: режим %s, порт %d, пул %d\n", mode, port, pool)

@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import inspect
 from contextlib import asynccontextmanager
+from typing import Any
 
 import msgspec
 
 from ferronit._core import FerronitApp as RustApp
-from ferronit._core import Response as RustResp
 from ferronit.contrib.tracing import current_trace_id
 from ferronit.core.request import Request as PyRequest
 from ferronit.core.request import RequestError
@@ -17,7 +17,8 @@ from ferronit.core.response import (
     Response,
     StreamingResponse,
     TextResponse,
-    _msgspec_json,
+    _clean_header,
+    _json_encode,
 )
 from ferronit.di import Container
 from ferronit.errors import InternalError, NotFoundError
@@ -420,35 +421,28 @@ def _to_response(result) -> Response:
         Response: The response object ready to be sent.
     """
     if _struct_payload(result):
-        body = _msgspec_json(result)
-        if body is not None:
-            return Response(body=body, status=200, content_type="application/json; charset=utf-8")
+        return Response(
+            body=_json_encode(result),
+            status=200,
+            content_type="application/json; charset=utf-8",
+        )
     if isinstance(result, (dict, list)):
-        body = _msgspec_json(result)
-        if body is not None:
-            return Response(body=body, status=200, content_type="application/json; charset=utf-8")
-        r = RustResp.json(result, 200)
-        return Response(body=bytes(r.body), status=r.status, content_type=r.content_type)
+        return Response(
+            body=_json_encode(result),
+            status=200,
+            content_type="application/json; charset=utf-8",
+        )
     # (payload, status) — документированный паттерн: `return {"error": "..."}, 404`
     if isinstance(result, tuple) and len(result) == 2 and isinstance(result[1], int):
         payload, tuple_status = result
-        if _struct_payload(payload):
-            body = _msgspec_json(payload)
-            if body is not None:
-                return Response(
-                    body=body, status=tuple_status, content_type="application/json; charset=utf-8"
-                )
-        if isinstance(payload, (dict, list)):
-            body = _msgspec_json(payload)
-            if body is not None:
-                return Response(
-                    body=body, status=tuple_status, content_type="application/json; charset=utf-8"
-                )
-            r = RustResp.json(payload, tuple_status)
-            return Response(body=bytes(r.body), status=r.status, content_type=r.content_type)
+        if _struct_payload(payload) or isinstance(payload, (dict, list)):
+            return Response(
+                body=_json_encode(payload),
+                status=tuple_status,
+                content_type="application/json; charset=utf-8",
+            )
         if isinstance(payload, str):
-            r = RustResp.text(payload, tuple_status)
-            return Response(body=bytes(r.body), status=r.status, content_type=r.content_type)
+            return Response(body=payload.encode(), status=tuple_status, content_type="text/plain")
         inner = _to_response(payload)
         inner._status = tuple_status
         return inner
@@ -459,8 +453,11 @@ def _to_response(result) -> Response:
     if hasattr(result, "model_dump"):
         return JSONResponse.from_model(result)
     if hasattr(result, "__dataclass_fields__") or hasattr(result, "__columns__") or hasattr(result, "__struct_fields__"):
-        r = RustResp.json(result, 200)
-        return Response(body=bytes(r.body), status=r.status, content_type=r.content_type)
+        return Response(
+            body=_json_encode(result),
+            status=200,
+            content_type="application/json; charset=utf-8",
+        )
     if hasattr(result, "__aiter__"):
         return StreamingResponse(result)
     return TextResponse(str(result))
@@ -489,3 +486,72 @@ async def _send_error(send, exc: RequestError) -> None:
         ],
     })
     await send({"type": "http.response.body", "body": body})
+
+
+def _rsgi_request(scope, proto, params, max_body_size):
+    """Build a :class:`Request` from a native RSGI scope.
+
+    The native scope is mapped onto the same shape :class:`Request` expects
+    from ASGI (method / path / query_string / headers), and ``receive`` reads
+    the body once via ``await proto()``.
+
+    Args:
+        scope: Native RSGI scope.
+        proto: Native RSGI protocol.
+        params: Path parameters captured by the route.
+        max_body_size: Body limit propagated into the Request.
+
+    Returns:
+        Request: The request, ready for the middleware chain.
+    """
+    try:
+        raw_headers = list(scope.headers.items())
+    except Exception:
+        raw_headers = []
+
+    qs = getattr(scope, "query_string", "") or ""
+    asgi_scope = {
+        "method": getattr(scope, "method", "GET"),
+        "path": getattr(scope, "path", "/"),
+        "query_string": qs,
+        "headers": raw_headers,
+    }
+    if max_body_size is not None:
+        asgi_scope["ferronit.max_body_size"] = max_body_size
+
+    body_cache = None
+
+    async def receive():
+        nonlocal body_cache
+        if body_cache is None:
+            body_cache = await proto()
+        return {"type": "http.request", "body": body_cache, "more_body": False}
+
+    return PyRequest(asgi_scope, receive, params)
+
+
+def _rsgi_header(scope, name: str) -> str | None:
+    """Read a header from a native RSGI scope, case-insensitively."""
+    needle = name.lower()
+    try:
+        for k, v in scope.headers.items():
+            if str(k).lower() == needle:
+                return v if isinstance(v, str) else v.decode("latin-1")
+    except Exception:
+        pass
+    return None
+
+
+def _rsgi_error(proto, exc: RequestError) -> None:
+    """Write a structured JSON error response through the RSGI protocol."""
+    body = msgspec.json.encode(exc.payload())
+    proto.response_bytes(exc.status, [("content-type", "application/json")], body)
+
+
+def _rsgi_send(proto, resp: Response) -> None:
+    """Send a :class:`Response` through the RSGI protocol (one native call)."""
+    headers = [("content-type", _clean_header(resp._content_type))]
+    for k, v in resp._headers.items():
+        headers.append((_clean_header(k), _clean_header(v)))
+    body = resp._body if isinstance(resp._body, bytes) else resp._body.encode()
+    proto.response_bytes(resp._status, headers, body)

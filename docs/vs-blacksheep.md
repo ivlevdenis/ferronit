@@ -159,7 +159,7 @@ FastAPI, где sync уходит в threadpool. Ferronit async-only: sync-хе�
   OpenAPI, CORS/сессиями/аутентификацией из коробки, на ~90k req/s; зрелая
   библиотека с историей.
 - **Ferronit** — те же ~92–96k на ping плюс доменные блоки (DDD/CQRS, порты и
-  адаптеры, UoW) и Rust-ядро под JSON/gzip/CORS; данных слой — rawdb/rawmodel
+  адаптеры, UoW) и Rust-ядро под gzip/CORS (JSON — msgspec в Python); данных слой — rawdb/rawmodel
   без ORM.
 - **Ни то, ни другое** — если сервису нужны админка, ORM и миграции: это
   [Django](vs-django.md) (или SQLAlchemy + Alembic рядом с любым из этих

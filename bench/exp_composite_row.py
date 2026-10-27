@@ -7,14 +7,12 @@
 """
 
 import asyncio
-import sys
 import time
 
 import asyncpg
 import msgspec
 
-sys.path.insert(0, "bench")
-from micro_bench_model_serdes import DSN  # noqa: E402
+DSN = "postgresql://postgres:postgres@127.0.0.1:5432/postgres"
 
 
 class BenchRow(msgspec.Struct):

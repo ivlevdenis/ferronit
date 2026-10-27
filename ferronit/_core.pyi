@@ -49,8 +49,6 @@ class Request:
         """Case-insensitive lookup over raw bytes; `None` when absent."""
 
     def set_body(self, body: bytes) -> None: ...
-    def json(self) -> Any:
-        """Parse the body as JSON; raises ValueError on malformed input."""
 
     def parse_multipart(
         self, boundary: str
@@ -67,10 +65,6 @@ class Response:
     def body(self) -> bytes: ...
     @property
     def content_type(self) -> str: ...
-    @staticmethod
-    def json(data: Any, status: int | None = ...) -> Response:
-        """Serialize ``data`` with serde_json, escaping HTML-significant characters."""
-
     @staticmethod
     def text(text: str, status: int | None = ...) -> Response: ...
 
@@ -103,12 +97,3 @@ class FerronitApp:
         """``Access-Control-Allow-Origin`` value for allowed origins, else ``None``."""
 
     def gzip_compress(self, data: bytes) -> bytes: ...
-    def handle_request(
-        self,
-        method: str,
-        path: str,
-        query_string: str,
-        raw_headers: list[tuple[bytes, bytes]],
-        body: bytes,
-    ) -> Response:
-        """Route one request and call the Python handler directly (used by benchmarks)."""

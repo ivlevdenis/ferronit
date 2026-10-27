@@ -43,7 +43,6 @@ PY
 SPECS=(
   "8351|serdes_bench.app_framework:app|framework (как сейчас)"
   "8352|serdes_bench.app_noescape:app|без экранирования"
-  "8353|serdes_bench.app_rust:app|Rust-писатель"
   "8354|serdes_bench.app_cached:app|cached (потолок модели)"
   "8355|serdes_bench.app_jsonsql:app|json_agg (потолок ser)"
 )

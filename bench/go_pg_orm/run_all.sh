@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Замер Go-стенда: слои доступа (pgx / sqlx / GORM) и HTTP-сервис.
-# Протокол тот же, что у Python- и Rust-стендов:
-#   слои — 10 клиентов × 1000 запросов; HTTP — ab -c 50 -k, GET 5000, POST 3000, ping 10000.
-#
+# Замер Go-стенда на том же контракте, что и api_bench.py (Python-стенд):
+#   GET /ping, GET /rows?limit=N (1/20/50/100/1000), POST /rows, PUT /rows/{id},
+#   DELETE /rows/{id}, POST /rows/upsert. Таблица — bench_rows.
+# Слои доступа (pgx/sqlx/gorm/ent) — 10 клиентов × 1000 запросов, select/insert.
 # Запуск: ./run_all.sh
 
 set -uo pipefail
@@ -10,9 +10,16 @@ cd "$(dirname "$0")"
 
 BIN=./go_pg_bench
 BODY=/tmp/_bench_pg_post.json
+UPBODY=/tmp/_bench_pg_upsert.json
 printf '{"name": "bench", "email": "bench@example.com"}' > "$BODY"
+printf '{"id": 1, "name": "bench", "email": "bench@example.com"}' > "$UPBODY"
 
-echo "# Go: слои доступа, PostgreSQL 18.6 в Docker"
+seed() {
+  docker exec velox-pg psql -U postgres -d postgres -q \
+    -c "TRUNCATE bench_rows RESTART IDENTITY; INSERT INTO bench_rows (name,email) SELECT 'user_'||g,'u'||g||'@example.com' FROM generate_series(1,1000) g;" >/dev/null 2>&1
+}
+
+echo "# Go: слои доступа, PostgreSQL 18.6 в Docker (таблица bench_rows)"
 for procs in 1 8; do
   for op in select insert; do
     for mode in pgx sqlx gorm ent; do
@@ -22,11 +29,11 @@ for procs in 1 8; do
 done
 
 echo
-echo "# Go: HTTP-сервис (net/http), ab -c 50 -k"
+echo "# Go: HTTP-сервис (net/http), ab -c 50 -k, контракт api_bench.py"
 
 run_http() {
-  local mode=$1 procs=$2 port=$3 pool=$4 json=${5:-std}
-  GOMAXPROCS=$procs "$BIN" --serve --mode "$mode" --port "$port" --pool "$pool" --json "$json" &
+  local mode=$1 procs=$2 port=$3
+  GOMAXPROCS=$procs "$BIN" --serve --mode "$mode" --port "$port" --pool 16 &
   local pid=$!
   local ready=""
   for _ in $(seq 1 60); do
@@ -43,25 +50,30 @@ run_http() {
     return 1
   fi
 
-  local get post ping
-  get=$(ab -n 5000 -c 50 -k "http://127.0.0.1:$port/users" 2>/dev/null | awk '/^Requests per second/ {print $4}')
-  post=$(ab -n 3000 -c 50 -k -p "$BODY" -T application/json \
-        "http://127.0.0.1:$port/users" 2>/dev/null | awk '/^Requests per second/ {print $4}')
+  local ping r1 r20 r50 r100 r1000 ins upd ups del
   ping=$(ab -n 10000 -c 50 -k "http://127.0.0.1:$port/ping" 2>/dev/null | awk '/^Requests per second/ {print $4}')
+  r1=$(ab -n 5000 -c 50 -k "http://127.0.0.1:$port/rows?limit=1" 2>/dev/null | awk '/^Requests per second/ {print $4}')
+  r20=$(ab -n 5000 -c 50 -k "http://127.0.0.1:$port/rows?limit=20" 2>/dev/null | awk '/^Requests per second/ {print $4}')
+  r50=$(ab -n 5000 -c 50 -k "http://127.0.0.1:$port/rows?limit=50" 2>/dev/null | awk '/^Requests per second/ {print $4}')
+  r100=$(ab -n 5000 -c 50 -k "http://127.0.0.1:$port/rows?limit=100" 2>/dev/null | awk '/^Requests per second/ {print $4}')
+  r1000=$(ab -n 5000 -c 50 -k "http://127.0.0.1:$port/rows?limit=1000" 2>/dev/null | awk '/^Requests per second/ {print $4}')
+  seed; ins=$(ab -n 3000 -c 50 -k -p "$BODY" -T application/json "http://127.0.0.1:$port/rows" 2>/dev/null | awk '/^Requests per second/ {print $4}')
+  seed; upd=$(ab -n 3000 -c 50 -k -u "$BODY" -T application/json "http://127.0.0.1:$port/rows/1" 2>/dev/null | awk '/^Requests per second/ {print $4}')
+  seed; ups=$(ab -n 3000 -c 50 -k -p "$UPBODY" -T application/json "http://127.0.0.1:$port/rows/upsert" 2>/dev/null | awk '/^Requests per second/ {print $4}')
+  seed; del=$(ab -n 3000 -c 50 -k -m DELETE "http://127.0.0.1:$port/rows/1" 2>/dev/null | awk '/^Requests per second/ {print $4}')
 
-  printf 'Go   %-5s GOMAXPROCS=%-2s пул=%-3s json=%-5s  GET /users %9s   POST /users %9s   GET /ping %9s\n' \
-    "$mode" "$procs" "$pool" "$json" "$get" "$post" "$ping"
+  printf 'Go %-5s GOMAXPROCS=%-2s ping=%8s rows1=%7s rows20=%7s rows50=%7s rows100=%7s rows1000=%7s ins=%7s upd=%6s ups=%6s del=%7s\n' \
+    "$mode" "$procs" "$ping" "$r1" "$r20" "$r50" "$r100" "$r1000" "$ins" "$upd" "$ups" "$del"
 
   kill "$pid" 2>/dev/null || true
   wait "$pid" 2>/dev/null || true
   sleep 1
 }
 
-run_http pgx  1 8301 16 std
-run_http pgx  8 8302 16 std
-run_http pgx  8 8303 64 std
-run_http pgx  8 8304 64 sonic   # проверка: упирается ли чтение в encoding/json
-run_http gorm 1 8305 16 std
-run_http gorm 8 8306 16 std
-run_http ent  1 8307 16 std
-run_http ent  8 8308 16 std
+# GOMAXPROCS=1 — честное сравнение с Ferronit (1 процесс)
+run_http pgx  1 8301
+run_http sqlx 1 8302
+run_http gorm 1 8303
+run_http ent  1 8304
+# GOMAXPROCS=8 — несколько ядер (дополнительная точка)
+run_http pgx  8 8305

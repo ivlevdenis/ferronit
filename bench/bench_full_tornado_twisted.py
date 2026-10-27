@@ -36,7 +36,7 @@ WRITES = [
 VARIANTS = {
     "Ferronit B (granian)": {
         "port": 8321,
-        "cmd": [PY, "-m", "granian", "--interface", "asgi", "--no-ws",
+        "cmd": [PY, "-m", "granian", "--interface", "rsgi",
                 "--host", "127.0.0.1", "--port", "8321", "--workers", "1",
                 "--log-level", "warning",
                 "django_bench.ferronit_service:app", "--working-dir", "bench"],

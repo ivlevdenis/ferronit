@@ -12,20 +12,20 @@ Ferronit — высокопроизводительный ASGI-фреймвор�
 | Слой | Технология | Зачем |
 |---|---|---|
 | Сервер | granian (uvicorn — fallback) | продакшен-ASGI, 1 воркер ~100k req/s |
-| Rust-ядро | `ferronit._core` (maturin, `ferronit-rs/`) | radix-роутинг, JSON, gzip, CORS, multipart |
+| Rust-ядро | `ferronit._core` (maturin, `ferronit-rs/`) | radix-роутинг, gzip, CORS, multipart, разбор query/headers |
 | Ядро Python | `ferronit/core/` | ASGI-диспетчер, Request/Response |
-| Сериализация | Rust `serde_json` + msgspec (C fast-path) | stdlib `json` выпилен полностью |
+| Сериализация | msgspec (C fast-path), fallback stdlib `json` | единый C fast-path в Python |
 | БД | rawdb/rawmodel + драйвер (asyncpg / aiomysql / aiosqlite — extras) | явный SQL, типизированные модели, без ORM |
 | Домен | `ddd.py`, `hexagonal.py` | Command/Query, агрегаты, порты/адаптеры, UoW |
 | Конфиг/CLI | `config.py`, `cli.py` | EnvConfig, генератор проекта, dev/run |
 
 **Принципы:**
 
-1. **Горячий путь — на Rust.** Маршрутизация, разбор запроса, JSON, gzip, CORS и
+1. **Горячий путь — на Rust.** Маршрутизация, разбор запроса, gzip, CORS и
    multipart не проходят через Python на каждый запрос.
 2. **Python — только бизнес-логика.** Хендлер получает уже распарсенный запрос и
    возвращает данные; dict/list и msgspec-модели сериализует msgspec (C fast-path),
-   а Rust (`serde_json`) — fallback для dataclass/rawmodel и неподдерживаемых типов.
+   а stdlib `json` (default=str) — fallback для dataclass/rawmodel и неподдерживаемых типов.
 3. **Явный SQL вместо ORM.** rawdb/rawmodel поверх драйвера (PostgreSQL, MySQL
    или SQLite) — максимум throughput и предсказуемость.
 4. **Домен отделён от HTTP.** DDD/гексагональные блоки поставляются из коробки,
@@ -70,7 +70,7 @@ Ferronit — высокопроизводительный ASGI-фреймвор�
 | Компонент | Модуль | Назначение |
 |---|---|---|
 | Приложение | `ferronit/core/app.py` | класс `Ferronit` — ASGI-диспетчер, lifespan, WS, HTTP |
-| Rust-ядро | `ferronit._core` (`ferronit-rs/`) | radix-роутинг, разбор запроса, JSON, gzip, CORS, multipart |
+| Rust-ядро | `ferronit._core` (`ferronit-rs/`) | radix-роутинг, разбор запроса, gzip, CORS, multipart |
 | Request | `ferronit/core/request.py` | ленивое чтение тела, query/headers, загрузки, ошибки |
 | Response | `ferronit/core/response.py` | `JSONResponse`, `TextResponse`, `StreamingResponse`, `Response` |
 | Роутинг | `ferronit._core` (Rust) | дерево маршрутов HTTP/WS, поиск по radix-дереву |
@@ -125,7 +125,6 @@ Ferronit — высокопроизводительный ASGI-фреймвор�
 |---|---|
 | Маршрутизация | radix-дерево `matchit` — O(1), без regex |
 | Разбор запроса | method/path/query/headers нативно |
-| JSON | `serde_json` + экранирование HTML-символов |
 | gzip | сжатие в Rust, q-факторы |
 | CORS | preflight и origin в Rust |
 | Multipart | нативный парсер form-data |
@@ -192,8 +191,8 @@ bound-параметры, максимум throughput.
 
 | Решение | Причина |
 |---|---|
-| Горячий путь в Rust | radix-роутинг O(1), JSON/gzip/CORS/multipart без Python на запрос |
-| JSON в Rust | `serde_json` в `ferronit._core` (fallback / dataclass / парсинг) + msgspec C fast-path (dict/list/Struct и `JSONResponse`); stdlib `json` выпилен |
+| Горячий путь в Rust | radix-роутинг O(1), gzip/CORS/multipart без Python на запрос |
+| JSON | msgspec C fast-path (dict/list/Struct и `JSONResponse`), fallback stdlib `json` (dataclass/rawmodel); Rust-писатель выпилен |
 | Явный SQL без ORM | rawdb/rawmodel на драйвере (asyncpg/aiomysql/aiosqlite): максимум throughput, предсказуемость, без ORM-накладных |
 | Позиционный маппинг rawmodel | `cls(*row)` дешевле dict-маппинга |
 | granian как сервер | ~4× быстрее uvicorn на этом фреймворке; uvicorn — fallback |

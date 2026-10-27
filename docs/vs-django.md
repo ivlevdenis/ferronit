@@ -24,7 +24,7 @@
 
 Django-версия и обе Ferronit-версии отдают одни и те же данные: `{"ok": true}`,
 `{"rows": [{"id": 1, "name": "ada", "email": "a@x"}]}`, `{"id": 1}`, `{"ok": true}` —
-различается только форматирование JSON (stdlib `json` против msgspec/serde_json).
+различается только форматирование JSON (stdlib `json` против msgspec).
 
 ## Цена в строках
 

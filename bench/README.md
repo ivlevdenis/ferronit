@@ -45,7 +45,6 @@ UPDATE/UPSERT/DELETE били по существующим строкам, а �
 | `_probe_batch_durability.py`, `_probe_batch_limits.py`, `_probe_copy.py` | батчинг и сохранность: атомарность, SIGKILL-опыт с крахом контейнера, предел параметров, `COPY` против multi-row `INSERT` |
 | `_probe_copy_semantics.py`, `_probe_copy_transaction.py` | семантика `COPY … FROM STDIN`: участие в транзакции, атомарность пачки, `serial`/триггеры, отсутствие `RETURNING` (**COPY не берём — решение 16.10.2026, пробники оставлены как справка**) |
 | `pg_wire.py`, `wire_bench.py` | самодельный клиент по проводу PostgreSQL (SCRAM, simple/extended, пайплайн) против asyncpg |
-| `micro_bench_json.py`, `micro_bench_response.py`, `micro_bench_model.py` | микрозамеры (Rust JSON против json.dumps, сборка ответа json+gzip, маппинг строк) — без HTTP |
 | `rust_pg_orm/`, `rust_pg_1row/`, `go_pg_orm/`, `go_pg_1row/` | кросс-языковые стенды: `tokio-postgres`/`sqlx`/`SeaORM`, `pgx`/`sqlx`/`GORM`/`ent` |
 | `prof_*.py` | профилирование горячего пути (cProfile) |
 | `legacy/` | старые HTTP-бенчи (маршрутизация, payload, bulk-строки, потолок granian) — не актуализируются |

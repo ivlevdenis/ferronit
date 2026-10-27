@@ -239,7 +239,7 @@ class Request:
         return body
 
     async def json(self) -> object:
-        """Read the body and parse it as JSON.
+        """Read the body and parse it as JSON (msgspec's C decoder).
 
         Returns:
             object: The decoded JSON value (any JSON type).
@@ -247,9 +247,9 @@ class Request:
         Raises:
             RequestError: If the body is not valid JSON — mapped to HTTP 400.
         """
-        await self.body()
+        body = await self.body()
         try:
-            return self._rust.json()
+            return msgspec.json.decode(body)
         except ValueError as e:
             raise RequestError(f"Malformed JSON body: {e}", code=INVALID_JSON) from None
 

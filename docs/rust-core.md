@@ -10,7 +10,6 @@
 |---|---|
 | Маршрутизация | radix-дерево `matchit` — O(1) поиск, без regex на запрос |
 | Разбор запроса | method/path/query/headers парсятся нативно |
-| JSON | `serde_json` с экранированием HTML-значимых символов |
 | gzip | сжатие в Rust с учётом q-факторов `Accept-Encoding` |
 | CORS | preflight и разрешение origin без Python |
 | Multipart | нативный парсер multipart/form-data |
@@ -34,7 +33,6 @@ app.cors_is_wildcard()                          # bool — разрешён ли
 app.cors_preflight_headers(origin)              # dict | None
 app.cors_origin(origin)                         # значение allow-origin | None
 app.gzip_compress(data: bytes) -> bytes
-app.handle_request(method, path, query_string, raw_headers, body)  # Response (бенчи)
 ```
 
 ### `Request` / `Response`
@@ -44,10 +42,8 @@ r = Request(method, path, query_string)
 r.set_headers(raw_bytes_headers)
 r.headers / r.query / r.get_header(name)
 r.set_body(body)
-r.json()                          # ValueError при некорректном вводе
 r.parse_multipart(boundary)       # → (fields, files)
 
-resp = Response.json(data, status)          # serde_json
 resp = Response.text(text, status)
 resp.body / resp.status / resp.content_type
 ```

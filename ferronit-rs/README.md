@@ -8,9 +8,8 @@ Native Rust core for the [Ferronit](../README.md) ASGI web framework.
 ## Что внутри
 
 - `Router` — matchit-роутер: регистрация маршрутов, `lookup`/`resolve` без копий строк
-- `Request` — ленивый парсер заголовков, query (UTF-8-корректный `url_decode`), JSON
-- `Response` — `json` (сериализация напрямую в буфер, без промежуточного `serde_json::Value`),
-  `text`, gzip-сжатие, экранирование `<`/`>`/`&` в JSON
+- `Request` — ленивый парсер заголовков, query (UTF-8-корректный `url_decode`), multipart
+- `Response` — `text`, gzip-сжатие
 - `FerronitApp` — ASGI-приложение: маршрутизация, CORS-preflight, gzip по q-факторам
 
 ## Сборка

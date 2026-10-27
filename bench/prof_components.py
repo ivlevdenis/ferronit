@@ -59,7 +59,7 @@ def main():
     req = Request(scope, noop_receive, None)
     results["req.headers (кэш)"] = bench(lambda: req.headers)
 
-    # 4. _to_response: dict -> Response (RustResp.json + обёртка)
+    # 4. _to_response: dict -> Response (msgspec + обёртка)
     results["_to_response (dict)"] = bench(lambda: _to_response({"route": 0}))
 
     # 5. Response._send (кодирование заголовков + 2 await send)

@@ -14,7 +14,7 @@ alwaysApply: true
 - **Стиль**: полные type hints на публичных функциях; докстринги на английском (Google-style);
   публичный API в `__all__`; приватное — с `_`. Пакет помечен `py.typed`.
 - **Не ломать**: версии `ferronit/__init__.py` == `ferronit-rs/Cargo.toml` (ловится тестом);
-  `Cargo.lock` в репо; `abi3-py312` не понижать; `ferronit_core.Response` импортировать как `RustResp`;
+  `Cargo.lock` в репо; `abi3-py312` не понижать;
   PyO3 `#[getter]` срезает `get_` (в Python `.status`); `X-Trace-Id` ставить в `__call__` после
   `_to_response`; middleware не await'ит синхронные хендлеры.
 - **Порядок работ**: сначала падающий тест, потом код. Публичное поведение без теста не менять.

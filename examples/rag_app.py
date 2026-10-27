@@ -71,7 +71,7 @@ vectors: VectorDbPort = MockVectorDb()  # в проде: QdrantAdapter("http://l
 
 CORPUS: dict[str, str] = {
     "routing": "Роутинг и разбор пути живут в Rust, matchit: около 1% времени запроса.",
-    "json": "JSON пишется serde_json одним проходом и экранирует HTML-символы.",
+    "json": "JSON пишется msgspec C-энкодером и экранирует HTML-символы.",
     "ddd": "DDD, CQRS и hexagonal дают каркас: агрегат, CommandBus, порты и адаптеры.",
 }
 

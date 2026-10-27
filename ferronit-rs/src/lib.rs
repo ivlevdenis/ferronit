@@ -1,8 +1,7 @@
 /// Ferronit native core — Router, Request parser, JSON, full ASGI app.
 use matchit::Router as MatchitRouter;
 use pyo3::prelude::*;
-use pyo3::types::{PyBool, PyBytes, PyDict, PyFloat, PyInt, PyList, PyString, PyTuple};
-use serde::ser::Serializer as _;
+use pyo3::types::{PyBytes, PyDict, PyList};
 use std::collections::HashMap;
 
 // ── Router ────────────────────────────────────────────────────────────
@@ -170,13 +169,6 @@ impl Request {
 
     fn set_body(&mut self, body: Vec<u8>) {
         self.body = Some(body);
-    }
-
-    fn json(&self, py: Python<'_>) -> PyResult<PyObject> {
-        let body = self.body.as_deref().unwrap_or(b"{}");
-        serde_json::from_slice::<serde_json::Value>(body)
-            .map(|v| json_to_python(py, &v))
-            .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("Invalid JSON: {}", e)))
     }
 
     /// Parse a ``multipart/form-data`` body.
@@ -389,22 +381,6 @@ impl Response {
     }
 
     #[staticmethod]
-    fn json(data: Bound<'_, PyAny>, status: Option<u16>) -> PyResult<Self> {
-        let py = data.py();
-        let mut body = Vec::with_capacity(64);
-        write_json(py, &data, &mut body)?;
-        // XSS guard: escape HTML-significant chars (valid inside JSON strings).
-        // `<`, `>`, `&` never appear outside string literals, so a byte-level
-        // replace is safe and keeps <script> from breaking out of JSON in HTML.
-        escape_html(&mut body);
-        Ok(Response {
-            body: PyBytes::new(py, &body).into(),
-            status: status.unwrap_or(200),
-            content_type: "application/json; charset=utf-8".to_string(),
-        })
-    }
-
-    #[staticmethod]
     fn text(text: String, status: Option<u16>, py: Python<'_>) -> Self {
         let body = text.into_bytes();
         Response {
@@ -413,209 +389,6 @@ impl Response {
             content_type: "text/plain".to_string(),
         }
     }
-}
-
-fn json_to_python(py: Python<'_>, v: &serde_json::Value) -> PyObject {
-    match v {
-        serde_json::Value::Null => py.None(),
-        serde_json::Value::Bool(b) => b.into_py(py),
-        serde_json::Value::Number(n) => {
-            if let Some(i) = n.as_i64() { i.into_py(py) }
-            else if let Some(f) = n.as_f64() { f.into_py(py) }
-            else { n.to_string().into_py(py) }
-        }
-        serde_json::Value::String(s) => s.into_py(py),
-        serde_json::Value::Array(arr) => {
-            let list: Vec<PyObject> = arr.iter().map(|v| json_to_python(py, v)).collect();
-            PyList::new(py, list).unwrap().into()
-        }
-        serde_json::Value::Object(obj) => {
-            let dict = PyDict::new(py);
-            for (k, v) in obj { dict.set_item(k, json_to_python(py, v)).unwrap(); }
-            dict.into()
-        }
-    }
-}
-
-/// Escape `<`, `>`, `&` as `\uXXXX` (JSON-safe, XSS-proof inside HTML).
-fn escape_html(body: &mut Vec<u8>) {
-    let mut i = 0;
-    while i < body.len() {
-        let repl: &[u8] = match body[i] {
-            b'<' => b"\\u003c",
-            b'>' => b"\\u003e",
-            b'&' => b"\\u0026",
-            _ => {
-                i += 1;
-                continue;
-            }
-        };
-        body.splice(i..i + 1, repl.iter().copied());
-        i += repl.len();
-    }
-}
-
-/// Map a `serde_json` error into a Python `ValueError`.
-fn serde_err(error: serde_json::Error) -> PyErr {
-    pyo3::exceptions::PyValueError::new_err(format!("Serialize error: {}", error))
-}
-
-/// Write one model field as a JSON key/value pair.
-fn write_model_field(
-    py: Python<'_>,
-    obj: &Bound<'_, PyAny>,
-    name: &Bound<'_, PyString>,
-    out: &mut Vec<u8>,
-    first: &mut bool,
-) -> PyResult<()> {
-    if !*first {
-        out.push(b',');
-    }
-    *first = false;
-    serde_json::to_writer(&mut *out, &name.to_str()?).map_err(serde_err)?;
-    out.push(b':');
-    let value = obj.getattr(name)?;
-    write_json(py, &value, out)
-}
-
-/// Write a model/dataclass instance as a JSON object, without an intermediate dict.
-///
-/// A `rawmodel.Model` exposes `__columns__` (field names in `SELECT *` order);
-/// a `msgspec.Struct` exposes `__struct_fields__`; a plain dataclass exposes
-/// `__dataclass_fields__` (name → field, in declaration order). Either way values
-/// are read with `getattr` and written recursively. Returns `false` when `obj` is
-/// neither, so the caller can fall back.
-fn write_model(py: Python<'_>, obj: &Bound<'_, PyAny>, out: &mut Vec<u8>) -> PyResult<bool> {
-    let ty = obj.get_type();
-    let columns = if let Ok(columns) = ty.getattr("__columns__") {
-        columns
-    } else if let Ok(fields) = ty.getattr("__struct_fields__") {
-        fields
-    } else if let Ok(fields) = ty.getattr("__dataclass_fields__") {
-        fields
-    } else {
-        return Ok(false);
-    };
-
-    let mut first = true;
-    if let Ok(names) = columns.downcast::<PyTuple>() {
-        out.push(b'{');
-        for name in names.iter() {
-            if let Ok(name) = name.downcast::<PyString>() {
-                write_model_field(py, obj, name, out, &mut first)?;
-            }
-        }
-    } else if let Ok(fields) = columns.downcast::<PyDict>() {
-        out.push(b'{');
-        for (name, _) in fields.iter() {
-            if let Ok(name) = name.downcast::<PyString>() {
-                write_model_field(py, obj, name, out, &mut first)?;
-            }
-        }
-    } else {
-        return Ok(false);
-    }
-    out.push(b'}');
-    Ok(true)
-}
-
-/// Serialise a Python object to JSON directly into a byte buffer —
-/// no intermediate `serde_json::Value` (one pass, fewer allocations).
-///
-/// Dispatch uses `downcast` type checks, not trial `extract`: a failed `extract`
-/// raises and clears a Python exception, which dominated the cost on wide
-/// payloads (checked before the switch: ~1.2 ms just to encode 1000 dict rows).
-/// Model/dataclass instances are written straight from their fields, so a handler
-/// may return `models` instead of building dicts by hand.
-fn write_json(py: Python<'_>, obj: &Bound<'_, PyAny>, out: &mut Vec<u8>) -> PyResult<()> {
-    if obj.is_none() {
-        out.extend_from_slice(b"null");
-        return Ok(());
-    }
-    // bool раньше int: PyBool — подкласс PyInt
-    if let Ok(b) = obj.downcast::<PyBool>() {
-        out.extend_from_slice(if b.is_true() { b"true" } else { b"false" });
-        return Ok(());
-    }
-    if let Ok(i) = obj.downcast::<PyInt>() {
-        if let Ok(v) = i.extract::<i64>() {
-            serde_json::Serializer::new(&mut *out)
-                .serialize_i64(v)
-                .map_err(serde_err)?;
-        } else if let Ok(v) = i.extract::<u64>() {
-            serde_json::Serializer::new(&mut *out)
-                .serialize_u64(v)
-                .map_err(serde_err)?;
-        } else if let Ok(v) = i.extract::<f64>() {
-            serde_json::Serializer::new(&mut *out)
-                .serialize_f64(v)
-                .map_err(serde_err)?;
-        } else {
-            out.extend_from_slice(b"null");
-        }
-        return Ok(());
-    }
-    if let Ok(f) = obj.downcast::<PyFloat>() {
-        match serde_json::Number::from_f64(f.value()) {
-            Some(n) => serde_json::Serializer::new(&mut *out)
-                .serialize_f64(n.as_f64().unwrap())
-                .map_err(serde_err)?,
-            None => out.extend_from_slice(b"null"),
-        }
-        return Ok(());
-    }
-    if let Ok(s) = obj.downcast::<PyString>() {
-        serde_json::to_writer(&mut *out, &s.to_str()?).map_err(serde_err)?;
-        return Ok(());
-    }
-    if let Ok(list) = obj.downcast::<PyList>() {
-        out.push(b'[');
-        let mut first = true;
-        for item in list.iter() {
-            if !first {
-                out.push(b',');
-            }
-            first = false;
-            write_json(py, &item, out)?;
-        }
-        out.push(b']');
-        return Ok(());
-    }
-    if let Ok(tuple) = obj.downcast::<PyTuple>() {
-        out.push(b'[');
-        let mut first = true;
-        for item in tuple.iter() {
-            if !first {
-                out.push(b',');
-            }
-            first = false;
-            write_json(py, &item, out)?;
-        }
-        out.push(b']');
-        return Ok(());
-    }
-    if let Ok(dict) = obj.downcast::<PyDict>() {
-        out.push(b'{');
-        let mut first = true;
-        for (k, v) in dict.iter() {
-            if !first {
-                out.push(b',');
-            }
-            first = false;
-            let key: String = k.extract()?;
-            serde_json::to_writer(&mut *out, &key).map_err(serde_err)?;
-            out.push(b':');
-            write_json(py, &v, out)?;
-        }
-        out.push(b'}');
-        return Ok(());
-    }
-    if write_model(py, obj, out)? {
-        return Ok(());
-    }
-    let s = obj.str()?.to_string();
-    serde_json::to_writer(&mut *out, &s).map_err(serde_err)?;
-    Ok(())
 }
 
 // ── ASGI App ──────────────────────────────────────────────────────────
@@ -737,57 +510,6 @@ impl FerronitApp {
         encoder.finish().map_err(|e| {
             pyo3::exceptions::PyValueError::new_err(format!("GZip finish: {}", e))
         })
-    }
-
-    /// Handle one HTTP request — routing + handler call + response build.
-    /// Returns the Response object (status, body, content_type).
-    fn handle_request(
-        &mut self,
-        py: Python<'_>,
-        method: String,
-        path: String,
-        query_string: String,
-        raw_headers: Vec<(Vec<u8>, Vec<u8>)>,
-        body: Vec<u8>,
-    ) -> PyResult<Response> {
-        let result = self.router.lookup(py, &method, &path)?;
-        let (handler, params) = match result {
-            Some(x) => x,
-            None => {
-                return Ok(Response::text("Not Found".to_string(), Some(404), py));
-            }
-        };
-
-        let scope = PyDict::new(py);
-        scope.set_item("method", &method)?;
-        scope.set_item("path", &path)?;
-        scope.set_item("query_string", PyBytes::new(py, query_string.as_bytes()))?;
-
-        let hdr_list = PyList::empty(py);
-        for (k, v) in &raw_headers {
-            hdr_list.append((PyBytes::new(py, k), PyBytes::new(py, v)))?;
-        }
-        scope.set_item("headers", hdr_list)?;
-
-        let params_dict = PyDict::new(py);
-        if let Some(params) = params {
-            for (k, v) in &params {
-                params_dict.set_item(k, v)?;
-            }
-        }
-        scope.set_item("route_params", params_dict)?;
-
-        // Call Python handler with scope dict
-        let result = handler.bind(py).call1((scope,))?;
-
-        // Build Rust response from Python result
-        if let Ok(dict) = result.downcast::<PyDict>() {
-            Response::json(result, Some(200))
-        } else if let Ok(s) = result.extract::<String>() {
-            Ok(Response::text(s, Some(200), py))
-        } else {
-            Ok(Response::text(result.str()?.to_string(), Some(200), py))
-        }
     }
 }
 

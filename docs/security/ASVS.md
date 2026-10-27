@@ -26,7 +26,7 @@
 | 1.2.5 | Защита от OS command injection | N/A | Ferronit не исполняет команды из ввода |
 | 1.3.1 | Санитизация HTML (WYSIWYG) | 🔴 | Приложение |
 | 1.3.2 | Без eval()/динамического кода | ✅ | В рантайме Ferronit не использует eval (только в бенч-генераторах) |
-| 1.5.1 | XML-парсеры в restrictive-режиме | N/A | Ferronit парсит только JSON (Rust serde_json) |
+| 1.5.1 | XML-парсеры в restrictive-режиме | N/A | Ferronit парсит только JSON (msgspec) |
 
 ## V2 — Validation and Business Logic (4 L1)
 

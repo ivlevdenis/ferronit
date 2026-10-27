@@ -24,8 +24,8 @@ from ferronit import Response, TextResponse, JSONResponse, StreamingResponse
 Возврат модели из хендлера автоматически сериализует её в JSON. Распознаются
 модели с `model_dump` (Pydantic), `__dataclass_fields__`, `__columns__`
 (rawmodel) или `__struct_fields__` (msgspec). msgspec-модели (и списки из них)
-сериализуются C-энкодером msgspec, rawmodel и dataclass — Rust-энкодером
-(serde_json), Pydantic — собственным dump.
+сериализуются C-энкодером msgspec, rawmodel и dataclass — stdlib `json`
+(fallback), Pydantic — собственным dump.
 
 ```python
 @app.route("/me")

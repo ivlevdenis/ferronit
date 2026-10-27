@@ -33,7 +33,7 @@ def health() -> dict:
 
 @app.route("/json")
 def payload(n: int = 10) -> dict:
-    """JSON-эндпоинт: сериализация идёт через Rust (serde_json)."""
+    """JSON-эндпоинт: сериализация идёт через msgspec (C fast-path)."""
     return {"count": n, "items": [{"id": i, "name": f"item-{i}"} for i in range(n)]}
 
 

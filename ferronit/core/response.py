@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import json
+
 import msgspec
 
-from ferronit._core import Response as RustResp
 from ferronit.contrib.pydantic import encode_json
 
 __all__ = ["JSONResponse", "Response", "StreamingResponse", "TextResponse"]
@@ -22,10 +23,8 @@ def _clean_header(value: str) -> str:
 def _escape_html(body: bytes) -> bytes:
     """Escape ``<``, ``>``, ``&`` as ``\\uXXXX`` in an already-serialised JSON body.
 
-    Mirrors ``escape_html`` in the Rust core so the msgspec fast path keeps the
-    same XSS guard as the Rust ``Response.json`` path. The three bytes never
-    occur in JSON structural syntax, so a byte-level replace only touches string
-    contents.
+    The three bytes never occur in JSON structural syntax, so a byte-level
+    replace only touches string contents.
     """
     return body.replace(b"&", b"\\u0026").replace(b"<", b"\\u003c").replace(b">", b"\\u003e")
 
@@ -34,12 +33,43 @@ def _msgspec_json(data) -> bytes | None:
     """Encode with msgspec's C encoder.
 
     Returns ``None`` when msgspec refuses the data (``TypeError``), so the
-    caller can fall back to the Rust serialiser.
+    caller can fall back to the stdlib serialiser.
     """
     try:
         return _escape_html(msgspec.json.encode(data))
     except TypeError:
         return None
+
+
+def _model_to_dict(data):
+    """Materialise a model/dataclass into a plain dict of its fields.
+
+    A ``rawmodel.Model`` exposes ``__columns__`` (field names in ``SELECT *``
+    order); a ``msgspec.Struct`` exposes ``__struct_fields__``; a plain dataclass
+    exposes ``__dataclass_fields__``. Anything else is returned unchanged.
+    """
+    ty = type(data)
+    if hasattr(ty, "__columns__"):
+        names = ty.__columns__
+    elif hasattr(ty, "__struct_fields__"):
+        names = ty.__struct_fields__
+    elif hasattr(ty, "__dataclass_fields__"):
+        names = ty.__dataclass_fields__.keys()
+    else:
+        return data
+    return {name: getattr(data, name) for name in names}
+
+
+def _json_encode(data) -> bytes:
+    """Encode to JSON bytes with XSS escaping: msgspec first, stdlib fallback.
+
+    The fallback mirrors the old Rust serialiser: unknown values become their
+    ``str`` form (``default=str``), models are materialised into dicts first.
+    """
+    body = _msgspec_json(data)
+    if body is not None:
+        return body
+    return _escape_html(json.dumps(_model_to_dict(data), default=str).encode("utf-8"))
 
 
 class Response:
@@ -107,9 +137,7 @@ class JSONResponse(Response):
         status: int = 200,
         headers: dict[str, str] | None = None,
     ) -> None:
-        body = _msgspec_json(data)
-        if body is None:
-            body = bytes(RustResp.json(data, status).body)
+        body = _json_encode(data)
         super().__init__(
             body=body,
             status=status,

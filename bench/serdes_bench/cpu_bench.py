@@ -35,7 +35,6 @@ SEED_ROWS = 1000
 VARIANTS = (
     (8351, "serdes_bench.app_framework:app", "framework"),
     (8352, "serdes_bench.app_noescape:app", "noescape"),
-    (8353, "serdes_bench.app_rust:app", "rust"),
     (8354, "serdes_bench.app_cached:app", "cached"),
     (8355, "serdes_bench.app_jsonsql:app", "jsonsql"),
 )
@@ -131,7 +130,7 @@ def start(port: int, app: str, dsn: str) -> subprocess.Popen:
     """Поднимает granian с одним воркером в каталоге bench/."""
     return subprocess.Popen(
         [
-            PY, "-m", "granian", "--interface", "asgi", "--no-ws",
+            PY, "-m", "granian", "--interface", "rsgi",
             "--host", "127.0.0.1", "--port", str(port), "--workers", "1",
             "--log-level", "warning", "--working-dir", "bench", app,
         ],

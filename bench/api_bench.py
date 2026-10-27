@@ -38,6 +38,7 @@ DSN = "postgresql://postgres:postgres@127.0.0.1:5432/postgres"
 # limit как query-параметр (реальные значения пагинации)
 LIMITS = (1, 20, 50, 100, 1000)
 SERVER = os.environ.get("BENCH_SERVER", "granian")
+WORKERS = int(os.environ.get("BENCH_WORKERS", "1"))
 RUNS = 2
 SELECT_REQUESTS = 5000
 PING_REQUESTS = 10000
@@ -45,6 +46,7 @@ WRITE_REQUESTS = 3000
 
 PORTS = {
     "ferronit": 8241,
+    "ferronit-pipeline": 8246,
     "blacksheep": 8242,
     "litestar": 8243,
     "fastapi": 8244,
@@ -143,10 +145,6 @@ class RowsRepository(Repository[Row, BenchRow, RowMapper, ShopPool]):
             saved = await uow.model(BenchRow).update(row_id, {"name": name, "email": email})
         return self._mapper.to_aggregate(saved) if saved is not None else None
 
-    def to_read_model(self, aggregate: Row) -> BenchRow:
-        """Проекция агрегата в модель чтения — то, что уходит в ответ."""
-        return self._mapper.from_aggregate(aggregate)
-
 
 # ── CQRS: команды (запись) и запросы (чтение) ─────────────────────────
 
@@ -212,8 +210,7 @@ class ListRowsHandler:
         self._rows = rows
 
     async def __call__(self, query: ListRows) -> list[BenchRow]:
-        aggregates = await self._rows.list(limit=query.limit)   # агрегаты собираются
-        return [self._rows.to_read_model(a) for a in aggregates]
+        return await self._rows.list_models(limit=query.limit)   # модели напрямую
 
 
 # ── Входящий порт + прикладной сервис ─────────────────────────────────
@@ -325,27 +322,64 @@ app.mount("", HttpRowsAdapter())
 '''
 
 
-BLACKSHEEP_APP = '''\
-import asyncio
+# Второй вариант Ferronit: честный пайплайн движения данных списка —
+# DBReadModel(BenchRow) → BenchRowAggregate(Row) → BenchRowOutApiModel(msgspec.Struct).
+_PIPELINE_DTO = '''\
+class BenchRowOutApiModel(msgspec.Struct):
+    id: int
+    name: str
+    email: str
+'''
 
-import asyncpg
+_PIPELINE_HANDLER = '''\
+class ListRowsHandler:
+    def __init__(self, rows: RowsRepository):
+        self._rows = rows
+        self._mapper = RowMapper()
+
+    async def __call__(self, query: ListRows) -> list[BenchRowOutApiModel]:
+        models = await self._rows.list_models(limit=query.limit)   # БД → DBReadModel
+        out = []
+        for m in models:
+            agg = self._mapper.to_aggregate(m)                     # → агрегат
+            out.append(BenchRowOutApiModel(agg.id, agg.name, agg.email))  # → DTO
+        return out
+'''
+
+_HANDLER_PLAIN = '''\
+class ListRowsHandler:
+    def __init__(self, rows: RowsRepository):
+        self._rows = rows
+
+    async def __call__(self, query: ListRows) -> list[BenchRow]:
+        return await self._rows.list_models(limit=query.limit)   # модели напрямую
+'''
+
+FERRONIT_PIPELINE_APP = (
+    FERRONIT_APP.replace(_HANDLER_PLAIN, _PIPELINE_DTO + "\n\n" + _PIPELINE_HANDLER)
+    .replace("list[BenchRow]", "list[BenchRowOutApiModel]")
+)
+
+
+BLACKSHEEP_APP = '''\
 import msgspec
 from blacksheep import Application, Request, Response
 from blacksheep.contents import Content
+from sqlalchemy import Column, Integer, MetaData, String, Table, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.ext.asyncio import create_async_engine
 
-DSN = "postgresql://postgres:postgres@127.0.0.1:5432/postgres"
+DSN = "postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/postgres"
 
-_pool = None
-_lock = asyncio.Lock()
+metadata = MetaData()
+bench_rows = Table(
+    "bench_rows", metadata,
+    Column("id", Integer, primary_key=True),
+    Column("name", String),
+    Column("email", String),
+)
 
-
-async def get_pool():
-    global _pool
-    if _pool is None:
-        async with _lock:
-            if _pool is None:
-                _pool = await asyncpg.create_pool(DSN, min_size=1, max_size=16)
-    return _pool
+engine = create_async_engine(DSN, pool_size=16)
 
 
 def _json(data):
@@ -358,56 +392,56 @@ app = Application()
 @app.router.get("/rows")
 async def rows(request: Request):
     limit = int((request.query.get("limit") or [None])[0] or "100")
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        records = await conn.fetch("SELECT id, name, email FROM bench_rows LIMIT $1", limit)
+    async with engine.connect() as conn:
+        result = await conn.execute(select(bench_rows).limit(limit))
+        records = result.mappings().all()
     return _json({"rows": [dict(r) for r in records]})
 
 
 @app.router.post("/rows")
 async def insert(request: Request):
     data = await request.json()
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        row = await conn.fetchrow(
-            "INSERT INTO bench_rows (name, email) VALUES ($1, $2) RETURNING id",
-            data["name"], data["email"],
+    async with engine.begin() as conn:
+        result = await conn.execute(
+            bench_rows.insert().values(name=data["name"], email=data["email"]).returning(bench_rows.c.id)
         )
-    return _json({"id": row["id"]})
+        row_id = result.scalar_one()
+    return _json({"id": row_id})
 
 
 @app.router.put("/rows/{row_id}")
 async def update(request: Request, row_id: str):
     data = await request.json()
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        row = await conn.fetchrow(
-            "UPDATE bench_rows SET name = $1, email = $2 WHERE id = $3 RETURNING id",
-            data["name"], data["email"], int(row_id),
+    async with engine.begin() as conn:
+        result = await conn.execute(
+            bench_rows.update()
+            .where(bench_rows.c.id == int(row_id))
+            .values(name=data["name"], email=data["email"])
+            .returning(bench_rows.c.id)
         )
-    return _json({"id": row["id"] if row is not None else None})
+        row_id_out = result.scalar_one_or_none()
+    return _json({"id": row_id_out})
 
 
 @app.router.delete("/rows/{row_id}")
 async def delete(row_id: str):
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        await conn.execute("DELETE FROM bench_rows WHERE id = $1", int(row_id))
+    async with engine.begin() as conn:
+        await conn.execute(bench_rows.delete().where(bench_rows.c.id == int(row_id)))
     return _json({"ok": True})
 
 
 @app.router.post("/rows/upsert")
 async def upsert(request: Request):
     data = await request.json()
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        row = await conn.fetchrow(
-            "INSERT INTO bench_rows (id, name, email) VALUES ($1, $2, $3) "
-            "ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, email = EXCLUDED.email "
-            "RETURNING id",
-            data["id"], data["name"], data["email"],
-        )
-    return _json({"id": row["id"]})
+    stmt = pg_insert(bench_rows).values(id=data["id"], name=data["name"], email=data["email"])
+    stmt = stmt.on_conflict_do_update(
+        index_elements=[bench_rows.c.id],
+        set_={"name": stmt.excluded.name, "email": stmt.excluded.email},
+    ).returning(bench_rows.c.id)
+    async with engine.begin() as conn:
+        result = await conn.execute(stmt)
+        row_id = result.scalar_one()
+    return _json({"id": row_id})
 
 
 @app.router.get("/ping")
@@ -595,6 +629,7 @@ async def ping():
 
 APPS = {
     "ferronit": FERRONIT_APP,
+    "ferronit-pipeline": FERRONIT_PIPELINE_APP,
     "blacksheep": BLACKSHEEP_APP,
     "litestar": LITESTAR_APP,
     "fastapi": FASTAPI_APP,
@@ -628,22 +663,28 @@ def seed() -> None:
     asyncio.run(_seed())
 
 
-def start(name: str, port: int) -> subprocess.Popen:
-    """Пишет приложение и поднимает его одним воркером на выбранном сервере."""
+def start(name: str, port: int, workers: int = WORKERS) -> subprocess.Popen:
+    """Пишет приложение и поднимает его на выбранном сервере."""
     if name == "django":
         cmd = [
             str(VENV_PY), "-m", SERVER, "--interface", "asgi",
-            "--host", "127.0.0.1", "--port", str(port), "--workers", "1",
-            "--no-ws", "--log-level", "warning", "django_bench.asgi:application",
+            "--host", "127.0.0.1", "--port", str(port), "--workers", str(workers),
+            "--loop", "uvloop", "--no-ws", "--log-level", "warning",
+            "django_bench.asgi:application",
         ]
     else:
         module = name.replace("-", "_")
         (HERE / f"_bench_api_{module}.py").write_text(APPS[name])
+        rsgi = name.startswith("ferronit")  # все варианты Ferronit — на RSGI (основной стек)
+        iface = "rsgi" if rsgi else "asgi"
         cmd = [
-            str(VENV_PY), "-m", SERVER, "--interface", "asgi",
-            "--host", "127.0.0.1", "--port", str(port), "--workers", "1",
-            "--no-ws", "--log-level", "warning", f"_bench_api_{module}:app",
+            str(VENV_PY), "-m", SERVER, "--interface", iface,
+            "--host", "127.0.0.1", "--port", str(port), "--workers", str(workers),
+            "--loop", "uvloop",
         ]
+        if not rsgi:
+            cmd.append("--no-ws")
+        cmd += ["--log-level", "warning", f"_bench_api_{module}:app"]
     return subprocess.Popen(
         cmd,
         cwd=HERE,
@@ -651,6 +692,37 @@ def start(name: str, port: int) -> subprocess.Popen:
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
+
+
+def _children(pid: int) -> list[int]:
+    """Прямые потомки процесса (без psutil, через /proc)."""
+    try:
+        with open(f"/proc/{pid}/task/{pid}/children") as f:
+            return [int(x) for x in f.read().split()]
+    except (FileNotFoundError, ProcessLookupError):
+        return []
+
+
+def rss_kb(pid: int) -> int:
+    """Суммарный RSS процесса и всех его потомков (granian supervisor + worker), в КБ."""
+    total = 0
+    stack = [pid]
+    seen: set[int] = set()
+    while stack:
+        p = stack.pop()
+        if p in seen:
+            continue
+        seen.add(p)
+        try:
+            with open(f"/proc/{p}/status") as f:
+                for line in f:
+                    if line.startswith("VmRSS:"):
+                        total += int(line.split()[1])
+                        break
+        except (FileNotFoundError, ProcessLookupError):
+            pass
+        stack.extend(_children(p))
+    return total
 
 
 def wait_ready(port: int, timeout: float = 20.0) -> None:
@@ -774,9 +846,31 @@ def run_writes() -> None:
         print(f"{op:>8} | {row}")
 
 
+def run_memory(workers: int = 1) -> None:
+    """RSS серверного процесса после прогрева (пул + буферы подняты), в МБ."""
+    names = list(PORTS)
+    print(f"\nИспользуемая память (RSS, МБ), {workers} ворк., после прогрева /rows?limit=1000:")
+    print(" | ".join(f"{name:>12}" for name in names))
+    cells = {}
+    for name, port in PORTS.items():
+        proc = start(name, port, workers=workers)
+        try:
+            wait_ready(port)
+            ab_reqs(port, "/ping", PING_REQUESTS)
+            ab_reqs(port, "/rows?limit=1000", SELECT_REQUESTS)
+            cells[name] = rss_kb(proc.pid) / 1024.0
+        finally:
+            proc.terminate()
+            proc.wait()
+    print(" | ".join(f"{cells[name]:>12.1f}" for name in names))
+    print(f"{'на воркер':>12} | " + " | ".join(f"{cells[name] / workers:>12.1f}" for name in names))
+
+
 def main() -> None:
     seed()
     run_select()
+    run_memory(1)
+    run_memory(10)
     run_writes()
 
 

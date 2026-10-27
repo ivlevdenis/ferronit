@@ -57,7 +57,7 @@ run_one() {  # $1=name — запуск простой командой с &, PI
   local name=$1 port=${PORT[$name]} PID
   echo "== $name (:$port) =="
   case "$name" in
-    ferronit) $PY -m granian --interface asgi --no-ws --host 127.0.0.1 --port "$port" \
+    ferronit) $PY -m granian --interface rsgi --host 127.0.0.1 --port "$port" \
                 --workers 1 --log-level warning django_bench.ferronit_service:app --working-dir bench & ;;
     tornado)  $PY bench/tornado_bench/app.py & ;;
     twisted)  $PY bench/twisted_bench/app.py & ;;

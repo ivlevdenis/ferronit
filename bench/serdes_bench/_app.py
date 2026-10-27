@@ -10,7 +10,6 @@
   framework — как сейчас: хендлер возвращает ``{\"rows\": [модели]}``, ядро отдаёт
               msgspec-кодировщик + экранирование HTML;
   noescape  — то же, но экранирование отключено (цена одного ``_escape_html``);
-  rust      — ответ собирает Rust-писатель ``Response.json`` (fallback-ветка ядра);
   cached    — потолок: та же работа сделана один раз, в запросе только отдача тела.
 """
 
@@ -23,7 +22,6 @@ import msgspec
 
 import ferronit.core.response as core_response
 from ferronit import Ferronit, Response
-from ferronit._core import Response as RustResp
 from ferronit.contrib.rawdb import Pool, create_pool
 from ferronit.contrib.rawmodel import Model
 from ferronit.di import Container
@@ -102,9 +100,6 @@ def make_app() -> Ferronit:
         if MODE == "jsonsql":
             return Response(await repo.list_json(limit), content_type="application/json")
         models = await repo.list(limit)
-        if MODE == "rust":
-            r = RustResp.json({"rows": models}, 200)
-            return Response(bytes(r.body), status=r.status, content_type=r.content_type)
         if MODE == "cached":
             body = CACHE.get(limit)
             if body is None:

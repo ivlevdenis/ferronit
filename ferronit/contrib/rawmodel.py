@@ -1471,6 +1471,18 @@ class Repository[A, M: Model, MAP: Mapper[Any, Any], P: Pool]:
             rows = await uow.model(self.model).list(*filters, limit=limit, offset=offset)
         return [self._mapper.to_aggregate(m) for m in rows]
 
+    async def list_models(
+        self, *filters: Condition, limit: int = 100, offset: int = 0
+    ) -> builtins.list[M]:
+        """Read side без агрегата: модели строк напрямую, без ``to_aggregate``.
+
+        Для CQRS-запросов, где агрегат не нужен: ответ собирается из моделей
+        чтения как есть, без проекции «модель → агрегат → модель». Явная
+        альтернатива агрегатному ``list()``.
+        """
+        async with self._pool.uow(readonly=True) as uow:
+            return await uow.model(self.model).list(*filters, limit=limit, offset=offset)
+
     async def save(self, aggregate: A) -> A:
         """Сохранить агрегат целиком: header (upsert) + дочерние в одной UoW."""
         model = self._mapper.from_aggregate(aggregate)

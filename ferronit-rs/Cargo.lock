@@ -31,7 +31,7 @@ dependencies = [
 
 [[package]]
 name = "ferronit-core"
-version = "0.22.0"
+version = "0.23.0"
 dependencies = [
  "flate2",
  "matchit",

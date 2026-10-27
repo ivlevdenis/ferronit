@@ -17,7 +17,7 @@ WORKERS="${WORKERS:-1}"
 RELOAD="${RELOAD:-0}"
 
 if [ "$#" -gt 0 ]; then
-    # Явная команда имеет приоритет: docker run ferronit:0.22.0 <cmd>
+    # Явная команда имеет приоритет: docker run ferronit:0.23.0 <cmd>
     exec "$@"
 fi
 

@@ -4,6 +4,18 @@
 Теги ведутся с 0.8.1; более ранние итерации (прототип Velox) здесь не перечислены.
 Версия живёт в двух файлах и меняется вместе: `ferronit/__init__.py::__version__` и `ferronit-rs/Cargo.toml`.
 
+## 0.23.0 — 2026-10-27
+
+**Добавлено**
+- Неблокирующее структурированное логирование (`ferronit.contrib.logging`):
+  протокол `LoggerProtocol` (debug/info/warning/error/critical), основная реализация
+  `Logger` — очередь + фоновый поток-писатель, msgspec-сериализация, гарантия доставки
+  (`flush()`/`shutdown()` + `atexit`); `LogRecord` (msgspec.Struct), `JsonFormatter`/
+  `TextFormatter`, `StdlibLogger` (дефолт), `LogConfig`. `Ferronit(logger=...,
+  access_log=True)` — инъекция логгера; access-log (`event`, method/path/status/
+  duration_ms) и error-log с трейсбеком. Доки — `docs/logging.md`, тесты —
+  `tests/test_logging.py`.
+
 ## 0.22.0 — 2026-10-22
 
 **Добавлено**

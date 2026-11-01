@@ -50,17 +50,18 @@ ferronit run --workers 4              # production: granian, uvicorn fallback
 
 ## Why it is fast
 
-Routing is Rust `matchit`, effectively O(1). On database reads the framework stays within ~1.3× of
-BlackSheep (whose benchmark stand reads with raw `asyncpg`, no row layer) and beats FastAPI/Django by
-order of magnitude: typed row models + `msgspec` reply building cost tens of microseconds, not
-multiples. Methodology — `ab` (C client) only, granian, 1 worker; full breakdown in
-[`docs/benchmarks.md`](docs/benchmarks.md).
+Routing is Rust `matchit`, effectively O(1). On database reads the framework stays within ~15% of
+raw Python `asyncpg`, is 1.0–3.0× of a raw Go driver (`pgx`, gap closes as rows grow) and beats
+BlackSheep by ~2.5–3.3×, FastAPI/Django by an order of magnitude: typed row models + `msgspec`
+reply building cost tens of microseconds, not multiples. Methodology — `ab` (C client) only,
+granian/`net/http`, 1 worker, **Ferronit and every competitor measured in the same session
+(3 interleaved rounds)**; full breakdown in [`docs/benchmarks.md`](docs/benchmarks.md).
 
-| Scenario | Ferronit | BlackSheep | FastAPI |
-|---|---|---|---|
-| GET /ping (dict) | 95 119 req/s | 88 951 req/s | 19 878 req/s |
-| GET /rows?limit=100 | 5 674 req/s | 7 725 req/s | 867 req/s |
-| GET /rows?limit=1000 | 1 179 req/s | 1 588 req/s | 146 req/s |
+| Scenario | Ferronit | BlackSheep | FastAPI | Go pgx |
+|---|---|---|---|---|
+| GET /ping (dict) | **120 697** req/s | 86 053 req/s | 19 577 req/s | 110 786 req/s |
+| GET /rows?limit=100 | 4 907 req/s | 1 820 req/s | 622 req/s | **5 977** req/s |
+| GET /rows?limit=1000 | 853 req/s | 336 req/s | 86 req/s | **865** req/s |
 
 ## Data layer
 

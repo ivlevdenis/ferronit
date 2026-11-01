@@ -39,13 +39,17 @@ import asyncio
 import os
 import platform
 import time
-from datetime import datetime
+from datetime import UTC, date, datetime, timedelta
 
 DSN = os.environ.get("BENCH_DSN", "postgresql://postgres:postgres@127.0.0.1:5432/postgres")
 PQ = DSN.replace("postgresql://", "postgresql+asyncpg://")  # для SQLAlchemy
 
 NAME = "bench"
 EMAIL = "bench@example.com"
+# Даты/время для записи: одинаковые фиксированные значения на всех слоях.
+CREATED_AT = datetime(2026, 1, 15, 12, 0, 0, tzinfo=UTC)
+BIRTHDAY = date(1990, 1, 15)
+TTL = timedelta(hours=1)
 
 
 def upd_name(i: int) -> str:
@@ -91,11 +95,15 @@ PAUSE = float(os.environ.get("BENCH_PAUSE", "5"))   # с, перед каждо�
 # ── схема таблицы: одна на всех ───────────────────────────────────────
 CREATE = (
     "CREATE TABLE IF NOT EXISTS bench_rows ("
-    "id serial PRIMARY KEY, name text NOT NULL, email text NOT NULL)"
+    "id serial PRIMARY KEY, name text NOT NULL, email text NOT NULL, "
+    "created_at timestamptz NOT NULL, birthday date NOT NULL, ttl interval NOT NULL)"
 )
 
 # ORM-модель объявлена на уровне модуля: SQLAlchemy резолвит аннотации
 # ``Mapped[...]`` по globals модуля, а не по locals функции.
+from sqlalchemy import Date as SADate  # noqa: E402
+from sqlalchemy import DateTime as SADateTime  # noqa: E402
+from sqlalchemy import Interval as SAInterval  # noqa: E402
 from sqlalchemy import String as SAString  # noqa: E402
 from sqlalchemy.orm import DeclarativeBase as _DeclarativeBase  # noqa: E402
 from sqlalchemy.orm import Mapped, mapped_column  # noqa: E402
@@ -112,6 +120,9 @@ class OrmRow(OrmBase):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(SAString, nullable=False)
     email: Mapped[str] = mapped_column(SAString, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(SADateTime(timezone=True), nullable=False)
+    birthday: Mapped[date] = mapped_column(SADate, nullable=False)
+    ttl: Mapped[timedelta] = mapped_column(SAInterval, nullable=False)
 
 
 async def seed(rows: int) -> None:
@@ -131,8 +142,11 @@ async def seed(rows: int) -> None:
         await conn.execute("ALTER TABLE bench_rows SET (autovacuum_enabled = false)")
         await conn.execute("TRUNCATE bench_rows RESTART IDENTITY")
         await conn.execute(
-            "INSERT INTO bench_rows (name, email) "
-            "SELECT 'user_' || g, 'u' || g || '@example.com' "
+            "INSERT INTO bench_rows (name, email, created_at, birthday, ttl) "
+            "SELECT 'user_' || g, 'u' || g || '@example.com', "
+            "TIMESTAMPTZ '2026-01-01 00:00:00+00' + (g || ' hours')::interval, "
+            "DATE '1990-01-01' + g, "
+            "(g || ' minutes')::interval "
             "FROM generate_series(1, $1) AS g",
             rows,
         )
@@ -210,7 +224,7 @@ class SACore(Variant):
     name = "sqlalchemy-core"
 
     async def setup(self) -> None:
-        from sqlalchemy import Column, Integer, MetaData, String, Table
+        from sqlalchemy import Column, Date, DateTime, Integer, Interval, MetaData, String, Table
         from sqlalchemy.ext.asyncio import create_async_engine
 
         self.meta = MetaData()
@@ -220,6 +234,9 @@ class SACore(Variant):
             Column("id", Integer, primary_key=True),
             Column("name", String, nullable=False),
             Column("email", String, nullable=False),
+            Column("created_at", DateTime(timezone=True), nullable=False),
+            Column("birthday", Date, nullable=False),
+            Column("ttl", Interval, nullable=False),
         )
         self.engine = create_async_engine(PQ, pool_size=16, max_overflow=0)
 
@@ -241,7 +258,12 @@ class SACore(Variant):
         async with self.engine.begin() as conn:
             if op == "insert_1":
                 res = await conn.execute(
-                    insert(t).values(name=NAME, email=EMAIL).returning(t.c.id)
+                    insert(t)
+                    .values(
+                        name=NAME, email=EMAIL,
+                        created_at=CREATED_AT, birthday=BIRTHDAY, ttl=TTL,
+                    )
+                    .returning(t.c.id)
                 )
                 return res.scalar()
             if op == "update_1":
@@ -253,10 +275,19 @@ class SACore(Variant):
             if op == "upsert_1":
                 stmt = (
                     pg_insert(t)
-                    .values(id=1, name=upd_name(i), email=upd_email(i))
+                    .values(
+                        id=1, name=upd_name(i), email=upd_email(i),
+                        created_at=CREATED_AT, birthday=BIRTHDAY, ttl=TTL,
+                    )
                     .on_conflict_do_update(
                         index_elements=[t.c.id],
-                        set_={"name": upd_name(i), "email": upd_email(i)},
+                        set_={
+                            "name": upd_name(i),
+                            "email": upd_email(i),
+                            "created_at": CREATED_AT,
+                            "birthday": BIRTHDAY,
+                            "ttl": TTL,
+                        },
                     )
                     .returning(t.c.id)
                 )
@@ -294,7 +325,7 @@ class SAOrm(Variant):
                 return res.scalars().all()
         if op == "insert_1":
             async with self.factory() as session:
-                row = Row(name=NAME, email=EMAIL)
+                row = Row(name=NAME, email=EMAIL, created_at=CREATED_AT, birthday=BIRTHDAY, ttl=TTL)
                 session.add(row)
                 await session.flush()
                 row_id = row.id
@@ -312,10 +343,19 @@ class SAOrm(Variant):
             async with self.factory() as session:
                 stmt = (
                     pg_insert(Row)
-                    .values(id=1, name=upd_name(i), email=upd_email(i))
+                    .values(
+                        id=1, name=upd_name(i), email=upd_email(i),
+                        created_at=CREATED_AT, birthday=BIRTHDAY, ttl=TTL,
+                    )
                     .on_conflict_do_update(
                         index_elements=[Row.id],
-                        set_={"name": upd_name(i), "email": upd_email(i)},
+                        set_={
+                            "name": upd_name(i),
+                            "email": upd_email(i),
+                            "created_at": CREATED_AT,
+                            "birthday": BIRTHDAY,
+                            "ttl": TTL,
+                        },
                     )
                     .returning(Row.id)
                 )
@@ -348,15 +388,25 @@ class AsyncpgRaw(Variant):
         async with self.pool.acquire() as conn:
             if op == "get_1":
                 return await conn.fetchrow(
-                    "SELECT id, name, email FROM bench_rows WHERE id = $1", 1
+                    "SELECT id, name, email, created_at, birthday, ttl "
+                    "FROM bench_rows WHERE id = $1",
+                    1,
                 )
             if op == "list_100":
-                return await conn.fetch("SELECT id, name, email FROM bench_rows LIMIT $1", 100)
+                return await conn.fetch(
+                    "SELECT id, name, email, created_at, birthday, ttl "
+                    "FROM bench_rows LIMIT $1",
+                    100,
+                )
             if op == "insert_1":
                 return await conn.fetchval(
-                    "INSERT INTO bench_rows (name, email) VALUES ($1, $2) RETURNING id",
+                    "INSERT INTO bench_rows (name, email, created_at, birthday, ttl) "
+                    "VALUES ($1, $2, $3, $4, $5) RETURNING id",
                     NAME,
                     EMAIL,
+                    CREATED_AT,
+                    BIRTHDAY,
+                    TTL,
                 )
             if op == "update_1":
                 return await conn.execute(
@@ -367,12 +417,17 @@ class AsyncpgRaw(Variant):
                 )
             if op == "upsert_1":
                 return await conn.fetchval(
-                    "INSERT INTO bench_rows (id, name, email) VALUES ($1, $2, $3) "
+                    "INSERT INTO bench_rows (id, name, email, created_at, birthday, ttl) "
+                    "VALUES ($1, $2, $3, $4, $5, $6) "
                     "ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, "
-                    "email = EXCLUDED.email RETURNING id",
+                    "email = EXCLUDED.email, created_at = EXCLUDED.created_at, "
+                    "birthday = EXCLUDED.birthday, ttl = EXCLUDED.ttl RETURNING id",
                     1,
                     upd_name(i),
                     upd_email(i),
+                    CREATED_AT,
+                    BIRTHDAY,
+                    TTL,
                 )
             return await conn.execute(
                 "DELETE FROM bench_rows WHERE id = $1", i % DELETE_ROWS + 1
@@ -388,6 +443,9 @@ def build_variants() -> list[Variant]:
         id: int = 0
         name: str = ""
         email: str = ""
+        created_at: datetime = CREATED_AT
+        birthday: date = BIRTHDAY
+        ttl: timedelta = TTL
 
     class RawModel(FerronitRawModel):
         async def run(self, op: str, i: int) -> object:
@@ -420,7 +478,10 @@ def build_variants() -> list[Variant]:
             async with self.pool.uow() as uow:
                 repo = uow["bench_rows"]
                 if op == "insert_1":
-                    return await repo.save({"name": NAME, "email": EMAIL})
+                    return await repo.save({
+                        "name": NAME, "email": EMAIL,
+                        "created_at": CREATED_AT, "birthday": BIRTHDAY, "ttl": TTL,
+                    })
                 if op == "update_1":
                     return await repo.update(1, {"name": upd_name(i), "email": upd_email(i)})
                 return await repo.delete(i % DELETE_ROWS + 1)
@@ -539,7 +600,9 @@ async def main() -> None:
         print(f"  {op:<10} " + "   ".join(cells))
 
     rows_now = await conn.fetchval("SELECT count(*) FROM bench_rows")
-    row1 = await conn.fetchrow("SELECT id, name, email FROM bench_rows WHERE id = 1")
+    row1 = await conn.fetchrow(
+        "SELECT id, name, email, created_at, birthday, ttl FROM bench_rows WHERE id = 1"
+    )
     print(f"\nконтроль: строк в bench_rows = {rows_now}, id=1 = {dict(row1) if row1 else None}")
     await conn.execute("ALTER TABLE bench_rows SET (autovacuum_enabled = true)")
     await conn.close()

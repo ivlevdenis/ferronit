@@ -36,7 +36,7 @@ UPDATE/UPSERT/DELETE били по существующим строкам, а �
 
 | Скрипт | Что мерит |
 |---|---|
-| `api_bench.py` | ping + строки из БД (query-limit) + одиночные записи — Ferronit vs BlackSheep/Litestar/FastAPI/Django, **на `ab`** |
+| `api_bench.py` | ping + строки из БД (query-limit) + одиночные записи + RSS — Ferronit vs BlackSheep/Litestar/FastAPI/Django **и Go-стенд (`go-pgx`/`sqlx`/`gorm`/`ent`) в одной сессии**, раунды по кругу (`BENCH_RUNS`, `BENCH_NO_GO`), **на `ab`** |
 | `api_bench_logging.py` | ping с access-логированием (одна строка на запрос в stdout) — Ferronit (свой неблокирующий `Logger`) vs stdlib-логирование остальных фреймворков, **на `ab`** |
 | `queries_vs_sqlalchemy.py` | запросы к БД **без HTTP**: Ferronit (rawmodel/rawdb) vs SQLAlchemy Core/ORM vs сырой asyncpg; `get_1`/`list_100`/`insert_1`/`update_1`/`upsert_1`/`delete_1`, 1 клиент |
 | `http_cpu_bench.py` | CPU **под HTTP-нагрузкой** (`ab -c 50`): сервер (процесс приложения), PostgreSQL (cgroup), клиент (rusage) — мкс на запрос |
@@ -46,7 +46,8 @@ UPDATE/UPSERT/DELETE били по существующим строкам, а �
 | `_probe_batch_durability.py`, `_probe_batch_limits.py`, `_probe_copy.py` | батчинг и сохранность: атомарность, SIGKILL-опыт с крахом контейнера, предел параметров, `COPY` против multi-row `INSERT` |
 | `_probe_copy_semantics.py`, `_probe_copy_transaction.py` | семантика `COPY … FROM STDIN`: участие в транзакции, атомарность пачки, `serial`/триггеры, отсутствие `RETURNING` (**COPY не берём — решение 16.10.2026, пробники оставлены как справка**) |
 | `pg_wire.py`, `wire_bench.py` | самодельный клиент по проводу PostgreSQL (SCRAM, simple/extended, пайплайн) против asyncpg |
-| `rust_pg_orm/`, `rust_pg_1row/`, `go_pg_orm/`, `go_pg_1row/` | кросс-языковые стенды: `tokio-postgres`/`sqlx`/`SeaORM`, `pgx`/`sqlx`/`GORM`/`ent` |
+| `go_pg_orm/` | кросс-языковой стенд Go: `pgx`/`sqlx`/`GORM`/`ent`, HTTP-сервис на `net/http` на той же 6-колоночной схеме, что Python-стенд. HTTP-часть меряется **внутри `api_bench.py`** (одна сессия с Ferronit), `run_all.sh` оставлен для слоёв (10 клиентов × 1000 запросов) и `GOMAXPROCS=8` |
+| `rust_pg_orm/`, `rust_pg_1row/`, `go_pg_1row/` | кросс-языковые стенды на **других схемах** (не обновлены под 6 колонок, числа несопоставимы с Python/Go-стендом): `tokio-postgres`/`sqlx`/`SeaORM` на `users`, `go_pg_1row` — `users_bench` с 10 колонками |
 | `prof_*.py` | профилирование горячего пути (cProfile) |
 | `legacy/` | старые HTTP-бенчи (маршрутизация, payload, bulk-строки, потолок granian) — не актуализируются |
 | `legacy_httpx/` | httpx-клиент (client-bound, ~3.7k потолок) |
@@ -63,16 +64,19 @@ pgbench, инстанс `postgres:18.6` (дефолтный конфиг Docker,
 
 ### Сырой драйвер: pgx против asyncpg против tokio-postgres
 
-Тот же `SELECT ... LIMIT 100`, 10 клиентов × 1000 запросов, один процесс/поток:
+`SELECT ... LIMIT 100`, 10 клиентов × 1000 запросов, один процесс/поток:
 
-| Драйвер | req/s |
-|---|---|
-| Go pgx | **40 500** |
-| Python asyncpg | 32 869 |
-| Rust tokio-postgres | 25 500 |
+| Драйвер | 3 колонки (окт 2026) | 6 колонок с датами (29.10.2026) |
+|---|---|---|
+| Go pgx | **40 500** | **25 608** |
+| Python asyncpg | 32 869 | — (в in-process стенде `list_100` — 4 959) |
+| Rust tokio-postgres | 25 500 | — (стенд не обновлялся) |
 
-* pgx — самый быстрый, но все три сходятся на **42–45 тыс.** — это потолок самого запроса
-  на этом инстансе, а не свойство языка/драйвера.
+* pgx — самый быстрый, но на трёх колонках все три сходились на **42–45 тыс.** — это потолок
+  самого запроса на этом инстансе, а не свойство языка/драйвера.
+* **Даты в строке ломают этот потолок:** pgx на 6 колонках падает до 25 608 (−37%), `sqlx` —
+  до 9 034 (−49%). Причина — декодирование `timestamptz`/`date` в `time.Time` и текст `interval`.
+  Точные цифры по слоям и HTTP — `docs/benchmarks.md`, раздел «Go: слои доступа и HTTP-сервис».
 * asyncpg в один процесс упирается в GIL: 4 процесса × 10 клиентов дают 85 491 суммарно
   (по 20–23 тыс. на процесс). Потолок одного Python-процесса ~33 тыс.
 

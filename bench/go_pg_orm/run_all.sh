@@ -14,12 +14,27 @@ UPBODY=/tmp/_bench_pg_upsert.json
 printf '{"name": "bench", "email": "bench@example.com"}' > "$BODY"
 printf '{"id": 1, "name": "bench", "email": "bench@example.com"}' > "$UPBODY"
 
+# Контейнер с PostgreSQL (тот же, что у Python-стенда), переопределяется BENCH_PG
+PG=${BENCH_PG:-ferronit-pg}
+
+# Схема — та же, что в bench/queries_vs_sqlalchemy.py и bench/api_bench.py:
+# шесть колонок, включая timestamptz/date/interval (даты и есть предмет замера).
 seed() {
-  docker exec velox-pg psql -U postgres -d postgres -q \
-    -c "TRUNCATE bench_rows RESTART IDENTITY; INSERT INTO bench_rows (name,email) SELECT 'user_'||g,'u'||g||'@example.com' FROM generate_series(1,1000) g;" >/dev/null 2>&1
+  docker exec "$PG" psql -U postgres -d postgres -q -c "
+    CREATE TABLE IF NOT EXISTS bench_rows (
+      id serial PRIMARY KEY, name text NOT NULL, email text NOT NULL,
+      created_at timestamptz NOT NULL, birthday date NOT NULL, ttl interval NOT NULL);
+    TRUNCATE bench_rows RESTART IDENTITY;
+    INSERT INTO bench_rows (name, email, created_at, birthday, ttl)
+    SELECT 'user_'||g, 'u'||g||'@example.com',
+           TIMESTAMPTZ '2026-01-01 00:00:00+00' + (g || ' hours')::interval,
+           DATE '1990-01-01' + g,
+           (g || ' minutes')::interval
+    FROM generate_series(1,1000) g;" >/dev/null 2>&1
 }
 
-echo "# Go: слои доступа, PostgreSQL 18.6 в Docker (таблица bench_rows)"
+seed  # таблица должна быть до замера слоёв
+echo "# Go: слои доступа, PostgreSQL в Docker ($PG, таблица bench_rows, 6 колонок)"
 for procs in 1 8; do
   for op in select insert; do
     for mode in pgx sqlx gorm ent; do
@@ -29,7 +44,7 @@ for procs in 1 8; do
 done
 
 echo
-echo "# Go: HTTP-сервис (net/http), ab -c 50 -k, контракт api_bench.py"
+echo "# Go: HTTP-сервис (net/http), ab -c 50 -k, контракт api_bench.py (6 колонок)"
 
 run_http() {
   local mode=$1 procs=$2 port=$3

@@ -36,7 +36,9 @@ UPDATE/UPSERT/DELETE били по существующим строкам, а �
 
 | Скрипт | Что мерит |
 |---|---|
-| `api_bench.py` | ping + строки из БД (query-limit) + одиночные записи + RSS — Ferronit vs BlackSheep/Litestar/FastAPI/Django **и Go-стенд (`go-pgx`/`sqlx`/`gorm`/`ent`) в одной сессии**, раунды по кругу (`BENCH_RUNS`, `BENCH_NO_GO`), **на `ab`** |
+| `api_bench.py` | **постадийный** стенд: 10 стадий-проверок (`ping`, `rows1/20/50/100/1000`, `insert`, `update`, `upsert`, `delete`, плюс `update-spread`/`upsert-spread`), каждая — по всем 12 приложениям (Ferronit, BlackSheep, Litestar на SQLAlchemy Core, FastAPI, Django, Axum, Actix Web, Go pgx/sqlx/GORM/ent) в одной сессии, **на `ab`**; после каждой стадии — JSON в `bench/results/` и диаграмма в `docs/img/charts/` |
+| `pgbench` (эталон) | К каждой стадии с БД: тот же оператор через `pgbench` (50 клиентов, 4 с, отдельный контейнер `postgres:18`). «Потолок БД» — нижняя строка на стадийной диаграмме, поле `pgbench_tps` в JSON. Выключается `BENCH_NO_PGBENCH=1` |
+| `chart.py` | Генератор диаграмм (SVG + PNG через `inkscape`): одна стадия и сводная; **базовая линия — `ferronit-pipeline`** (`BASELINE` в модуле, `×1`) |
 | `api_bench_logging.py` | ping с access-логированием (одна строка на запрос в stdout) — Ferronit (свой неблокирующий `Logger`) vs stdlib-логирование остальных фреймворков, **на `ab`** |
 | `queries_vs_sqlalchemy.py` | запросы к БД **без HTTP**: Ferronit (rawmodel/rawdb) vs SQLAlchemy Core/ORM vs сырой asyncpg; `get_1`/`list_100`/`insert_1`/`update_1`/`upsert_1`/`delete_1`, 1 клиент |
 | `http_cpu_bench.py` | CPU **под HTTP-нагрузкой** (`ab -c 50`): сервер (процесс приложения), PostgreSQL (cgroup), клиент (rusage) — мкс на запрос |
@@ -46,11 +48,44 @@ UPDATE/UPSERT/DELETE били по существующим строкам, а �
 | `_probe_batch_durability.py`, `_probe_batch_limits.py`, `_probe_copy.py` | батчинг и сохранность: атомарность, SIGKILL-опыт с крахом контейнера, предел параметров, `COPY` против multi-row `INSERT` |
 | `_probe_copy_semantics.py`, `_probe_copy_transaction.py` | семантика `COPY … FROM STDIN`: участие в транзакции, атомарность пачки, `serial`/триггеры, отсутствие `RETURNING` (**COPY не берём — решение 16.10.2026, пробники оставлены как справка**) |
 | `pg_wire.py`, `wire_bench.py` | самодельный клиент по проводу PostgreSQL (SCRAM, simple/extended, пайплайн) против asyncpg |
+| `rust_http/` | HTTP-стенд на Rust: **Axum** и **Actix Web** на общем слое `sqlx` + Postgres, тот же контракт и таблица `bench_rows`; меряется внутри `api_bench.py` (`rust-axum`, `rust-actix`, `BENCH_NO_RUST=1` — выключить) |
 | `go_pg_orm/` | кросс-языковой стенд Go: `pgx`/`sqlx`/`GORM`/`ent`, HTTP-сервис на `net/http` на той же 6-колоночной схеме, что Python-стенд. HTTP-часть меряется **внутри `api_bench.py`** (одна сессия с Ferronit), `run_all.sh` оставлен для слоёв (10 клиентов × 1000 запросов) и `GOMAXPROCS=8` |
 | `rust_pg_orm/`, `rust_pg_1row/`, `go_pg_1row/` | кросс-языковые стенды на **других схемах** (не обновлены под 6 колонок, числа несопоставимы с Python/Go-стендом): `tokio-postgres`/`sqlx`/`SeaORM` на `users`, `go_pg_1row` — `users_bench` с 10 колонками |
 | `prof_*.py` | профилирование горячего пути (cProfile) |
 | `legacy/` | старые HTTP-бенчи (маршрутизация, payload, bulk-строки, потолок granian) — не актуализируются |
 | `legacy_httpx/` | httpx-клиент (client-bound, ~3.7k потолок) |
+
+## Стадии: быстрый цикл проверки гипотезы
+
+Стадии независимы, поэтому гипотезу можно проверить за минуту, а не за полный прогон:
+
+```bash
+.venv/bin/python bench/api_bench.py                      # все стадии (~25 мин), 3 раунда
+BENCH_STAGES=rows20 .venv/bin/python bench/api_bench.py   # одна проверка (~2 мин)
+BENCH_STAGES=ping,rows100,insert BENCH_RUNS=5 .venv/bin/python bench/api_bench.py
+BENCH_APPS=ferronit,litestar BENCH_STAGES=rows20 ...      # только два стека
+BENCH_MEMORY=1 ...                                       # добавить стадии mem1/mem10
+```
+
+После каждой стадии печатается таблица (отсортировано по req/s, `×` к Ferronit), пишется
+`bench/results/stage-<имя>.json` и диаграмма `docs/img/charts/stage-<имя>.png|svg`.
+Сводная диаграмма по всем прогнанным стадиям — `docs/img/charts/bench-ferronit-baseline.*`.
+Перерисовать диаграммы из уже сохранённых JSON (без повторного прогона):
+
+```bash
+.venv/bin/python bench/chart.py
+```
+
+Общие правила раскладки закреплены в `bench/chart.py` (`LABEL_GAP`, `RATIO_VALUE_GAP`,
+`EDGE_PAD`, `text_width()`): подписи идут **сразу за баром** — коэффициент `×N.NN`, затем
+абсолютное значение, — а ширина картинки считается под самые длинные подписи. Рендер падает
+с `RuntimeError`, если подпись не влезает; `python bench/chart.py --check` прогоняет раскладку
+по всем стадиям во временный каталог и печатает `layout ok`.
+
+На диаграммах подпись бара — фреймворк **и слой доступа**: `SQLAlchemy Core`, `SQLAlchemy ORM`,
+`GORM ORM`, `generated ORM`, `SQL builder + model` (Ferronit `rawmodel`: SQL собирается по модели
+и строки маппятся в `Model`), `raw SQL → structs` (ручные запросы через драйвер без слоя моделей);
+у `ferronit-pipeline` в подписи отдельно видна надбавка `+ aggregate → DTO`.
 
 ## Прямой замер PostgreSQL (окт 2026)
 

@@ -839,6 +839,34 @@ def _pk_statement(table: str, columns: Sequence[str], pk: str) -> sql.Select:
     return sql.Select(table, columns, where=[sql.Raw(f"{pk} = $1")])
 
 
+@lru_cache(maxsize=256)
+def _repo_state(
+    model_cls: type[Model], table: str, pk: str, dialect: sql.Dialect = sql.POSTGRES
+) -> tuple[tuple, str]:
+    """Compile everything a repository needs from its (model, table, pk, dialect).
+
+    A repository is built per unit of work (one per request), so its SQL is
+    rendered once per model instead of once per request: the tuple from
+    :func:`_repo_sql` plus the point read with declared relations, which is the
+    most expensive statement to build. Statements carry no values, so sharing
+    them between connections is safe.
+
+    Args:
+        model_cls: The ``rawmodel.Model`` subclass.
+        table: Resolved table name.
+        pk: Primary-key column.
+        dialect: Target engine.
+
+    Returns:
+        ``(_repo_sql(...), SELECT by pk with relations)``.
+    """
+    state = _repo_sql(model_cls, table, pk, dialect)
+    join_pk_sql = sql.compile_statement(
+        _wrap_relations(_pk_statement(table, model_cls.__columns__, pk), model_cls), dialect
+    )[0]
+    return state, join_pk_sql
+
+
 def _wrap_relations(statement: sql.Select, model: type[Model]) -> sql.Select:
     """Обернуть SELECT по родителю в LEFT JOIN всех объявленных связей.
 
@@ -920,19 +948,16 @@ class RawModelRepository[M: Model](Adapter):
         self._identity_map = identity_map
         # Диалект берём у соединения; у asyncpg атрибута нет — значит PostgreSQL.
         self._dialect = getattr(connection, "dialect", sql.POSTGRES)
+        # SQL-текст целиком собран заранее (кэш по модели): репозиторий создаётся
+        # на каждый юнит работы, а компиляция — раз на модель.
+        state, self._join_pk_sql = _repo_state(
+            model_cls, table or _resolve_table(model_cls), pk, self._dialect
+        )
         (
             self._table, self._columns, self._select_columns, self._insert_columns,
             self._insert_cols, self._insert_sql, self._upsert_sql,
             self._select_pk_sql, self._delete_sql, self._list_sql,
-        ) = _repo_sql(
-            model_cls, table or _resolve_table(model_cls), pk, self._dialect
-        )
-        # Чтение строки по pk со связями: тот же SELECT, но обёрнутый в LEFT JOIN
-        # объявленных связей. Собирается узлами и компилируется один раз.
-        self._join_pk_sql = sql.compile_statement(
-            _wrap_relations(_pk_statement(self._table, self._columns, pk), model_cls),
-            self._dialect,
-        )[0]
+        ) = state
 
     async def _materialize(self, rows) -> list[M]:
         """Построить модели из строк, подтянув связи отдельным запросом.
@@ -1174,6 +1199,9 @@ class RawModelRepository[M: Model](Adapter):
             rows = await self._conn.fetch(self._list_sql, limit, offset)
         # Identity-map наполняется только из get(): на list() карта почти никогда
         # не пригождается, а класть каждую строку в неё — лишние ~50 µs на 1000 строк.
+        if not self._model.__relations__:
+            # hot path без связей: без лишней корутины на каждый запрос
+            return [self._model(*row) for row in rows]
         return await self._materialize(rows)
 
     async def fetch(self, query: Query) -> builtins.list[M]:
@@ -1188,6 +1216,8 @@ class RawModelRepository[M: Model](Adapter):
         """
         sql_text, params = query.compile(self._dialect)
         rows = await self._conn.fetch(sql_text, *params)
+        if not self._model.__relations__:
+            return [self._model(*row) for row in rows]
         return await self._materialize(rows)
 
     async def fetch_one(self, query: Query) -> M | None:

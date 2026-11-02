@@ -152,6 +152,15 @@ docker run -d --name ferronit-pg -e POSTGRES_PASSWORD=postgres -e POSTGRES_USER=
     `__slots__` msgspec запрещает (`Struct types cannot define __init__`). Сообщение сериализуемо
     (`msgspec.json.encode/decode`) — команду можно отправить во внешнюю шину, а не только в
     in-process `CommandBus`.
+15. **Ошибки не глушить.** `except Exception: pass`, `except: continue`, `contextlib.suppress`
+    без обоснования — дефект; ловится ruff `S110`/`S112` (включены в `select`). Ловить только
+    конкретный ожидаемый тип; если он ожидаем — либо обработать по смыслу, либо залогировать
+    (`logger.debug`/`warning`/`error`), либо `raise`. Широкий `except Exception` допустим только
+    на границе запроса (маппинг в 500 с логом) и в путях очистки, где падение не должно маскировать
+    исходную ошибку. Сознательный no-op — только с комментарием и `# noqa: S110` (единственный
+    такой случай сейчас — best-effort запись в `contrib/logging.py`). Глотать исключение ради
+    «чтобы не падало» нельзя: именно так прожил баг «на RSGI пустые заголовки» — `bytes(str)`
+    падал, а `except Exception: pass` скрывал это.
 
 ## Стиль кода
 
@@ -163,6 +172,10 @@ docker run -d --name ferronit-pg -e POSTGRES_PASSWORD=postgres -e POSTGRES_USER=
 - **Публичный API объявляется в `__all__`** каждого модуля.
 - Приватное — с префиксом `_`.
 - Форматирование: ruff (line-length 100, target py312), сортировка импортов включена.
+- **Никакого умалчивания ошибок** (инвариант 15): `except Exception: pass` запрещён и ловится
+  ruff `S110`/`S112`; ожидаемое исключение — конкретный тип + обработка/лог, неожидаемое —
+  `raise`. Если очень нужно проигнорировать (best-effort cleanup, `ProcessLookupError` при чтении
+  `/proc`), оставлять комментарий и `# noqa: S110`, почему это безопасно.
 - Тесты: pytest, `asyncio_mode = "auto"` (маркер `@pytest.mark.asyncio` не нужен),
   файлы `tests/test_<тема>.py`, security — в `tests/security/`.
 

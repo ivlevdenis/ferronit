@@ -144,14 +144,16 @@ class OpenAPI:
 
 
 def _get_return_type(handler) -> type | None:
+    """Best-effort return annotation: ``get_type_hints`` first, signature as fallback."""
     try:
         return get_type_hints(handler).get("return")
-    except Exception:
+    except (NameError, TypeError, ValueError):
+        # неразрешимые forward-ref'ы и странные аннотации — это путь fallback'а
         pass
     try:
         sig = inspect.signature(handler)
         if sig.return_annotation is not inspect.Signature.empty:
             return sig.return_annotation
-    except Exception:
+    except (TypeError, ValueError):
         pass
     return None

@@ -19,7 +19,7 @@ def app():
             while True:
                 msg = await ws.receive()
                 await ws.send(f"echo: {msg}")
-        except Exception:
+        except Exception:  # noqa: S110 - разрыв соединения клиентом завершает эхо-цикл
             pass
 
     @v.websocket("/ws/chat")
@@ -29,7 +29,7 @@ def app():
             while True:
                 data = await ws.receive_json()
                 await ws.send_json({"reply": data.get("text", "?")})
-        except Exception:
+        except Exception:  # noqa: S110 - разрыв соединения клиентом завершает цикл
             pass
 
     @v.route("/stream")

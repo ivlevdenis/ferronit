@@ -4,6 +4,7 @@ from . import views
 
 urlpatterns = [
     path("ping", views.ping),
+    path("me", views.me),
     path("rows/any", views.rows_any),
     path("rows/upsert-any", views.upsert_any),
     path("rows/oldest", views.delete_oldest),

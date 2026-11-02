@@ -8,8 +8,10 @@
 //! стенд меряет цену фреймворка, а не ORM. Сравнение слоёв — в `bench/rust_pg_orm`.
 
 use std::sync::atomic::{AtomicI64, Ordering};
+use std::sync::LazyLock;
 
 use chrono::{DateTime, NaiveDate, TimeZone, Utc};
+use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
 use serde::Serialize;
 use sqlx::postgres::types::PgInterval;
 use sqlx::postgres::{PgPool, PgPoolOptions};
@@ -20,6 +22,41 @@ pub const DSN: &str = "postgres://postgres:postgres@127.0.0.1:5432/postgres";
 
 /// Лимит строк по умолчанию для `GET /rows` без query-параметра.
 pub const DEFAULT_LIMIT: i64 = 100;
+
+// ── JWT-аутентификация (стадия `jwt`) ────────────────────────────────
+
+/// Секрет HS256 из окружения (его ставит `bench/api_bench.py`).
+static JWT_SECRET: LazyLock<Vec<u8>> =
+    LazyLock::new(|| std::env::var("BENCH_JWT_SECRET").unwrap_or_default().into_bytes());
+
+/// Параметры проверки HS256 (включая обязательный `exp`).
+static JWT_VALIDATION: LazyLock<Validation> = LazyLock::new(|| Validation::new(Algorithm::HS256));
+
+/// Claims токена стенда: `sub`, `role` и `exp`, который проверяет `jsonwebtoken`.
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct JwtClaims {
+    /// Пользователь.
+    pub sub: String,
+    /// Роль.
+    pub role: String,
+    /// Время истечения (unix-секунды).
+    pub exp: u64,
+}
+
+/// Проверить `Authorization: Bearer <HS256>` и вернуть claims.
+///
+/// Args:
+///     header: Значение заголовка `Authorization` (или `None`).
+///
+/// Returns:
+///     Claims при валидной подписи и неистёкшем `exp`, иначе `None`.
+pub fn verify_jwt(header: Option<&str>) -> Option<JwtClaims> {
+    let token = header?.strip_prefix("Bearer ")?;
+    let key = DecodingKey::from_secret(&JWT_SECRET);
+    decode::<JwtClaims>(token, &key, &JWT_VALIDATION)
+        .ok()
+        .map(|data| data.claims)
+}
 
 /// `interval` в микросекундах: в Python это `timedelta`, в JSON — секунды (как у msgspec).
 #[derive(Debug, Clone, Copy)]

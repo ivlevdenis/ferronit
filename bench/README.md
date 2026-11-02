@@ -9,6 +9,11 @@ sdist/Docker-образ. Логика фреймворка от него не з
 
 ## Политика: req/s меряем только `ab`
 
+**Ferronit меряется только по RSGI.** В `api_bench.py`/`api_bench_logging.py` он поднимается
+`granian --interface rsgi`, а in-process профили (`prof_*.py`) ходят через `__rsgi__`
+(`bench/_rsgi.py`). ASGI-вход (`__call__`) для Ferronit не используется: это другой hot path
+(два `send`-события вместо одного `response_bytes`, другое построение запроса).
+
 **Единственный источник цифр по HTTP — ApacheBench (`ab`, C-клиент).** Python-клиент
 (httpx/asyncio) сам упирается в ~3.5–3.7k req/s независимо от сервера: в таких замерах
 измеряется клиент, а не фреймворк. Поэтому httpx-скрипты переехали в `legacy_httpx/`
@@ -26,6 +31,10 @@ BENCH_APPS=ferronit,blacksheep .venv/bin/python bench/api_bench.py   # выбо�
 поднимает их granian'ом (1 воркер; Django — через `django_bench.asgi`), греет и меряет по очереди:
 
 - `GET /ping` — простой `{"ok": true}`;
+- `GET /me` — JWT-аутентификация: `Authorization: Bearer <HS256>`, проверка подписи и `exp`
+  идиоматичным механизмом каждого стека (middleware / guard / dependency / extractor);
+  токен минтит стенд (PyJWT), секрет уходит в приложения через `BENCH_JWT_SECRET`;
+  перед замером проверяется 200 с токеном и 401 без него;
 - `GET /rows?limit=N` — `SELECT id, name, email LIMIT $1`, где `N` (1/20/50/100/1000) приходит
   **query-параметром**, как в реальном API;
 - одиночные записи: `POST /rows` (INSERT), `PUT /rows/{id}` (UPDATE), `DELETE /rows/{id}`,
@@ -36,7 +45,7 @@ UPDATE/UPSERT/DELETE били по существующим строкам, а �
 
 | Скрипт | Что мерит |
 |---|---|
-| `api_bench.py` | **постадийный** стенд: 10 стадий-проверок (`ping`, `rows1/20/50/100/1000`, `insert`, `update`, `upsert`, `delete`, плюс `update-spread`/`upsert-spread`), каждая — по всем 12 приложениям (Ferronit, BlackSheep, Litestar на SQLAlchemy Core, FastAPI, Django, Axum, Actix Web, Go pgx/sqlx/GORM/ent) в одной сессии, **на `ab`**; после каждой стадии — JSON в `bench/results/` и диаграмма в `docs/img/charts/` |
+| `api_bench.py` | **постадийный** стенд: 13 стадий-проверок (`ping`, `jwt`, `rows1/20/50/100/1000`, `insert`, `update`, `upsert`, `delete`, `update-spread`, `upsert-spread`), каждая — по всем 12 приложениям (Ferronit, BlackSheep, Litestar на SQLAlchemy Core, FastAPI, Django, Axum, Actix Web, Go pgx/sqlx/GORM/ent) в одной сессии, **на `ab`**; после каждой стадии — JSON в `bench/results/` и диаграмма в `docs/img/charts/` |
 | `pgbench` (эталон) | К каждой стадии с БД: тот же оператор через `pgbench` (50 клиентов, 4 с, отдельный контейнер `postgres:18`). «Потолок БД» — нижняя строка на стадийной диаграмме, поле `pgbench_tps` в JSON. Выключается `BENCH_NO_PGBENCH=1` |
 | `chart.py` | Генератор диаграмм (SVG + PNG через `inkscape`): одна стадия и сводная; **базовая линия — `ferronit-pipeline`** (`BASELINE` в модуле, `×1`) |
 | `api_bench_logging.py` | ping с access-логированием (одна строка на запрос в stdout) — Ferronit (свой неблокирующий `Logger`) vs stdlib-логирование остальных фреймворков, **на `ab`** |
@@ -67,7 +76,9 @@ BENCH_APPS=ferronit,litestar BENCH_STAGES=rows20 ...      # только два 
 BENCH_MEMORY=1 ...                                       # добавить стадии mem1/mem10
 ```
 
-После каждой стадии печатается таблица (отсортировано по req/s, `×` к Ferronit), пишется
+Порядок приложений внутри раунда чередуется (вперёд/назад): без этого первый в раунде
+систематически меряется на «холодной» машине. После каждой стадии печатается таблица
+(отсортировано по req/s, `×` к Ferronit), пишется
 `bench/results/stage-<имя>.json` и диаграмма `docs/img/charts/stage-<имя>.png|svg`.
 Сводная диаграмма по всем прогнанным стадиям — `docs/img/charts/bench-ferronit-baseline.*`.
 Перерисовать диаграммы из уже сохранённых JSON (без повторного прогона):

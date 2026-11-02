@@ -1,7 +1,7 @@
-"""Профиль Ferronit GET /rows?limit=N — где накладные на малых лимитах (1–50).
+"""Профиль Ferronit GET /rows?limit=N по RSGI — где накладные на малых лимитах (1–50).
 
-Лестница слоёв (in-process, прямой вызов ASGI): /ping (без базы) → сырой asyncpg
-→ полный /rows (UoW + Repo + rawmodel), плюс cProfile по категориям.
+Лестница слоёв (in-process, прямой вызов `__rsgi__`, production-транспорт): /ping
+(без базы) → сырой asyncpg → полный /rows (UoW + Repo + rawmodel), плюс cProfile.
 """
 import asyncio
 import cProfile
@@ -9,6 +9,8 @@ import time
 from typing import Annotated
 
 import asyncpg
+
+import _rsgi
 
 from ferronit import Ferronit
 from ferronit.contrib.rawdb import Pool, create_pool
@@ -50,30 +52,15 @@ async def ping():
     return {"ok": True}
 
 
-def make_scope(path: str, query: bytes):
-    return {
-        "type": "http",
-        "method": "GET",
-        "path": path,
-        "query_string": query,
-        "headers": [(b"host", b"t")],
-        "scheme": "http",
-        "client": ("127.0.0.1", 1),
-        "server": ("127.0.0.1", 8000),
-        "route_params": {},
-    }
-
-
 async def call(path: str, query: bytes = b""):
-    scope = make_scope(path, query)
-
-    async def receive():
-        return {"type": "http.request", "body": b"", "more_body": False}
-
-    async def send(msg):
-        pass
-
-    await app(scope, receive, send)
+    """Один запрос через RSGI (`__rsgi__`), как в проде на granian."""
+    await _rsgi.call(
+        app,
+        method="GET",
+        path=path,
+        query_string=query.decode("latin-1"),
+        headers=(("host", "t"),),
+    )
 
 
 _pg_pool = None

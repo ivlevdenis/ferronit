@@ -3,14 +3,15 @@
 //! Запуск: `target/release/axum_srv --port 8261 --pool 16`
 //! Один воркер эмулируется `TOKIO_WORKER_THREADS=1` (аналог `GOMAXPROCS=1` у Go).
 
-use axum::extract::{Path, Query, State};
+use axum::extract::{FromRequestParts, Path, Query, State};
+use axum::http::request::Parts;
 use axum::http::StatusCode;
 use axum::routing::{get, post, put};
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 
-use rust_http_bench::{DEFAULT_LIMIT, RowOut};
+use rust_http_bench::{verify_jwt, JwtClaims, DEFAULT_LIMIT, RowOut};
 
 #[derive(Debug, Deserialize)]
 struct LimitQuery {
@@ -47,6 +48,41 @@ struct OkResponse {
 
 async fn ping() -> Json<OkResponse> {
     Json(OkResponse { ok: true })
+}
+
+// ── JWT-аутентификация (стадия `jwt`) ────────────────────────────────
+// Экстрактор — идиоматичный для Axum механизм; заголовок проверяется до
+// хендлера, claims приходят аргументом.
+
+#[derive(Debug, Serialize)]
+struct MeResponse {
+    sub: String,
+    role: String,
+}
+
+#[derive(Debug, Serialize)]
+struct Unauthorized {
+    error: &'static str,
+}
+
+struct AuthClaim(JwtClaims);
+
+impl<S: Send + Sync> FromRequestParts<S> for AuthClaim {
+    type Rejection = (StatusCode, Json<Unauthorized>);
+
+    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+        let header = parts
+            .headers
+            .get(axum::http::header::AUTHORIZATION)
+            .and_then(|value| value.to_str().ok());
+        verify_jwt(header)
+            .map(AuthClaim)
+            .ok_or((StatusCode::UNAUTHORIZED, Json(Unauthorized { error: "unauthorized" })))
+    }
+}
+
+async fn me(AuthClaim(claims): AuthClaim) -> Json<MeResponse> {
+    Json(MeResponse { sub: claims.sub, role: claims.role })
 }
 
 async fn list_rows(
@@ -138,6 +174,7 @@ async fn main() {
 
     let app = Router::new()
         .route("/ping", get(ping))
+        .route("/me", get(me))
         .route("/rows", get(list_rows).post(insert_row))
         .route("/rows/upsert", post(upsert_row))
         .route("/rows/oldest", axum::routing::delete(delete_oldest))

@@ -3,11 +3,13 @@
 //! Запуск: `target/release/actix_srv --port 8262 --pool 16`
 //! Один воркер — `.workers(1)`, чтобы сравнивать с одним процессом Ferronit/granian.
 
-use actix_web::{web, App, HttpResponse, HttpServer, Responder};
+use std::future::{ready, Ready};
+
+use actix_web::{dev::Payload, web, App, FromRequest, HttpRequest, HttpResponse, HttpServer, Responder};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 
-use rust_http_bench::{DEFAULT_LIMIT, RowOut};
+use rust_http_bench::{verify_jwt, JwtClaims, DEFAULT_LIMIT, RowOut};
 
 #[derive(Debug, Deserialize)]
 struct LimitQuery {
@@ -50,6 +52,39 @@ fn fail(err: sqlx::Error) -> actix_web::Error {
 
 async fn ping() -> impl Responder {
     HttpResponse::Ok().json(OkResponse { ok: true })
+}
+
+// ── JWT-аутентификация (стадия `jwt`) ────────────────────────────────
+// Экстрактор — идиоматичный для Actix механизм: заголовок проверяется до
+// хендлера, claims приходят аргументом.
+
+#[derive(Debug, Serialize)]
+struct MeResponse {
+    sub: String,
+    role: String,
+}
+
+struct AuthClaim(JwtClaims);
+
+impl FromRequest for AuthClaim {
+    type Error = actix_web::Error;
+    type Future = Ready<Result<Self, Self::Error>>;
+
+    fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
+        let header = req
+            .headers()
+            .get(actix_web::http::header::AUTHORIZATION)
+            .and_then(|value| value.to_str().ok());
+        ready(
+            verify_jwt(header)
+                .map(AuthClaim)
+                .ok_or_else(|| actix_web::error::ErrorUnauthorized("unauthorized")),
+        )
+    }
+}
+
+async fn me(AuthClaim(claims): AuthClaim) -> impl Responder {
+    HttpResponse::Ok().json(MeResponse { sub: claims.sub, role: claims.role })
 }
 
 async fn list_rows(pool: web::Data<PgPool>, q: web::Query<LimitQuery>) -> ApiResult {
@@ -124,6 +159,7 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .app_data(shared.clone())
             .route("/ping", web::get().to(ping))
+            .route("/me", web::get().to(me))
             .route("/rows", web::get().to(list_rows))
             .route("/rows", web::post().to(insert_row))
             .route("/rows/upsert", web::post().to(upsert_row))

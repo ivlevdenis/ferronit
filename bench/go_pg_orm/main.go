@@ -18,9 +18,11 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"runtime"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -28,6 +30,7 @@ import (
 	"entgo.io/ent/dialect"
 	entsql "entgo.io/ent/dialect/sql"
 	"github.com/bytedance/sonic"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jmoiron/sqlx"
@@ -42,6 +45,43 @@ import (
 )
 
 var fastJSON bool
+
+// ── JWT-аутентификация (стадия `jwt`) ────────────────────────────────
+// Секрет — из окружения (его ставит bench/api_bench.py); claims кладутся
+// в context запроса, как принято в net/http.
+
+var jwtSecret []byte
+
+type jwtClaims struct {
+	Role string `json:"role"`
+	jwt.RegisteredClaims
+}
+
+type claimsKey struct{}
+
+func authMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		tokenText, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+		if !ok {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		claims := &jwtClaims{}
+		token, err := jwt.ParseWithClaims(tokenText, claims, func(*jwt.Token) (any, error) {
+			return jwtSecret, nil
+		}, jwt.WithValidMethods([]string{"HS256"}))
+		if err != nil || !token.Valid {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		next(w, r.WithContext(context.WithValue(r.Context(), claimsKey{}, claims)))
+	}
+}
+
+func me(w http.ResponseWriter, r *http.Request) {
+	claims := r.Context().Value(claimsKey{}).(*jwtClaims)
+	writeJSON(w, map[string]string{"sub": claims.Subject, "role": claims.Role})
+}
 
 const (
 	dsn       = "postgres://postgres:postgres@127.0.0.1:5432/postgres"
@@ -495,6 +535,7 @@ func (s *store) deleteOldest(ctx context.Context) {
 }
 
 func serveHTTP(mode string, port, pool int) {
+	jwtSecret = []byte(os.Getenv("BENCH_JWT_SECRET"))
 	ctx := context.Background()
 	st := openStore(ctx, mode, pool)
 	defer st.close()
@@ -503,6 +544,7 @@ func serveHTTP(mode string, port, pool int) {
 	mux.HandleFunc("GET /ping", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, map[string]bool{"ok": true})
 	})
+	mux.HandleFunc("GET /me", authMiddleware(me))
 	mux.HandleFunc("GET /rows", func(w http.ResponseWriter, r *http.Request) {
 		limit := 100
 		if v := r.URL.Query().Get("limit"); v != "" {

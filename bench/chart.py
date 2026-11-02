@@ -81,6 +81,7 @@ def _require_fits(kind: str, label: str, x_end: float, width: float) -> None:
 # Заголовки стадий: имя стадии → что именно мерялось.
 STAGE_TITLES = {
     "ping": "GET /ping — empty route",
+    "jwt": "GET /me — JWT auth (HS256 verify)",
     "insert": "POST /rows — insert one row",
     "update": "PUT /rows/1 — update one row",
     "update-spread": "PUT /rows/any — update a spread row",

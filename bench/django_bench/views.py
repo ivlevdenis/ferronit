@@ -38,6 +38,12 @@ def ping(request):
     return _json({"ok": True})
 
 
+def me(request):
+    """GET /me — защищённый маршрут: claims положил JWTClaimsMiddleware."""
+    claims = request.jwt_claims
+    return _json({"sub": claims["sub"], "role": claims["role"]})
+
+
 def rows(request):
     """GET /rows?limit=N — список; POST /rows — INSERT одной строки."""
     if request.method == "POST":

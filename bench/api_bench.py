@@ -13,11 +13,18 @@ FastAPI=SQLAlchemy ORM, Django=Django ORM, Go=net/http + свой слой до�
 
 Эндпоинты:
     GET  /ping              -> {"ok": true}
+    GET  /me                -> защищённый: JWT (HS256) в Authorization: Bearer <token>
     GET  /rows?limit=N      -> N строк SELECT id, name, email, created_at, birthday, ttl LIMIT $1 (N из query)
     POST /rows              -> INSERT одной строки (name, email + фиксированные даты/время)
     PUT  /rows/{id}         -> UPDATE одной строки {name, email}
     DELETE /rows/{id}       -> DELETE одной строки
     POST /rows/upsert       -> UPSERT одной строки {id, name, email}
+
+Стадия `jwt` меряет аутентификацию: `GET /me` с заголовком ``Authorization: Bearer <HS256>``.
+Токен минтится здесь (PyJWT) и проверяется в каждом приложении его идиоматичным механизмом
+(middleware/guard/dependency/extractor) — одинаковые секрет, алгоритм и claims, поэтому
+разница — цена именно auth-обвязки фреймворка. Перед замером стадия проверяет, что каждое
+приложение отдаёт 200 с токеном и 401 без него (иначе быстрый 401 засчитался бы как ответ).
 
 Число строк (1/20/50/100/1000) задаётся query-параметром `limit`, а не env-переменной —
 как в реальном API. Замер только через `ab` (C-клиент), granian, 1 воркер, лучшее из
@@ -62,6 +69,14 @@ WITH_RUST = os.environ.get("BENCH_NO_RUST") != "1"
 SELECT_REQUESTS = 5000
 PING_REQUESTS = 10000
 WRITE_REQUESTS = 3000
+JWT_REQUESTS = 10000
+
+# JWT-стадия: один секрет/алгоритм/пayload на все стеки. Секрет уходит в приложения
+# через окружение (дети наследуют env), токен минтится в `_jwt_token()`.
+JWT_SECRET = "ferronit-bench-hs256-secret-please-do-not-use-in-production"
+JWT_SUB = "user-42"
+JWT_ROLE = "admin"
+os.environ.setdefault("BENCH_JWT_SECRET", JWT_SECRET)
 
 PORTS = {
     "ferronit": 8241,
@@ -142,12 +157,15 @@ if _BENCH_APPS:
 
 FERRONIT_APP = '''\
 import itertools
+import os
+from contextvars import ContextVar
 from datetime import UTC, date, datetime, timedelta
 from typing import Annotated
 
+import jwt
 import msgspec
 
-from ferronit import Body, Ferronit
+from ferronit import Body, Ferronit, Response
 from ferronit.contrib.rawdb import Pool, create_pool
 from ferronit.contrib.rawmodel import Mapper, Model, Repository
 from ferronit.ddd import AggregateRoot, Command, CommandBus, Query, QueryBus
@@ -452,6 +470,44 @@ class HttpRowsAdapter:
             return {"ok": True}
 
 
+# ── JWT-аутентификация (стадия `jwt`) ────────────────────────────────
+# Middleware — механизм фреймворка (`app.use`); claims кладутся в ContextVar,
+# потому что запрос и хендлер живут в одной задаче.
+JWT_SECRET = os.environ.get("BENCH_JWT_SECRET", "bench-secret")
+_jwt_claims: ContextVar[dict] = ContextVar("jwt_claims")
+
+
+def _verify_jwt(req):
+    header = req.get_header("authorization") or ""
+    if not header.startswith("Bearer "):
+        return None
+    try:
+        return jwt.decode(header[7:], JWT_SECRET, algorithms=["HS256"])
+    except jwt.PyJWTError:
+        return None
+
+
+async def jwt_middleware(req, next_handler):
+    if req.path == "/me":
+        claims = _verify_jwt(req)
+        if claims is None:
+            return Response(b'{"error":"unauthorized"}', 401, "application/json")
+        _jwt_claims.set(claims)
+    result = next_handler(req)
+    if hasattr(result, "__await__"):
+        result = await result
+    return result
+
+
+app.use(jwt_middleware)
+
+
+@app.route("/me")
+async def me():
+    claims = _jwt_claims.get()
+    return {"sub": claims["sub"], "role": claims["role"]}
+
+
 app.mount("", HttpRowsAdapter())
 '''
 
@@ -502,8 +558,10 @@ FERRONIT_PIPELINE_APP = (
 
 BLACKSHEEP_APP = '''\
 import itertools
+import os
 from datetime import UTC, date, datetime, timedelta
 
+import jwt
 import msgspec
 from blacksheep import Application, Request, Response
 from blacksheep.contents import Content
@@ -659,15 +717,51 @@ async def upsert(request: Request):
 @app.router.get("/ping")
 async def ping():
     return {"ok": True}
+
+
+# ── JWT-аутентификация (стадия `jwt`) ────────────────────────────────
+# Middleware фреймворка (app.middlewares) + claims в ASGI scope запроса.
+JWT_SECRET = os.environ.get("BENCH_JWT_SECRET", "bench-secret")
+_UNAUTHORIZED = b'{"error":"unauthorized"}'
+
+
+async def jwt_middleware(request: Request, handler):
+    if request.path == "/me":
+        header = request.get_first_header(b"authorization") or b""
+        claims = None
+        if header.startswith(b"Bearer "):
+            try:
+                claims = jwt.decode(header[7:], JWT_SECRET, algorithms=["HS256"])
+            except jwt.PyJWTError:
+                claims = None
+        if claims is None:
+            return Response(401, content=Content(b"application/json", _UNAUTHORIZED))
+        request.scope["jwt_claims"] = claims
+    return await handler(request)
+
+
+app.middlewares.append(jwt_middleware)
+
+
+@app.router.get("/me")
+async def me(request: Request):
+    claims = request.scope["jwt_claims"]
+    return _json({"sub": claims["sub"], "role": claims["role"]})
 '''
 
 
 LITESTAR_APP = '''\
-import msgspec
 import itertools
+import os
+import msgspec
 from datetime import UTC, date, datetime, timedelta
 
+import jwt
+
 from litestar import Litestar, Request, delete as delete_op, get, post, put
+from litestar.connection import ASGIConnection
+from litestar.exceptions import NotAuthorizedException
+from litestar.handlers.base import BaseRouteHandler
 from sqlalchemy import (
     Column, Date, DateTime, Integer, Interval, MetaData, String, Table, select,
 )
@@ -817,17 +911,41 @@ async def ping() -> dict:
     return {"ok": True}
 
 
+# ── JWT-аутентификация (стадия `jwt`) ────────────────────────────────
+# Guard — механизм Litestar; claims кладутся в connection.state.
+JWT_SECRET = os.environ.get("BENCH_JWT_SECRET", "bench-secret")
+
+
+def jwt_guard(connection: ASGIConnection, _: BaseRouteHandler) -> None:
+    header = connection.headers.get("authorization", "")
+    if not header.startswith("Bearer "):
+        raise NotAuthorizedException("unauthorized")
+    try:
+        claims = jwt.decode(header[7:], JWT_SECRET, algorithms=["HS256"])
+    except jwt.PyJWTError as exc:
+        raise NotAuthorizedException("unauthorized") from exc
+    connection.state["jwt_claims"] = claims
+
+
+@get("/me", guards=[jwt_guard])
+async def me(request: Request) -> dict:
+    claims = request.state["jwt_claims"]
+    return {"sub": claims["sub"], "role": claims["role"]}
+
+
 app = Litestar(route_handlers=[
-    rows, insert, update, update_any, delete, delete_oldest, upsert, upsert_any, ping,
+    rows, insert, update, update_any, delete, delete_oldest, upsert, upsert_any, ping, me,
 ])
 '''
 
 
 FASTAPI_APP = '''\
 import itertools
+import os
 from datetime import UTC, date, datetime, timedelta
 
-from fastapi import FastAPI, Query, Request
+import jwt
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from sqlalchemy import (
     Column, Date, DateTime, Integer, Interval, String, select, text,
 )
@@ -994,6 +1112,25 @@ async def upsert(request: Request):
 @app.get("/ping")
 async def ping():
     return {"ok": True}
+
+
+# ── JWT-аутентификация (стадия `jwt`) ────────────────────────────────
+# Dependency — механизм FastAPI; claims возвращаются из зависимости.
+JWT_SECRET = os.environ.get("BENCH_JWT_SECRET", "bench-secret")
+
+
+def current_claims(authorization: str = Header(default="")) -> dict:
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="unauthorized")
+    try:
+        return jwt.decode(authorization[7:], JWT_SECRET, algorithms=["HS256"])
+    except jwt.PyJWTError as exc:
+        raise HTTPException(status_code=401, detail="unauthorized") from exc
+
+
+@app.get("/me")
+async def me(claims: dict = Depends(current_claims)):
+    return {"sub": claims["sub"], "role": claims["role"]}
 '''
 
 
@@ -1230,11 +1367,15 @@ def wait_ready(port: int, proc: subprocess.Popen | None = None, timeout: float =
     raise TimeoutError(f"сервер на :{port} не поднялся")
 
 
-def ab_reqs(port: int, path: str, n: int) -> float:
-    out = subprocess.run(
-        ["ab", "-n", str(n), "-c", "50", "-k", f"http://127.0.0.1:{port}{path}"],
-        capture_output=True, text=True, timeout=300,
-    ).stdout
+def ab_reqs(
+    port: int, path: str, n: int, headers: tuple[str, ...] = ()
+) -> float:
+    """req/s по ab для GET-маршрута; ``headers`` уходят в ``ab -H``."""
+    cmd = ["ab", "-n", str(n), "-c", "50", "-k"]
+    for header in headers:
+        cmd += ["-H", header]
+    cmd.append(f"http://127.0.0.1:{port}{path}")
+    out = subprocess.run(cmd, capture_output=True, text=True, timeout=300).stdout
     match = re.search(r"Requests per second:\s+([\d.]+)", out)
     if not match:
         raise RuntimeError(f"ab не дал результат для {path}:\n{out[-400:]}")
@@ -1262,29 +1403,42 @@ def ab_write(port: int, path: str, method: str, body: str | None, n: int) -> flo
 
 
 def measure_round_robin(
-    measure, reseed: bool = False, seed_rows: int = 1000
+    measure, reseed: bool = False, seed_rows: int = 1000,
+    check: Callable[[str, int], None] | None = None,
 ) -> dict[str, float]:
     """Прогнать ``measure(name, port)`` по всем приложениям, ``RUNS`` раундов по кругу.
 
     Раунд — «каждое приложение по одному разу»: медленный дрейф машины (прогрев
     CPU, шум соседей) сдвигает все замеры раунда одинаково, поэтому отношения
     между приложениями сходятся между раундами, а внутри раунда — честные.
+    Порядок приложений в соседних раундах разворачивается: иначе тот, кто всегда
+    меряется первым, систематически попадает на «холодную» машину (видно на
+    `ferronit` vs `ferronit-pipeline`, у которых на `/ping` код одинаковый).
 
     Args:
         measure: функция ``(name, port) -> float``, возвращающая req/s.
         reseed: восстанавливать таблицу перед замером (для записей).
+        seed_rows: Сколько строк оставить в таблице при ``reseed``.
+        check: необязательная проверка контракта ``(name, port) -> None`` перед
+            замером; исключение прерывает стадию (сервер уже поднят).
 
     Returns:
         Лучший результат по каждому приложению за все раунды.
     """
     best = {name: 0.0 for name in PORTS}
-    for _ in range(RUNS):
-        for name, port in PORTS.items():
+    for round_no in range(RUNS):
+        # Порядок чередуется: первый в раунде меряется на «холодной» машине, и без
+        # разворота приложение с фиксированной позицией систематически недополучает.
+        names = list(PORTS) if round_no % 2 == 0 else list(reversed(PORTS))
+        for name in names:
+            port = PORTS[name]
             proc = start(name, port)
             try:
                 wait_ready(port, proc)
                 if reseed:
                     seed(seed_rows)
+                if check is not None:
+                    check(name, port)
                 best[name] = max(best[name], measure(name, port))
             finally:
                 proc.terminate()
@@ -1307,6 +1461,55 @@ def _transport_note() -> str:
 def stage_ping() -> dict[str, float]:
     """Стадия `ping`: пустой маршрут без БД."""
     return measure_round_robin(lambda _n, port: ab_reqs(port, "/ping", PING_REQUESTS))
+
+
+def _jwt_token() -> str:
+    """Сминченный HS256-токен стенда (PyJWT) с теми же claims во всех стеках."""
+    import jwt  # pyjwt — зависимость только стенда
+
+    now = int(time.time())
+    return jwt.encode(
+        {"sub": JWT_SUB, "role": JWT_ROLE, "iat": now, "exp": now + 7 * 86400},
+        JWT_SECRET,
+        algorithm="HS256",
+    )
+
+
+def _status(port: int, path: str, headers: tuple[str, ...] = ()) -> int:
+    """HTTP-статус одним запросом (для проверки контракта, не для замера)."""
+    import urllib.error
+    import urllib.request
+
+    request = urllib.request.Request(f"http://127.0.0.1:{port}{path}", headers=dict(
+        h.split(": ", 1) for h in headers
+    ))
+    try:
+        with urllib.request.urlopen(request, timeout=5) as resp:
+            return resp.status
+    except urllib.error.HTTPError as exc:
+        return exc.code
+
+
+def stage_jwt() -> dict[str, float]:
+    """Стадия `jwt`: ``GET /me`` с Bearer-токеном (HS256) — цена аутентификации.
+
+    Перед замером проверяется контракт: 200 с валидным токеном и 401 без него.
+    Без этой проверки сломанная авторизация мерилась бы как «быстрый 401».
+    """
+    headers = (f"Authorization: Bearer {_jwt_token()}",)
+
+    def check(name: str, port: int) -> None:
+        ok = _status(port, "/me", headers)
+        denied = _status(port, "/me")
+        if ok != 200 or denied != 401:
+            raise RuntimeError(
+                f"{name}: /me отвечает {ok} с токеном и {denied} без него "
+                f"(ожидалось 200/401) — JWT-аутентификация в приложении не работает"
+            )
+
+    return measure_round_robin(
+        lambda _n, port: ab_reqs(port, "/me", JWT_REQUESTS, headers), check=check
+    )
 
 
 def stage_rows(limit: int) -> dict[str, float]:
@@ -1386,7 +1589,7 @@ def stage_memory(workers: int) -> dict[str, float]:
 
 
 # Стадия → функция замера. Имена совпадают с именами файлов диаграмм.
-STAGES: dict[str, Callable[[], dict[str, float]]] = {"ping": stage_ping}
+STAGES: dict[str, Callable[[], dict[str, float]]] = {"ping": stage_ping, "jwt": stage_jwt}
 for _limit in LIMITS:
     STAGES[f"rows{_limit}"] = lambda lim=_limit: stage_rows(lim)
 STAGES["insert"] = lambda: stage_write("POST", "/rows", INSERT_BODY, 1000)

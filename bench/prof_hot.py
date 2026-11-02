@@ -1,4 +1,4 @@
-"""Чистый профиль Ferronit: прямой вызов ASGI, без httpx-шума."""
+"""Чистый профиль Ferronit по RSGI (production-транспорт), без httpx-шума."""
 import asyncio
 import cProfile
 import io
@@ -6,34 +6,19 @@ import pstats
 
 from ferronit import Ferronit
 
+from _rsgi import call
+
 v = Ferronit()
 
 for i in range(50):
     exec(f'@v.route("/route{i}")\ndef h{i}(req): return {{"route": {i}}}')
 
-
-def make_scope():
-    return {
-        "type": "http",
-        "method": "GET",
-        "path": "/route0",
-        "query_string": b"",
-        "headers": [(b"host", b"test"), (b"accept-encoding", b"gzip"), (b"user-agent", b"bench")],
-        "scheme": "http",
-        "client": ("127.0.0.1", 12345),
-        "server": ("127.0.0.1", 8000),
-        "route_params": {},
-    }
+HEADERS = (("host", "test"), ("accept-encoding", "gzip"), ("user-agent", "bench"))
 
 
 async def run():
     for _ in range(20000):
-        sent = []
-        async def receive():
-            return {"type": "http.request", "body": b"", "more_body": False}
-        async def send(msg):
-            sent.append(msg)
-        await v(make_scope(), receive, send)
+        await call(v, method="GET", path="/route0", headers=HEADERS)
 
 
 pr = cProfile.Profile()

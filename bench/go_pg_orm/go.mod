@@ -5,6 +5,7 @@ go 1.25.0
 require (
 	entgo.io/ent v0.14.6
 	github.com/bytedance/sonic v1.15.4
+	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/jackc/pgx/v5 v5.11.0
 	github.com/jmoiron/sqlx v1.4.0
 	gorm.io/driver/postgres v1.6.3
@@ -30,6 +31,7 @@ require (
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.9 // indirect
 	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
+	github.com/rogpeppe/go-internal v1.16.0 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/zclconf/go-cty v1.14.4 // indirect
 	github.com/zclconf/go-cty-yaml v1.1.0 // indirect

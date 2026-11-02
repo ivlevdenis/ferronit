@@ -22,6 +22,6 @@ USE_TZ = False
 
 # Django 6 по умолчанию имеет пустой MIDDLEWARE; access-log middleware добавляется
 # только бенчем логирования (BENCH_ACCESS_LOG=1), обычный стенд остаётся без него.
-MIDDLEWARE = []
+MIDDLEWARE = ["django_bench.middleware.JWTClaimsMiddleware"]
 if os.environ.get("BENCH_ACCESS_LOG") == "1":
     MIDDLEWARE.append("django_bench.logging.AccessLogMiddleware")

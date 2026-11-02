@@ -65,7 +65,10 @@ docs/                      # документация: README.md (хаб), data/
 пакета**: не рефактори их, не линтуй (каталог исключён из ruff и Docker), не переноси обратно в
 корень. **req/s по HTTP меряем только `ab`** (`./bench/run_all_ab.sh` → `bench/RESULTS_ab.txt`):
 httpx-скрипты убраны в `bench/legacy_httpx/`, потому что Python-клиент упирается в ~3.7k req/s
-и измеряет сам себя. Helper-приложения (`bench/_bench_*.py`) запускаются основными скриптами
+и измеряет сам себя. **Ferronit меряется и профилируется только через RSGI** (`granian
+--interface rsgi`, `__rsgi__`; in-process — `bench/_rsgi.py`): ASGI-вход `__call__` — другой
+hot path (два `send`-события вместо `response_bytes`, другое построение запроса), для замеров
+Ferronit он не используется. Helper-приложения (`bench/_bench_*.py`) запускаются основными скриптами
 динамически (`f"_bench_pool_{name}.py"`), поэтому поиск по имени их «не находит» — не удаляй их,
 не проверив `bench/bench_*.py`.
 

@@ -30,9 +30,10 @@ async def inspect(req):
 | `req.method` | `str` | например `"GET"` |
 | `req.path` | `str` | путь без query-строки |
 | `req.headers` | `dict[str, str]` | ключи в нижнем регистре, лениво |
-| `req.get_header(name)` | `str \| None` | регистронезависимый одиночный поиск |
+| `req.get_header(name)` | `str \| None` | регистронезависимый одиночный поиск (первое значение) |
+| `req.get_all(name)` | `list[str]` | **все** значения повторённого заголовка, в порядке провода |
 | `req.query` | `dict[str, list[str]]` | **каждое значение — список** (повторы сохраняются) |
-| `req.cookies` | `dict[str, str]` | разобранный заголовок `Cookie` |
+| `req.cookies` | `dict[str, str]` | разобранный `Cookie` (несколько заголовков склеиваются) |
 | `req.get_cookie(name, default=None)` | `str \| None` | одна cookie |
 
 Значения query — всегда списки: `?a=1&a=2` → `{"a": ["1", "2"]}`. Для
@@ -89,3 +90,131 @@ async def upload(req):
 ```python
 app = Ferronit(max_body_size=10 * 1024 * 1024)   # 10 MiB → 413 при превышении
 ```
+
+## Заголовки: путь ASGI и RSGI
+
+Ferronit принимает запрос двумя транспортами: `__call__` (ASGI — uvicorn, granian
+`--interface asgi`) и `__rsgi__` (RSGI — granian, основной прод-путь). Заголовки приходят
+в них по-разному, но дальше попадают в один и тот же `Request`, где **парсятся лениво**:
+пока хендлер не обратился к `headers`/`get_header`, заголовки только хранятся.
+
+### ASGI: `scope["headers"]` — уже bytes-пары
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as Client
+    participant S as Server (ASGI)
+    participant A as Ferronit.__call__
+    participant R as Request
+    participant X as _core.Request (Rust)
+    participant H as Handler
+
+    C->>S: GET /me<br/>Host, Authorization, Accept-Encoding
+    S->>A: scope{headers: [(b"host", b"…"), (b"authorization", b"…")]}
+    A->>A: resolve(method, path) — Rust
+    A->>R: Request(scope, receive, params)
+    Note over R: заголовки НЕ парсятся,<br/>хранится сырой список bytes-пар
+    A->>H: handler(req) — через цепочку middleware
+    alt handler читает req.headers
+        R->>R: normalise → bytes-пары
+        R->>X: set_headers(raw) — копия в Rust, один раз
+        R->>X: .headers
+        X-->>R: dict[str, str], ключи lower-case
+        R-->>H: dict (кэш в _headers_cache)
+    else handler читает req.get_header("authorization")
+        R->>R: скан списка, без Rust и dict
+        R-->>H: str | None
+    end
+    H-->>A: dict / Response
+    A->>A: _to_response + CORS + X-Trace-Id
+    opt тело ≥ gzip_min_size
+        A->>R: get_header("accept-encoding")
+        A->>X: gzip_compress(body) — Rust
+        X-->>A: gzip-байты + Content-Encoding
+    end
+    A->>S: send(http.response.start)<br/>send(http.response.body)
+    S-->>C: 200 OK
+```
+
+Картинкой: [`img/headers-asgi.png`](img/headers-asgi.png).
+
+### RSGI: `scope.headers` — объект со str-парами
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as Client
+    participant G as granian (RSGI, Rust)
+    participant A as Ferronit.__rsgi__
+    participant Q as _rsgi_request
+    participant R as Request
+    participant X as _core.Request (Rust)
+    participant H as Handler
+
+    C->>G: GET /me<br/>Host, Authorization, Accept-Encoding
+    G->>A: __rsgi__(scope, proto)<br/>scope.headers — Headers со str-парами
+    A->>A: _rsgi_header(scope, "origin")
+    A->>A: resolve(method, path)
+    A->>Q: _rsgi_request(scope, proto, params)
+    Q->>Q: raw = list(headers.items())
+    Q->>R: Request(asgi_scope{headers: raw},<br/>receive = await proto(), params)
+    Note over R: заголовки ленивые,<br/>str → bytes (latin-1) при первом обращении
+    A->>H: handler(req) — через цепочку middleware
+    alt handler читает req.headers
+        R->>R: normalise: str → bytes
+        R->>X: set_headers(norm)
+        X-->>R: dict[str, str], ключи lower-case
+        R-->>H: dict (кэш в _headers_cache)
+    else handler читает req.get_header("authorization")
+        R->>R: скан пар, без Rust и dict
+        R-->>H: str | None
+    end
+    H-->>A: dict / Response
+    A->>A: _to_response + X-Trace-Id
+    opt тело ≥ gzip_min_size
+        A->>R: get_header("accept-encoding")
+        A->>X: gzip_compress(body) — Rust
+        X-->>A: gzip-байты + Content-Encoding
+    end
+    A->>G: proto.response_bytes(status, headers, body)<br/>— один native-вызов
+    G-->>C: 200 OK
+```
+
+Картинкой: [`img/headers-rsgi.png`](img/headers-rsgi.png).
+
+**Почему `str → bytes`:** только ради `headers`-dict — он уходит в `_core.Request`, который
+принимает байты (ASGI-образный контракт), а Rust уже строит из них `dict[str, str]`. `latin-1` —
+точное обратимое отображение байт↔str. Конвертация **ленивая** и нужна только этому пути:
+`get_header()` сканирует сырые пары как есть (bytes на ASGI, str на RSGI), без конвертации —
+0,2–0,4 мкс независимо от числа заголовков. Раньше он тоже материализовал весь список в байты
+(до 2 мкс при 20 заголовках).
+
+**Дубликаты.** Повторённый заголовок (`X-Tag: a` + `X-Tag: b`) доходит до `Request` целиком:
+`get_header` вернёт первое значение, `headers` (dict) — последнее, `get_all` — все по порядку.
+Несколько заголовков `Cookie` (RFC 6265 разрешает) склеиваются через `; ` перед разбором.
+
+**Лимиты сервера** (не потеря, а явная ошибка): granian отдаёт **431** при >100 заголовках
+и при значении ~1 МБ (256 КБ проходят); uvicorn 120 заголовков принимает. Пустое значение
+(`X-Empty:`) доходит как `""`, а не как `None`.
+
+**Ограничение granian (RSGI):** `RSGIHeaders::items()` отдаёт только значения, проходящие
+`HeaderValue::to_str()`, то есть visible ASCII. Заголовки с байтами ≥ `0x80` (UTF-8 имя,
+obs-text) в RSGI **теряются целиком** — проверено: `X-Test: <D0 BF>` (валидный UTF-8) и
+`X-Test: <E9>` пропадают, тогда как uvicorn ASGI и granian ASGI отдают эти байты как есть.
+Поэтому `str → bytes (latin-1)` в Ferronit точен: всё, что RSGI вообще передал, — ASCII.
+Если приложению нужны не-ASCII значения заголовков, нужен ASGI (или тело/query).
+
+### Чем отличаются
+
+| | ASGI (`__call__`) | RSGI (`__rsgi__`) |
+|---|---|---|
+| Заголовки в scope | `list[tuple[bytes, bytes]]` (спека ASGI) | `rsgi.Headers`, `.items()` → пары `str` |
+| Кто конвертирует в bytes | сервер (уже в scope) | `Request._normalised_headers()` при первом обращении, `latin-1` |
+| Копия списка заголовков | нет (список из scope переиспользуется) | `list(scope.headers.items())` — одна копия на запрос |
+| CORS/OPTIONS читает | `_scope_header(scope, …)` — из ASGI-scope | `_rsgi_header(scope, …)` — из нативного scope |
+| Ответ | два события `send` (start + body) | один `proto.response_bytes(status, headers, body)` |
+| Тело запроса | `receive()` по событиям | `await proto()` — один вызов |
+| Цена, если заголовки не нужны | 0 | 0 (кроме копии списка) |
+| `headers` (dict) впервые | `set_headers` в Rust + построение `dict`, дальше кэш | то же |
+| `get_header(name)` | скан в Python: без Rust и без `dict` | то же |

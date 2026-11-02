@@ -106,6 +106,8 @@ class Request:
         "_multipart_cache",
         "_params",
         "_query_cache",
+        "_raw_headers",
+        "_raw_headers_norm",
         "_receive",
         "_rust",
         "_scope",
@@ -127,15 +129,11 @@ class Request:
             qs = qs.decode("latin-1")
 
         self._rust = RustRequest(method, path, qs)
-        raw_headers = scope.get("headers", [])
-        if raw_headers:
-            try:
-                if isinstance(raw_headers[0][0], bytes):
-                    self._rust.set_headers(list(raw_headers))
-                else:
-                    self._rust.set_headers([(bytes(k), bytes(v)) for k, v in raw_headers])
-            except Exception:
-                pass
+        # Заголовки не трогаем до первого обращения: большинство запросов их не читает,
+        # и платить за конвертацию/парсинг на каждом запросе незачем. ASGI отдаёт
+        # bytes-пары, адаптер RSGI — строки; нормализация — в `_normalised_headers`.
+        self._raw_headers = scope.get("headers") or ()
+        self._raw_headers_norm: list[tuple[bytes, bytes]] | None = None
 
     @property
     def params(self) -> dict[str, str]:
@@ -155,6 +153,29 @@ class Request:
         """str: Request path with the query string stripped."""
         return self._rust.path
 
+    def _normalised_headers(self) -> list[tuple[bytes, bytes]]:
+        """Raw headers as ``(bytes, bytes)`` pairs, converted once and cached.
+
+        Only the full ``headers`` dict needs this: it goes into the Rust
+        ``_core.Request``, which takes bytes. ``get_header`` does not call it —
+        it scans the raw pairs in whatever form the transport gave them.
+
+        ASGI passes bytes pairs already; the RSGI adapter passes str pairs
+        (encoded as latin-1 — the HTTP byte↔str mapping).
+        """
+        if self._raw_headers_norm is None:
+            raw = self._raw_headers
+            if not raw:
+                self._raw_headers_norm = []
+            elif isinstance(raw[0][0], bytes):
+                self._raw_headers_norm = [(key, value) for key, value in raw]
+            else:
+                self._raw_headers_norm = [
+                    (str(key).encode("latin-1"), str(value).encode("latin-1"))
+                    for key, value in raw
+                ]
+        return self._raw_headers_norm
+
     @property
     def headers(self) -> dict[str, str]:
         """dict[str, str]: Request headers with lower-cased keys.
@@ -162,29 +183,77 @@ class Request:
         Parsed lazily on first access and cached for the request's lifetime.
         """
         if self._headers_cache is None:
+            raw = self._normalised_headers()
+            if raw:
+                self._rust.set_headers(raw)
             self._headers_cache = self._rust.headers
         return self._headers_cache
 
     def get_header(self, name: str) -> str | None:
         """Look up a single header without parsing the whole header block.
 
+        Scans the raw pairs **as the transport gave them** — bytes on ASGI, str on
+        RSGI — so no conversion pass is needed for a one-header lookup (that was a
+        redundant ``str → bytes → str`` round-trip on RSGI). No Rust call, no dict.
+
         Args:
             name: Header name; matching is case-insensitive.
 
         Returns:
-            str | None: The header value, or ``None`` when the header is absent.
+            str | None: The first matching value, or ``None`` when absent.
         """
-        return self._rust.get_header(name)
+        raw = self._raw_headers
+        if not raw:
+            return None
+        if isinstance(raw[0][0], bytes):
+            needle_bytes = name.encode("latin-1").lower()
+            for key, value in raw:
+                if key.lower() == needle_bytes:
+                    return value.decode("utf-8", "replace")
+            return None
+        needle = name.lower()
+        for key, value in raw:
+            if str(key).lower() == needle:
+                return str(value)
+        return None
+
+    def get_all(self, name: str) -> list[str]:
+        """Return **all** values of a repeated header, in wire order.
+
+        ``headers`` keeps one value per name and ``get_header`` returns the first,
+        so repeated lines (two ``Cookie`` headers, several ``X-Forwarded-For``)
+        would otherwise be lost. Scans the raw pairs as the transport gave them
+        (bytes on ASGI, str on RSGI) — no conversion, no dict build.
+
+        Args:
+            name: Header name; matching is case-insensitive.
+
+        Returns:
+            list[str]: Every value of that header (empty list when absent).
+        """
+        raw = self._raw_headers
+        if not raw:
+            return []
+        if isinstance(raw[0][0], bytes):
+            needle_bytes = name.encode("latin-1").lower()
+            return [
+                value.decode("utf-8", "replace")
+                for key, value in raw
+                if key.lower() == needle_bytes
+            ]
+        needle = name.lower()
+        return [str(value) for key, value in raw if str(key).lower() == needle]
 
     @property
     def cookies(self) -> dict[str, str]:
         """dict[str, str]: Cookies from the ``Cookie`` header, parsed lazily and cached.
 
         Values are unquoted when they arrive ``"quoted"``; whitespace around
-        ``name=value`` pairs is ignored.
+        ``name=value`` pairs is ignored. Several ``Cookie`` headers (allowed by
+        RFC 6265) are merged in wire order, not just the first one.
         """
         if self._cookies_cache is None:
-            self._cookies_cache = _parse_cookies(self.get_header("cookie"))
+            self._cookies_cache = _parse_cookies("; ".join(self.get_all("cookie")))
         return self._cookies_cache
 
     def get_cookie(self, name: str, default: str | None = None) -> str | None:

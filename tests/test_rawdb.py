@@ -411,3 +411,101 @@ async def test_save_many_on_mysql_with_returning_falls_back_per_row() -> None:
     assert saved == [{"name": "A"}, {"name": "A"}]
     # на каждую строку: INSERT + дочитывание
     assert [call[0] for call in conn.calls] == ["execute", "fetchrow", "execute", "fetchrow"]
+
+
+# ── политика возврата соединения в пул ──────────────────────────────────────
+
+
+class _FakeAsyncpg:
+    """Minimal stand-in exposing ``create_pool`` with (or without) extra kwargs."""
+
+    def __init__(self, **parameters: object) -> None:
+        async def create_pool(dsn, **kwargs):
+            return kwargs
+
+        create_pool.__name__ = "create_pool"
+        create_pool.__signature__ = _signature(**parameters)  # type: ignore[attr-defined]
+        self.create_pool = create_pool
+
+
+def _signature(**parameters: object):
+    import inspect
+
+    return inspect.Signature(
+        [inspect.Parameter("dsn", inspect.Parameter.POSITIONAL_OR_KEYWORD)]
+        + [
+            inspect.Parameter(name, inspect.Parameter.KEYWORD_ONLY)
+            for name in parameters
+        ]
+    )
+
+
+def test_pool_kwargs_fast_path_when_driver_supports_reset() -> None:
+    from ferronit.contrib.rawdb import _asyncpg_pool_kwargs, _no_session_reset
+
+    fake = _FakeAsyncpg(reset=None, max_inactive_connection_lifetime=300)
+    kwargs = _asyncpg_pool_kwargs(fake, reset_on_release=False)
+
+    assert kwargs["reset"] is _no_session_reset
+    assert kwargs["max_inactive_connection_lifetime"] == 0
+
+
+def test_pool_kwargs_keeps_driver_defaults_when_reset_requested() -> None:
+    from ferronit.contrib.rawdb import _asyncpg_pool_kwargs
+
+    fake = _FakeAsyncpg(reset=None, max_inactive_connection_lifetime=300)
+    assert _asyncpg_pool_kwargs(fake, reset_on_release=True) == {}
+
+
+def test_pool_kwargs_does_not_pass_unknown_reset_keyword() -> None:
+    """asyncpg < 0.30: ``reset`` неизвестен — он утёк бы в ``connect(**kwargs)``."""
+    from ferronit.contrib.rawdb import _asyncpg_pool_kwargs
+
+    fake = _FakeAsyncpg(max_inactive_connection_lifetime=300)
+    kwargs = _asyncpg_pool_kwargs(fake, reset_on_release=False)
+
+    assert "reset" not in kwargs
+    assert kwargs["max_inactive_connection_lifetime"] == 0
+
+
+@pytest.fixture
+async def single_conn_pool():
+    """Пул из одного соединения: следующий uow берёт ту же сессию."""
+    try:
+        created = await create_raw_pool(DSN, min_size=1, max_size=1)
+    except Exception as exc:  # pragma: no cover - зависит от окружения
+        pytest.skip(f"PostgreSQL недоступен: {type(exc).__name__}")
+    yield created
+    await created.close()
+
+
+async def test_release_keeps_session_state_by_default(single_conn_pool) -> None:
+    """Быстрый путь: SET в одной единице работы виден следующей на том же соединении."""
+    async with RawUnitOfWork(single_conn_pool, readonly=True) as uow:
+        await uow.connection.execute("SET statement_timeout = '1234ms'")
+
+    async with RawUnitOfWork(single_conn_pool, readonly=True) as uow:
+        leaked = await uow.connection.fetchval("SHOW statement_timeout")
+
+    assert leaked == "1234ms"
+
+
+async def test_release_with_full_reset_clears_session_state() -> None:
+    """reset_on_release=True возвращает прежнюю гигиену asyncpg (RESET ALL)."""
+    try:
+        created = await create_raw_pool(DSN, min_size=1, max_size=1, reset_on_release=True)
+    except Exception as exc:  # pragma: no cover - зависит от окружения
+        pytest.skip(f"PostgreSQL недоступен: {type(exc).__name__}")
+
+    try:
+        async with RawUnitOfWork(created, readonly=True) as uow:
+            default_timeout = await uow.connection.fetchval("SHOW statement_timeout")
+        async with RawUnitOfWork(created, readonly=True) as uow:
+            await uow.connection.execute("SET statement_timeout = '1234ms'")
+
+        async with RawUnitOfWork(created, readonly=True) as uow:
+            after_reset = await uow.connection.fetchval("SHOW statement_timeout")
+    finally:
+        await created.close()
+
+    assert after_reset == default_timeout

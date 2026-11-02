@@ -28,6 +28,12 @@ async with pool.uow() as uow:                     # BEGIN / COMMIT (или rollb
 - `Pool` — обёртка над пулом драйвера (asyncpg/aiomysql; у SQLite пул —
   одно соединение); `pool.uow(readonly=False)` отдаёт
   `RawUnitOfWork` (одно соединение, одна транзакция), `pool.close()` закрывает.
+- **Возврат соединения в пул дешёвый:** по умолчанию откатывается только открытая
+  транзакция, без `RESET ALL`-round-trip'а на каждый запрос (так же ведут себя Go `pgx`
+  и Rust `sqlx`). Это убирает ~30 мкс с каждого маленького чтения. Если хендлер меняет
+  **состояние сессии** (`SET`, temp-таблицы, `LISTEN`, advisory-локи), создавай пул так:
+  `create_pool(dsn, reset_on_release=True)` — вернётся полная гигиена asyncpg.
+  Детали и цифры — [benchmarks.md](../benchmarks.md#малые-выборки-цена-возврата-соединения-в-пул-01112026).
 - `RawUnitOfWork(pool, readonly=False)` — то же напрямую.
   `readonly=True` пропускает `BEGIN` (экономия одного round-trip) для read-only.
 - `Condition(sql, params)` — фрагмент с PostgreSQL-плейсхолдерами (`$1`…).

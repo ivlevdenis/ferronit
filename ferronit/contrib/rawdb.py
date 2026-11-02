@@ -38,6 +38,21 @@ __all__ = [
     "create_raw_pool",
 ]
 
+# Classes from ``rawmodel``, resolved on first use: rawmodel imports this module,
+# so a module-level import would be circular; the local import inside ``model()``
+# otherwise runs on every request of every read.
+_MODEL_CLASSES: tuple[Any, Any] | None = None
+
+
+def _model_classes() -> tuple[Any, Any]:
+    """Return ``(IdentityMap, RawModelRepository)``, imported once."""
+    global _MODEL_CLASSES
+    if _MODEL_CLASSES is None:
+        from ferronit.contrib.rawmodel import IdentityMap, RawModelRepository
+
+        _MODEL_CLASSES = (IdentityMap, RawModelRepository)
+    return _MODEL_CLASSES
+
 
 def _require_asyncpg() -> Any:
     """Import ``asyncpg``, or explain which extra provides it.
@@ -56,6 +71,55 @@ def _require_asyncpg() -> Any:
     except ImportError as exc:  # pragma: no cover - зависит от окружения
         raise ModuleNotFoundError(MISSING_EXTRA_HINT.format(extra="postgres")) from exc
     return asyncpg
+
+
+async def _no_session_reset(_connection: Any) -> None:
+    """Pool release hook: keep session state between requests.
+
+    Passed as ``reset=`` to ``asyncpg.create_pool`` when ``reset_on_release`` is
+    off. Before calling this hook asyncpg runs ``Connection._reset()``, which
+    rolls back an open transaction and drops listeners — so the only thing
+    skipped is the extra ``SELECT pg_advisory_unlock_all(); CLOSE ALL;
+    UNLISTEN *; RESET ALL;`` round trip. That round trip is issued on every
+    release of every connection, which makes it the largest single cost of a
+    small read (~30 µs of a ~95 µs ``SELECT … LIMIT 1`` request).
+    """
+
+
+def _asyncpg_pool_kwargs(asyncpg_module: Any, reset_on_release: bool) -> dict[str, Any]:
+    """Extra ``create_pool`` keyword arguments for the release policy.
+
+    ``reset=`` exists in asyncpg since 0.30 and
+    ``max_inactive_connection_lifetime`` always did; both are looked up in the
+    signature, because an unknown keyword would leak into ``connect(**kwargs)``.
+
+    Args:
+        asyncpg_module: The imported ``asyncpg`` module.
+        reset_on_release: Keep asyncpg's full session reset when true.
+
+    Returns:
+        Keyword arguments for ``create_pool`` — the fast release path when the
+        driver supports it, else ``{}`` (driver defaults).
+    """
+    if reset_on_release:
+        return {}
+    import inspect  # тяжёлый модуль — только на создании пула, не на импорте слоя
+
+    try:
+        parameters = inspect.signature(asyncpg_module.create_pool).parameters
+    except (TypeError, ValueError):  # pragma: no cover - встроенная сигнатура
+        parameters = None
+    kwargs: dict[str, Any] = {}
+    if parameters is not None:
+        if "reset" in parameters:
+            kwargs["reset"] = _no_session_reset
+        if "max_inactive_connection_lifetime" in parameters:
+            # 0 disables idle recycling. Asyncpg otherwise arms and cancels a timer
+            # on every acquire and release (~3.5 µs per request) and only ever
+            # closes connections above ``min_size``; a closed connection is still
+            # detected by the ``is_closed`` check on acquire.
+            kwargs["max_inactive_connection_lifetime"] = 0
+    return kwargs
 
 
 class Condition:
@@ -514,8 +578,7 @@ class RawUnitOfWork(UnitOfWork):
         Returns:
             A ``RawModelRepository`` bound to this unit's connection.
         """
-        from ferronit.contrib.rawmodel import IdentityMap, RawModelRepository
-
+        IdentityMap, RawModelRepository = _model_classes()
         if self._identity_map is None:
             self._identity_map = IdentityMap()
         return RawModelRepository(self.connection, model_cls, table, pk, self._identity_map)
@@ -598,7 +661,7 @@ class Pool:
 
 
 async def create_raw_pool(
-    dsn: str, *, min_size: int = 1, max_size: int = 10
+    dsn: str, *, min_size: int = 1, max_size: int = 10, reset_on_release: bool = False
 ) -> asyncpg.Pool:
     """Create an asyncpg pool for use with ``RawUnitOfWork``.
 
@@ -609,6 +672,16 @@ async def create_raw_pool(
         dsn: libpq-style connection string, e.g. ``postgresql://user@host/db``.
         min_size: Minimum number of pooled connections.
         max_size: Maximum number of pooled connections.
+        reset_on_release: Run asyncpg's full session reset (``RESET ALL``, close
+            cursors, unlock advisory locks) when a connection returns to the
+            pool. Defaults to ``False``: only an open transaction is rolled back
+            — the same policy Go's ``pgx`` and Rust's ``sqlx`` use — which saves
+            one round trip per request; idle-connection recycling is disabled
+            too (it costs a timer per acquire/release and only ever closes
+            connections above ``min_size``). Enable it when handlers change
+            session state (``SET``, temporary tables, ``LISTEN``,
+            ``pg_advisory_lock``): with ``False`` that state stays visible to the
+            next request that borrows the same connection.
 
     Returns:
         A ready-to-use ``asyncpg`` pool with ``dict``-style row access disabled
@@ -618,11 +691,16 @@ async def create_raw_pool(
         ModuleNotFoundError: If the ``postgres`` extra is not installed.
     """
     asyncpg = _require_asyncpg()
-    return await asyncpg.create_pool(dsn, min_size=min_size, max_size=max_size)
+    return await asyncpg.create_pool(
+        dsn,
+        min_size=min_size,
+        max_size=max_size,
+        **_asyncpg_pool_kwargs(asyncpg, reset_on_release),
+    )
 
 
 async def create_pool(
-    dsn: str, *, min_size: int = 1, max_size: int = 10
+    dsn: str, *, min_size: int = 1, max_size: int = 10, reset_on_release: bool = False
 ) -> Pool:
     """Create a :class:`Pool` over the engine named by the DSN scheme.
 
@@ -641,6 +719,16 @@ async def create_pool(
             ``sqlite:///tmp/app.db`` or ``sqlite://:memory:``.
         min_size: Minimum number of pooled connections (network engines).
         max_size: Maximum number of pooled connections (network engines).
+        reset_on_release: PostgreSQL only — run asyncpg's full session reset
+            (``RESET ALL``, close cursors, unlock advisory locks) when a
+            connection returns to the pool. Defaults to ``False``: only an open
+            transaction is rolled back, as in Go's ``pgx`` and Rust's ``sqlx``,
+            which saves one round trip per request; idle-connection recycling is
+            disabled too (a timer per acquire/release, and it only ever closes
+            connections above ``min_size``). Enable it when handlers change
+            session state (``SET``, temporary tables, ``LISTEN``,
+            ``pg_advisory_lock``), otherwise that state stays visible to the
+            next request that borrows the same connection.
 
     Returns:
         A :class:`Pool` ready to hand out units of work.
@@ -652,7 +740,14 @@ async def create_pool(
     scheme = dsn.split("://", 1)[0].lower() if "://" in dsn else ""
     if scheme.startswith("postgres"):
         asyncpg = _require_asyncpg()
-        return Pool(await asyncpg.create_pool(dsn, min_size=min_size, max_size=max_size))
+        return Pool(
+            await asyncpg.create_pool(
+                dsn,
+                min_size=min_size,
+                max_size=max_size,
+                **_asyncpg_pool_kwargs(asyncpg, reset_on_release),
+            )
+        )
     if scheme.startswith(("mysql", "sqlite")):
         from ferronit.contrib import drivers
 

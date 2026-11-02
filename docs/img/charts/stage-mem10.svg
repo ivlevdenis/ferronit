@@ -4,71 +4,71 @@
 <text x="22" y="56" font-size="12" fill="#555">Bars: × to Ferronit pipeline=1.00 (best of 3 rounds) — dashed line = baseline; after each bar: ratio, then МБ; lower is better</text>
 <line x1="340.0" y1="66" x2="340.0" y2="452" stroke="#ececec" stroke-width="1"/>
 <text x="340.0" y="468" font-size="10.5" fill="#666" text-anchor="middle">×0</text>
-<line x1="461.9" y1="66" x2="461.9" y2="452" stroke="#c0392b" stroke-width="1.6" stroke-dasharray="5 3"/>
-<text x="461.9" y="468" font-size="10.5" fill="#666" text-anchor="middle">×1</text>
-<line x1="583.8" y1="66" x2="583.8" y2="452" stroke="#ececec" stroke-width="1"/>
-<text x="583.8" y="468" font-size="10.5" fill="#666" text-anchor="middle">×2</text>
-<line x1="705.6" y1="66" x2="705.6" y2="452" stroke="#ececec" stroke-width="1"/>
-<text x="705.6" y="468" font-size="10.5" fill="#666" text-anchor="middle">×3</text>
+<line x1="470.0" y1="66" x2="470.0" y2="452" stroke="#c0392b" stroke-width="1.6" stroke-dasharray="5 3"/>
+<text x="470.0" y="468" font-size="10.5" fill="#666" text-anchor="middle">×1</text>
+<line x1="600.0" y1="66" x2="600.0" y2="452" stroke="#ececec" stroke-width="1"/>
+<text x="600.0" y="468" font-size="10.5" fill="#666" text-anchor="middle">×2</text>
+<line x1="730.0" y1="66" x2="730.0" y2="452" stroke="#ececec" stroke-width="1"/>
+<text x="730.0" y="468" font-size="10.5" fill="#666" text-anchor="middle">×3</text>
 <rect x="18" y="101" width="10" height="10" rx="2" fill="#c0392b"/>
 <text x="34" y="111" font-size="12" fill="#2b2b2b">Ferronit (rawmodel: SQL builder + model)</text>
-<rect x="340" y="96" width="121.8" height="22" rx="3" fill="#c0392b"/>
-<text x="467.8" y="111" font-size="11.5" fill="#333">×1.00</text>
-<text x="514.3" y="111" font-size="11" fill="#666">278</text>
+<rect x="340" y="96" width="129.8" height="22" rx="3" fill="#c0392b"/>
+<text x="475.8" y="111" font-size="11.5" fill="#333">×1.00</text>
+<text x="522.3" y="111" font-size="11" fill="#666">293</text>
 <rect x="18" y="131" width="10" height="10" rx="2" fill="#e08276"/>
 <text x="34" y="141" font-size="12" fill="#2b2b2b" font-weight="700">Ferronit pipeline (+ aggregate → DTO)</text>
-<rect x="340" y="126" width="121.9" height="22" rx="3" fill="#e08276"/>
-<text x="467.9" y="141" font-size="11.5" fill="#c0392b" font-weight="700">×1.00</text>
-<text x="514.4" y="141" font-size="11" fill="#666">278</text>
-<text x="544.2" y="141" font-size="9.5" fill="#c0392b">← baseline</text>
+<rect x="340" y="126" width="130.0" height="22" rx="3" fill="#e08276"/>
+<text x="476.0" y="141" font-size="11.5" fill="#c0392b" font-weight="700">×1.00</text>
+<text x="522.5" y="141" font-size="11" fill="#666">294</text>
+<text x="552.3" y="141" font-size="9.5" fill="#c0392b">← baseline</text>
 <rect x="18" y="161" width="10" height="10" rx="2" fill="#2c3e50"/>
 <text x="34" y="171" font-size="12" fill="#2b2b2b">BlackSheep (SQLAlchemy Core)</text>
-<rect x="340" y="156" width="267.2" height="22" rx="3" fill="#2c3e50"/>
-<text x="613.2" y="171" font-size="11.5" fill="#333">×2.19</text>
-<text x="659.7" y="171" font-size="11" fill="#666">609</text>
+<rect x="340" y="156" width="272.2" height="22" rx="3" fill="#2c3e50"/>
+<text x="618.2" y="171" font-size="11.5" fill="#333">×2.09</text>
+<text x="664.7" y="171" font-size="11" fill="#666">615</text>
 <rect x="18" y="191" width="10" height="10" rx="2" fill="#2980b9"/>
 <text x="34" y="201" font-size="12" fill="#2b2b2b">Litestar (SQLAlchemy Core)</text>
-<rect x="340" y="186" width="308.1" height="22" rx="3" fill="#2980b9"/>
-<text x="654.1" y="201" font-size="11.5" fill="#333">×2.53</text>
-<text x="700.6" y="201" font-size="11" fill="#666">703</text>
+<rect x="340" y="186" width="315.1" height="22" rx="3" fill="#2980b9"/>
+<text x="661.1" y="201" font-size="11.5" fill="#333">×2.42</text>
+<text x="707.6" y="201" font-size="11" fill="#666">712</text>
 <rect x="18" y="221" width="10" height="10" rx="2" fill="#27ae60"/>
 <text x="34" y="231" font-size="12" fill="#2b2b2b">FastAPI (SQLAlchemy ORM)</text>
-<rect x="340" y="216" width="294.1" height="22" rx="3" fill="#27ae60"/>
-<text x="640.1" y="231" font-size="11.5" fill="#333">×2.41</text>
-<text x="686.6" y="231" font-size="11" fill="#666">671</text>
+<rect x="340" y="216" width="300.4" height="22" rx="3" fill="#27ae60"/>
+<text x="646.4" y="231" font-size="11.5" fill="#333">×2.31</text>
+<text x="692.9" y="231" font-size="11" fill="#666">679</text>
 <rect x="18" y="251" width="10" height="10" rx="2" fill="#7f8c8d"/>
 <text x="34" y="261" font-size="12" fill="#2b2b2b">Django (Django ORM)</text>
-<rect x="340" y="246" width="214.7" height="22" rx="3" fill="#7f8c8d"/>
-<text x="560.7" y="261" font-size="11.5" fill="#333">×1.76</text>
-<text x="607.2" y="261" font-size="11" fill="#666">490</text>
+<rect x="340" y="246" width="220.7" height="22" rx="3" fill="#7f8c8d"/>
+<text x="566.7" y="261" font-size="11.5" fill="#333">×1.70</text>
+<text x="613.2" y="261" font-size="11" fill="#666">499</text>
 <rect x="18" y="281" width="10" height="10" rx="2" fill="#d35400"/>
 <text x="34" y="291" font-size="12" fill="#2b2b2b">Axum (sqlx, raw SQL → structs)</text>
-<rect x="340" y="276" width="2.4" height="22" rx="3" fill="#d35400"/>
-<text x="348.4" y="291" font-size="11.5" fill="#333">×0.02</text>
-<text x="394.9" y="291" font-size="11" fill="#666">6</text>
+<rect x="340" y="276" width="2.7" height="22" rx="3" fill="#d35400"/>
+<text x="348.7" y="291" font-size="11.5" fill="#333">×0.02</text>
+<text x="395.2" y="291" font-size="11" fill="#666">6</text>
 <rect x="18" y="311" width="10" height="10" rx="2" fill="#f39c12"/>
 <text x="34" y="321" font-size="12" fill="#2b2b2b">Actix (sqlx, raw SQL → structs)</text>
-<rect x="340" y="306" width="4.9" height="22" rx="3" fill="#f39c12"/>
-<text x="350.9" y="321" font-size="11.5" fill="#333">×0.04</text>
-<text x="397.4" y="321" font-size="11" fill="#666">11</text>
+<rect x="340" y="306" width="5.0" height="22" rx="3" fill="#f39c12"/>
+<text x="351.0" y="321" font-size="11.5" fill="#333">×0.04</text>
+<text x="397.5" y="321" font-size="11" fill="#666">11</text>
 <rect x="18" y="341" width="10" height="10" rx="2" fill="#16a085"/>
 <text x="34" y="351" font-size="12" fill="#2b2b2b">Go pgx (raw SQL → structs)</text>
-<rect x="340" y="336" width="17.3" height="22" rx="3" fill="#16a085"/>
-<text x="363.3" y="351" font-size="11.5" fill="#333">×0.14</text>
-<text x="409.8" y="351" font-size="11" fill="#666">39</text>
+<rect x="340" y="336" width="14.8" height="22" rx="3" fill="#16a085"/>
+<text x="360.8" y="351" font-size="11.5" fill="#333">×0.11</text>
+<text x="407.3" y="351" font-size="11" fill="#666">33</text>
 <rect x="18" y="371" width="10" height="10" rx="2" fill="#48c9b0"/>
 <text x="34" y="381" font-size="12" fill="#2b2b2b">Go sqlx (raw SQL → structs)</text>
-<rect x="340" y="366" width="15.2" height="22" rx="3" fill="#48c9b0"/>
-<text x="361.2" y="381" font-size="11.5" fill="#333">×0.12</text>
-<text x="407.7" y="381" font-size="11" fill="#666">35</text>
+<rect x="340" y="366" width="14.9" height="22" rx="3" fill="#48c9b0"/>
+<text x="360.9" y="381" font-size="11.5" fill="#333">×0.11</text>
+<text x="407.4" y="381" font-size="11" fill="#666">34</text>
 <rect x="18" y="401" width="10" height="10" rx="2" fill="#a6b1b3"/>
 <text x="34" y="411" font-size="12" fill="#2b2b2b">Go GORM (ORM)</text>
-<rect x="340" y="396" width="15.5" height="22" rx="3" fill="#a6b1b3"/>
-<text x="361.5" y="411" font-size="11.5" fill="#333">×0.13</text>
-<text x="408.0" y="411" font-size="11" fill="#666">35</text>
+<rect x="340" y="396" width="15.1" height="22" rx="3" fill="#a6b1b3"/>
+<text x="361.1" y="411" font-size="11.5" fill="#333">×0.12</text>
+<text x="407.6" y="411" font-size="11" fill="#666">34</text>
 <rect x="18" y="431" width="10" height="10" rx="2" fill="#c8d0d2"/>
 <text x="34" y="441" font-size="12" fill="#2b2b2b">Go ent (generated ORM)</text>
-<rect x="340" y="426" width="15.3" height="22" rx="3" fill="#c8d0d2"/>
-<text x="361.3" y="441" font-size="11.5" fill="#333">×0.13</text>
-<text x="407.8" y="441" font-size="11" fill="#666">35</text>
+<rect x="340" y="426" width="14.9" height="22" rx="3" fill="#c8d0d2"/>
+<text x="360.9" y="441" font-size="11.5" fill="#333">×0.11</text>
+<text x="407.4" y="441" font-size="11" fill="#666">34</text>
 </svg>

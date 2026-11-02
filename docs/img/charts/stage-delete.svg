@@ -14,64 +14,64 @@
 <text x="730.0" y="468" font-size="10.5" fill="#666" text-anchor="middle">×2</text>
 <rect x="18" y="101" width="10" height="10" rx="2" fill="#c0392b"/>
 <text x="34" y="111" font-size="12" fill="#2b2b2b">Ferronit (rawmodel: SQL builder + model)</text>
-<rect x="340" y="96" width="194.2" height="22" rx="3" fill="#c0392b"/>
-<text x="540.2" y="111" font-size="11.5" fill="#333">×1.00</text>
-<text x="586.7" y="111" font-size="11" fill="#666">5 336</text>
+<rect x="340" y="96" width="182.2" height="22" rx="3" fill="#c0392b"/>
+<text x="528.2" y="111" font-size="11.5" fill="#333">×0.93</text>
+<text x="574.7" y="111" font-size="11" fill="#666">6 197</text>
 <rect x="18" y="131" width="10" height="10" rx="2" fill="#e08276"/>
 <text x="34" y="141" font-size="12" fill="#2b2b2b" font-weight="700">Ferronit pipeline (+ aggregate → DTO)</text>
 <rect x="340" y="126" width="195.0" height="22" rx="3" fill="#e08276"/>
 <text x="541.0" y="141" font-size="11.5" fill="#c0392b" font-weight="700">×1.00</text>
-<text x="587.5" y="141" font-size="11" fill="#666">5 357</text>
+<text x="587.5" y="141" font-size="11" fill="#666">6 630</text>
 <text x="630.5" y="141" font-size="9.5" fill="#c0392b">← baseline</text>
 <rect x="18" y="161" width="10" height="10" rx="2" fill="#2c3e50"/>
 <text x="34" y="171" font-size="12" fill="#2b2b2b">BlackSheep (SQLAlchemy Core)</text>
-<rect x="340" y="156" width="107.3" height="22" rx="3" fill="#2c3e50"/>
-<text x="453.3" y="171" font-size="11.5" fill="#333">×0.55</text>
-<text x="499.8" y="171" font-size="11" fill="#666">2 947</text>
+<rect x="340" y="156" width="96.2" height="22" rx="3" fill="#2c3e50"/>
+<text x="442.2" y="171" font-size="11.5" fill="#333">×0.49</text>
+<text x="488.7" y="171" font-size="11" fill="#666">3 270</text>
 <rect x="18" y="191" width="10" height="10" rx="2" fill="#2980b9"/>
 <text x="34" y="201" font-size="12" fill="#2b2b2b">Litestar (SQLAlchemy Core)</text>
-<rect x="340" y="186" width="99.2" height="22" rx="3" fill="#2980b9"/>
-<text x="445.2" y="201" font-size="11.5" fill="#333">×0.51</text>
-<text x="491.7" y="201" font-size="11" fill="#666">2 726</text>
+<rect x="340" y="186" width="91.6" height="22" rx="3" fill="#2980b9"/>
+<text x="437.6" y="201" font-size="11.5" fill="#333">×0.47</text>
+<text x="484.1" y="201" font-size="11" fill="#666">3 113</text>
 <rect x="18" y="221" width="10" height="10" rx="2" fill="#27ae60"/>
 <text x="34" y="231" font-size="12" fill="#2b2b2b">FastAPI (SQLAlchemy ORM)</text>
-<rect x="340" y="216" width="75.0" height="22" rx="3" fill="#27ae60"/>
-<text x="421.0" y="231" font-size="11.5" fill="#333">×0.38</text>
-<text x="467.5" y="231" font-size="11" fill="#666">2 059</text>
+<rect x="340" y="216" width="71.5" height="22" rx="3" fill="#27ae60"/>
+<text x="417.5" y="231" font-size="11.5" fill="#333">×0.37</text>
+<text x="464.0" y="231" font-size="11" fill="#666">2 431</text>
 <rect x="18" y="251" width="10" height="10" rx="2" fill="#7f8c8d"/>
 <text x="34" y="261" font-size="12" fill="#2b2b2b">Django (Django ORM)</text>
-<rect x="340" y="246" width="19.9" height="22" rx="3" fill="#7f8c8d"/>
-<text x="365.9" y="261" font-size="11.5" fill="#333">×0.10</text>
-<text x="412.4" y="261" font-size="11" fill="#666">546</text>
+<rect x="340" y="246" width="16.4" height="22" rx="3" fill="#7f8c8d"/>
+<text x="362.4" y="261" font-size="11.5" fill="#333">×0.08</text>
+<text x="408.9" y="261" font-size="11" fill="#666">559</text>
 <rect x="18" y="281" width="10" height="10" rx="2" fill="#d35400"/>
 <text x="34" y="291" font-size="12" fill="#2b2b2b">Axum (sqlx, raw SQL → structs)</text>
-<rect x="340" y="276" width="293.6" height="22" rx="3" fill="#d35400"/>
-<text x="639.6" y="291" font-size="11.5" fill="#333">×1.51</text>
-<text x="686.1" y="291" font-size="11" fill="#666">8 066</text>
+<rect x="340" y="276" width="246.7" height="22" rx="3" fill="#d35400"/>
+<text x="592.7" y="291" font-size="11.5" fill="#333">×1.27</text>
+<text x="639.2" y="291" font-size="11" fill="#666">8 389</text>
 <rect x="18" y="311" width="10" height="10" rx="2" fill="#f39c12"/>
 <text x="34" y="321" font-size="12" fill="#2b2b2b">Actix (sqlx, raw SQL → structs)</text>
-<rect x="340" y="306" width="304.3" height="22" rx="3" fill="#f39c12"/>
-<text x="650.3" y="321" font-size="11.5" fill="#333">×1.56</text>
-<text x="696.8" y="321" font-size="11" fill="#666">8 360</text>
+<rect x="340" y="306" width="249.1" height="22" rx="3" fill="#f39c12"/>
+<text x="595.1" y="321" font-size="11.5" fill="#333">×1.28</text>
+<text x="641.6" y="321" font-size="11" fill="#666">8 468</text>
 <rect x="18" y="341" width="10" height="10" rx="2" fill="#16a085"/>
 <text x="34" y="351" font-size="12" fill="#2b2b2b">Go pgx (raw SQL → structs)</text>
-<rect x="340" y="336" width="289.8" height="22" rx="3" fill="#16a085"/>
-<text x="635.8" y="351" font-size="11.5" fill="#333">×1.49</text>
-<text x="682.3" y="351" font-size="11" fill="#666">7 961</text>
+<rect x="340" y="336" width="238.6" height="22" rx="3" fill="#16a085"/>
+<text x="584.6" y="351" font-size="11.5" fill="#333">×1.22</text>
+<text x="631.1" y="351" font-size="11" fill="#666">8 113</text>
 <rect x="18" y="371" width="10" height="10" rx="2" fill="#48c9b0"/>
 <text x="34" y="381" font-size="12" fill="#2b2b2b">Go sqlx (raw SQL → structs)</text>
-<rect x="340" y="366" width="283.5" height="22" rx="3" fill="#48c9b0"/>
-<text x="629.5" y="381" font-size="11.5" fill="#333">×1.45</text>
-<text x="676.0" y="381" font-size="11" fill="#666">7 787</text>
+<rect x="340" y="366" width="243.1" height="22" rx="3" fill="#48c9b0"/>
+<text x="589.1" y="381" font-size="11.5" fill="#333">×1.25</text>
+<text x="635.6" y="381" font-size="11" fill="#666">8 267</text>
 <rect x="18" y="401" width="10" height="10" rx="2" fill="#a6b1b3"/>
 <text x="34" y="411" font-size="12" fill="#2b2b2b">Go GORM (ORM)</text>
-<rect x="340" y="396" width="291.6" height="22" rx="3" fill="#a6b1b3"/>
-<text x="637.6" y="411" font-size="11.5" fill="#333">×1.50</text>
-<text x="684.1" y="411" font-size="11" fill="#666">8 010</text>
+<rect x="340" y="396" width="248.0" height="22" rx="3" fill="#a6b1b3"/>
+<text x="594.0" y="411" font-size="11.5" fill="#333">×1.27</text>
+<text x="640.5" y="411" font-size="11" fill="#666">8 433</text>
 <rect x="18" y="431" width="10" height="10" rx="2" fill="#c8d0d2"/>
 <text x="34" y="441" font-size="12" fill="#2b2b2b">Go ent (generated ORM)</text>
-<rect x="340" y="426" width="292.6" height="22" rx="3" fill="#c8d0d2"/>
-<text x="638.6" y="441" font-size="11.5" fill="#333">×1.50</text>
-<text x="685.1" y="441" font-size="11" fill="#666">8 038</text>
-<text x="22" y="512" font-size="11" fill="#111" font-weight="600">pgbench (DB ceiling): 105 299 req/s → ×19.66 to baseline · same statement, 50 clients, no framework layer</text>
+<rect x="340" y="426" width="238.1" height="22" rx="3" fill="#c8d0d2"/>
+<text x="584.1" y="441" font-size="11.5" fill="#333">×1.22</text>
+<text x="630.6" y="441" font-size="11" fill="#666">8 095</text>
+<text x="22" y="512" font-size="11" fill="#111" font-weight="600">pgbench (DB ceiling): 123 210 req/s → ×18.58 to baseline · same statement, 50 clients, no framework layer</text>
 </svg>

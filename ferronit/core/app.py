@@ -48,6 +48,10 @@ class Ferronit:
             ``"ferronit"`` standard-library logger.
         max_body_size: Maximum accepted request body in bytes; larger bodies
             yield HTTP 413. ``None`` disables the limit.
+        gzip_min_size: Bodies smaller than this many bytes are sent as-is even
+            when the client accepts gzip. Compressing costs a fixed ~40 µs
+            (zlib table set-up) and makes tiny JSON bodies *bigger*, so small
+            replies skip it. ``0`` compresses everything.
 
     Attributes:
         openapi: The :class:`~ferronit.openapi.OpenAPI` schema builder that every
@@ -60,6 +64,7 @@ class Ferronit:
         "_container",
         "_debug",
         "_deferred_routes",
+        "_gzip_min_size",
         "_lifespan_fn",
         "_logger",
         "_max_body_size",
@@ -79,6 +84,7 @@ class Ferronit:
         max_body_size: int | None = None,
         container: Container | None = None,
         lifespan=None,
+        gzip_min_size: int = 500,
     ) -> None:
         self._app = RustApp()
         self._openapi = OpenAPI()
@@ -89,6 +95,7 @@ class Ferronit:
         self._mw_cache: dict = {}
         self._ws_origins: dict[str, list[str]] = {}
         self._max_body_size = max_body_size
+        self._gzip_min_size = gzip_min_size
         self._container = container if container is not None else Container()
         self._lifespan_fn = lifespan
         self._rsgi_lifespan_cm: Any = None
@@ -383,13 +390,15 @@ class Ferronit:
         if tid:
             resp._headers["X-Trace-Id"] = tid
 
-        # Rust GZip — уважаем q-факторы: gzip;q=0 означает "не сжимать"
-        accept_enc = req.get_header("accept-encoding") or ""
-        if _wants_gzip(accept_enc) and resp._body:
-            body_bytes = resp._body if isinstance(resp._body, bytes) else resp._body.encode()
-            compressed = self._app.gzip_compress(body_bytes)
-            resp._body = bytes(compressed)
-            resp._headers["Content-Encoding"] = "gzip"
+        # Rust GZip — уважаем q-факторы: gzip;q=0 означает "не сжимать".
+        # Мелкие тела не сжимаем: фиксированная цена zlib (~40 мкс) больше выгоды,
+        # а заголовок accept-encoding в этом случае даже не читаем.
+        if resp._body and len(resp._body) >= self._gzip_min_size:
+            accept_enc = req.get_header("accept-encoding") or ""
+            if _wants_gzip(accept_enc):
+                body_bytes = resp._body if isinstance(resp._body, bytes) else resp._body.encode()
+                resp._body = bytes(self._app.gzip_compress(body_bytes))
+                resp._headers["Content-Encoding"] = "gzip"
 
         await resp._send(send)
 
@@ -467,12 +476,13 @@ class Ferronit:
         if tid:
             resp._headers["X-Trace-Id"] = tid
 
-        # Rust GZip — уважаем q-факторы
-        accept_enc = req.get_header("accept-encoding") or ""
-        if _wants_gzip(accept_enc) and resp._body:
-            body_bytes = resp._body if isinstance(resp._body, bytes) else resp._body.encode()
-            resp._body = bytes(self._app.gzip_compress(body_bytes))
-            resp._headers["Content-Encoding"] = "gzip"
+        # Rust GZip — уважаем q-факторы; мелкие тела не сжимаем (см. __call__)
+        if resp._body and len(resp._body) >= self._gzip_min_size:
+            accept_enc = req.get_header("accept-encoding") or ""
+            if _wants_gzip(accept_enc):
+                body_bytes = resp._body if isinstance(resp._body, bytes) else resp._body.encode()
+                resp._body = bytes(self._app.gzip_compress(body_bytes))
+                resp._headers["Content-Encoding"] = "gzip"
 
         _rsgi_send(proto, resp)
 
@@ -660,8 +670,10 @@ def _rsgi_request(scope, proto, params, max_body_size):
         Request: The request, ready for the middleware chain.
     """
     try:
+        # RSGI отдаёт заголовки строками; Request нормализует их лениво — при первом
+        # обращении к headers/get_header, а не на каждом запросе.
         raw_headers = list(scope.headers.items())
-    except Exception:
+    except AttributeError:  # скудный/фейковый scope без headers — это не ошибка запроса
         raw_headers = []
 
     qs = getattr(scope, "query_string", "") or ""
@@ -692,8 +704,8 @@ def _rsgi_header(scope, name: str) -> str | None:
         for k, v in scope.headers.items():
             if str(k).lower() == needle:
                 return v if isinstance(v, str) else v.decode("latin-1")
-    except Exception:
-        pass
+    except AttributeError:  # у скудного/фейкового scope нет headers
+        return None
     return None
 
 

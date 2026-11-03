@@ -50,7 +50,8 @@ Litestar/FastAPI/Django — дополнительные точки отсчёт
 
 Цифры сняты `2026-11-02` одной сессией (последний прогон) `bench/api_bench.py` (load 2,5–3,3 — фоновые сервисы
 машины; внутри раунда это затрагивает всех одинаково). Ferronit меряется через **RSGI**
-(`granian --interface rsgi`), Go — `net/http` с `GOMAXPROCS=1`, а BlackSheep — на **SQLAlchemy Core**
+(`granian --interface rsgi`), Go — `net/http` (pgx/sqlx/GORM/ent) и отдельные бинарники
+chi/echo/gin/fiber/fasthttp на pgx, все с `GOMAXPROCS=1`, а BlackSheep — на **SQLAlchemy Core**
 (было: голый asyncpg до 22.10).
 Остальные без изменений: Litestar — SQLAlchemy Core + msgspec, FastAPI — SQLAlchemy ORM, Django — Django ORM.
 BlackSheep до 03.11.2026 отвечал через `msgspec.json.encode`, затем переведён на штатный

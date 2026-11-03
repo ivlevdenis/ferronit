@@ -122,11 +122,25 @@ PORTS = {
     "go-sqlx": 8252,
     "go-gorm": 8253,
     "go-ent": 8254,
+    # Go HTTP-стек (отдельные бинарники, слой БД — pgx)
+    "go-chi": 8271,
+    "go-echo": 8272,
+    "go-fiber": 8273,
+    "go-fasthttp": 8274,
+    "go-gin": 8275,
 }
 
 GO_DIR = HERE / "go_pg_orm"
 GO_BIN = GO_DIR / "go_pg_bench"
 GO_MODES = {"go-pgx": "pgx", "go-sqlx": "sqlx", "go-gorm": "gorm", "go-ent": "ent"}
+# Отдельные бинарники: HTTP-стек меняется, слой БД фиксирован на pgx.
+GO_HTTP_BINS = {
+    "go-chi": "go_chi",
+    "go-echo": "go_echo",
+    "go-fiber": "go_fiber",
+    "go-fasthttp": "go_fasthttp",
+    "go-gin": "go_gin",
+}
 
 # pgbench — эталон «потолка БД»: тот же оператор, 50 клиентов, без слоя фреймворка.
 # Запускаем из отдельного контейнера postgres:18 (на хосте нет postgresql-client).
@@ -1203,7 +1217,7 @@ def seed(rows: int = 1000) -> None:
 
 
 def ensure_go() -> bool:
-    """Собирает Go-стенд, если бинарника нет или он старше исходников.
+    """Собирает Go-стенд: основной бинарник и HTTP-варианты (chi/echo/fiber/fasthttp/gin).
 
     Returns:
         bool: True — Go-стенд доступен и его приложения можно мерить в этой сессии.
@@ -1211,21 +1225,28 @@ def ensure_go() -> bool:
     src = GO_DIR / "main.go"
     if not src.exists():
         return False
-    fresh = GO_BIN.exists() and GO_BIN.stat().st_mtime >= src.stat().st_mtime
-    if fresh:
+    sources = [src, GO_DIR / "go.mod", GO_DIR / "go.sum"]
+    sources += list((GO_DIR / "benchapi").glob("*.go"))
+    sources += list((GO_DIR / "cmd").rglob("*.go"))
+    newest = max(p.stat().st_mtime for p in sources if p.exists())
+    targets = [(GO_BIN, ".")]
+    targets += [(GO_DIR / bin_name, f"./cmd/{name.removeprefix('go-')}")
+                for name, bin_name in GO_HTTP_BINS.items()]
+    if all(binary.exists() and binary.stat().st_mtime >= newest for binary, _ in targets):
         return True
-    try:
-        proc = subprocess.run(
-            ["go", "build", "-o", str(GO_BIN), "."],
-            cwd=GO_DIR, capture_output=True, text=True, timeout=600,
-        )
-    except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
-        print(f"! Go-стенд не собран ({exc}) — меряю только Python-фреймворки")
-        return False
-    if proc.returncode != 0:
-        print(f"! go build упал — меряю только Python-фреймворки:\n{proc.stderr[-600:]}")
-        return False
-    return True
+    for binary, pkg in targets:
+        try:
+            proc = subprocess.run(
+                ["go", "build", "-o", str(binary), pkg],
+                cwd=GO_DIR, capture_output=True, text=True, timeout=900,
+            )
+        except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
+            print(f"! Go-стенд не собран ({exc}) — меряю только Python-фреймворки")
+            return False
+        if proc.returncode != 0:
+            print(f"! go build {pkg} упал — меряю без Go-стенда:\n{proc.stderr[-600:]}")
+            return False
+    return all(binary.exists() for binary, _ in targets)
 
 
 def ensure_rust() -> bool:
@@ -1268,6 +1289,14 @@ def start(name: str, port: int, workers: int = WORKERS) -> subprocess.Popen:
             _pin([str(binary), "--port", str(port), "--pool", str(max(16, workers)),
                   "--workers", str(workers)], SERVER_CPUS),
             cwd=RUST_DIR, env=env,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+    if name in GO_HTTP_BINS:
+        env = {**os.environ, "GOMAXPROCS": str(workers)}
+        return subprocess.Popen(
+            _pin([str(GO_DIR / GO_HTTP_BINS[name]), "--serve", "--port", str(port),
+                  "--pool", str(max(16, workers))], SERVER_CPUS),
+            cwd=GO_DIR, env=env,
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         )
     if name in GO_MODES:
@@ -1478,7 +1507,7 @@ def _transport_note() -> str:
     if any(n.startswith("rust-") for n in PORTS):
         parts.append("Rust (axum/actix, 1 поток)")
     if any(n.startswith("go-") for n in PORTS):
-        parts.append("Go/net/http (GOMAXPROCS=1)")
+        parts.append("Go (net/http, chi, gin, echo, fiber, fasthttp; GOMAXPROCS=1)")
     return ", ".join(parts)
 
 
@@ -1705,7 +1734,8 @@ def main() -> None:
     else:
         if WITH_GO:
             print("! Go-стенд недоступен — меряю без него")
-        PORTS = {k: v for k, v in PORTS.items() if k not in GO_MODES}
+        PORTS = {k: v for k, v in PORTS.items()
+                 if k not in GO_MODES and k not in GO_HTTP_BINS}
     if WITH_RUST and ensure_rust():
         pass
     else:

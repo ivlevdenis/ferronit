@@ -29,6 +29,11 @@ Cargo.lock.bak
 # Rust/Go артефакты и бинарники стенда
 bench/**/target/
 bench/go_pg_orm/go_pg_bench
+bench/go_pg_orm/go_chi
+bench/go_pg_orm/go_echo
+bench/go_pg_orm/go_fiber
+bench/go_pg_orm/go_fasthttp
+bench/go_pg_orm/go_gin
 bench/results/
 bench/rust_http/target/
 bench/go_pg_1row/pgx10

@@ -29,6 +29,12 @@ PALETTE: list[tuple[str, str, str]] = [
     ("go-sqlx", "Go sqlx (raw SQL → structs)", "#48c9b0"),
     ("go-gorm", "Go GORM (ORM)", "#a6b1b3"),
     ("go-ent", "Go ent (generated ORM)", "#c8d0d2"),
+    # HTTP-ось Go: слой БД у всех — pgx, меняется только роутер/сервер.
+    ("go-chi", "Go chi (pgx)", "#8e44ad"),
+    ("go-echo", "Go echo (pgx)", "#aa5cd6"),
+    ("go-gin", "Go gin (pgx)", "#f7b731"),
+    ("go-fiber", "Go fiber (pgx, fasthttp)", "#2d98da"),
+    ("go-fasthttp", "Go fasthttp (pgx)", "#eb3b5a"),
 
 ]
 

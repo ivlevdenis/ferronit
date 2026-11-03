@@ -82,10 +82,11 @@ CPython 3.14.4 аннотации `From*[T]` не резолвятся — па�
 сериализатора. DI и типизации здесь нет вообще:
 невалидные данные падают 500-й (кроме тела — JSON разбирает сам BlackSheep).
 
-> Цифры в [benchmarks.md](https://github.com/ivlevdenis/ferronit-bench/blob/main/docs/benchmarks.md) до 03.11.2026 снимались с
-> `msgspec.json.encode` в `BLACKSHEEP_APP`. msgspec быстрее stdlib JSON, поэтому
-> старые числа завышены в пользу BlackSheep; после смены сериализатора стенд
-> нужно перемерить.
+> Цифры в [benchmarks.md](https://github.com/ivlevdenis/ferronit-bench/blob/main/docs/benchmarks.md)
+> до 03.11.2026 снимались с `msgspec.json.encode` в `BLACKSHEEP_APP`; 03.11 стенд перемерен
+> после перехода на `blacksheep.server.responses.json` (stdlib `json`). Новые значения:
+> ping 82 822, `/me` 21 129, `rows?limit=100` 995, `rows?limit=1000` 130 req/s — BlackSheep
+> остаётся вторым среди Python-стеков, но на чтении разрыв с Ferronit вырос до ×4,6–5,4.
 
 ## Что BlackSheep даёт из коробки
 

@@ -51,27 +51,26 @@ ferronit run --workers 4              # production: granian, uvicorn fallback
 ## Why it is fast
 
 Routing is Rust `matchit`, effectively O(1). On database reads the framework stays within ~15% of
-raw Python `asyncpg`, is within 1.0–1.9× of a raw Go driver (`pgx`) and 1.0–2.0× behind Rust
-frameworks (Axum/Actix; the gap closes as rows grow — at 1000 rows Ferronit is at parity), beats
-BlackSheep by ~2.8–5.1× and FastAPI/Django by an order of magnitude: typed row models + `msgspec`
-reply building cost tens of microseconds, not multiples. Methodology — `ab` (C client) only,
-granian/`net/http`, 1 worker, **Ferronit and every competitor measured in the same session
-(3 interleaved rounds)**; full breakdown in
+raw Python `asyncpg`, is within 1.2–1.9× of a raw Go driver (`pgx`) and 1.3–1.9× behind Rust
+frameworks (Axum/Actix; the gap narrows to ~1.3× at 1000 rows), beats BlackSheep by ~4.6–5.4×
+and FastAPI/Django by an order of magnitude: typed row models + `msgspec` reply building cost
+tens of microseconds, not multiples. Methodology — `ab` (C client) only, granian/`net/http`,
+1 worker, 3 rounds; the `rows` stages were measured one per run (no long shared session), see
 [`ferronit-bench/docs/benchmarks.md`](https://github.com/ivlevdenis/ferronit-bench/blob/main/docs/benchmarks.md).
 On the JWT stage the cost is the verifier, not the framework: Python stacks pay ~18–29 µs for
-`PyJWT`'s pure-Python HS256 decode (Rust/Go verify in ~1–6 µs), so Ferronit ties BlackSheep and
-is 5.1× ahead of FastAPI.
+`PyJWT`'s pure-Python HS256 decode (Rust/Go verify in ~1–6 µs), so Ferronit edges out BlackSheep
+by ~15% and is 5.1× ahead of FastAPI.
 
 | Scenario | Ferronit | BlackSheep | FastAPI | Go pgx | Rust Axum |
 |---|---|---|---|---|---|
-| GET /ping (dict) | **123 548** req/s | 83 685 req/s | 18 371 req/s | 110 656 req/s | 204 922 req/s |
-| GET /me (JWT HS256) | **24 186** req/s | 23 793 req/s | 4 691 req/s | 67 259 req/s | 162 004 req/s |
-| GET /rows?limit=100 | 5 677 req/s | 1 748 req/s | 593 req/s | 5 935 req/s | **6 971** req/s |
-| GET /rows?limit=1000 | 896 req/s | 321 req/s | 83 req/s | 830 req/s | 914 req/s |
+| GET /ping (dict) | 117 536 req/s | 82 822 req/s | 18 777 req/s | 107 461 req/s | **206 139** req/s |
+| GET /me (JWT HS256) | 24 239 req/s | 21 129 req/s | 4 760 req/s | 65 607 req/s | **152 957** req/s |
+| GET /rows?limit=100 | 5 037 req/s | 995 req/s | 630 req/s | 6 221 req/s | **7 204** req/s |
+| GET /rows?limit=1000 | 697 req/s | 130 req/s | 82 req/s | 834 req/s | **887** req/s |
 
-Rows reading and `ping`/JWT — разные сессии одного дня (см. даты в
-[`benchmarks.md`](https://github.com/ivlevdenis/ferronit-bench/blob/main/docs/benchmarks.md)), поэтому
-абсолюты между строками сдвинуты на 2–10%, а соотношения внутри строки — честные.
+Rows reading and `ping`/JWT were measured in separate runs on the same day (dates in
+[`benchmarks.md`](https://github.com/ivlevdenis/ferronit-bench/blob/main/docs/benchmarks.md)), so
+absolutes may shift by 2–10% across rows; ratios within a row are like-for-like.
 
 ## Data layer
 
@@ -113,7 +112,7 @@ async def orders():
 poetry install --all-extras             # environment in .venv + all dependencies
 PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 poetry run maturin develop --release   # build the Rust core
 ./scripts/check.sh                      # lint → types → docstrings → core build → tests
-poetry run pytest tests/ -q             # 265 tests
+poetry run pytest tests/ -q             # 510 tests
 ```
 
 Poetry manages the environment (`poetry.toml` keeps the venv inside the project), while the

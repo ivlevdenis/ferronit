@@ -51,19 +51,24 @@ ferronit run --workers 4              # прод: granian, fallback uvicorn
 ## Почему быстро
 
 Маршрутизация — Rust `matchit`, фактически O(1). На чтении из БД фреймворк держится в ~15% от
-сырого Python-`asyncpg`, даёт 1,0–3,0× от сырого Go-драйвера (`pgx`) и отстаёт в 1,0–3,1× от
-Rust-фреймворков (Axum/Actix, разрыв тает с ростом строк), обходит BlackSheep в ~2,3–3,2×,
-FastAPI/Django — на порядок: типизированные модели строк и
+сырого Python-`asyncpg`, даёт 1,2–1,9× от сырого Go-драйвера (`pgx`) и отстаёт в 1,3–1,9× от
+Rust-фреймворков (Axum/Actix, разрыв тает до ~1,3× на 1000 строках), обходит BlackSheep
+в ~4,6–5,4×, FastAPI/Django — на порядок: типизированные модели строк и
 сборка ответа через `msgspec` стоят десятки микросекунд, а не разы. Методика — только `ab`
-(C-клиент), granian/`net/http`, 1 воркер, **Ferronit и все конкуренты меряются в одной сессии
-(3 раунда по кругу)**; полный разбор —
+(C-клиент), granian/`net/http`, 1 воркер, 3 раунда; стадии `rows` сняты отдельными прогонами,
+полный разбор —
 [`ferronit-bench/docs/benchmarks.md`](https://github.com/ivlevdenis/ferronit-bench/blob/main/docs/benchmarks.md).
 
 | Scenario | Ferronit | BlackSheep | FastAPI | Go pgx | Rust Axum |
 |---|---|---|---|---|---|
-| GET /ping (dict) | 109 664 req/s | 85 194 req/s | 18 546 req/s | 109 930 req/s | **206 834** req/s |
-| GET /rows?limit=100 | 4 633 req/s | 1 698 req/s | 583 req/s | 5 616 req/s | **6 579** req/s |
-| GET /rows?limit=1000 | 840 req/s | 318 req/s | 82 req/s | 835 req/s | **870** req/s |
+| GET /ping (dict) | 117 536 req/s | 82 822 req/s | 18 777 req/s | 107 461 req/s | **206 139** req/s |
+| GET /me (JWT HS256) | 24 239 req/s | 21 129 req/s | 4 760 req/s | 65 607 req/s | **152 957** req/s |
+| GET /rows?limit=100 | 5 037 req/s | 995 req/s | 630 req/s | 6 221 req/s | **7 204** req/s |
+| GET /rows?limit=1000 | 697 req/s | 130 req/s | 82 req/s | 834 req/s | **887** req/s |
+
+Чтение строк и `ping`/JWT сняты отдельными прогонами в один день (даты — в
+[`benchmarks.md`](https://github.com/ivlevdenis/ferronit-bench/blob/main/docs/benchmarks.md)),
+поэтому абсолюты между строками могут расходиться на 2–10%; отношения внутри строки сопоставимы.
 
 ## Слой данных
 
@@ -120,7 +125,7 @@ app = Ferronit(logger=logger, access_log=True)  # access-log через логг
 poetry install --all-extras             # окружение в .venv + все зависимости
 PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 poetry run maturin develop --release   # Rust-ядро
 ./scripts/check.sh                      # линт → типы → докстринги → сборка ядра → тесты
-poetry run pytest tests/ -q             # 265 тестов
+poetry run pytest tests/ -q             # 510 тестов
 ```
 
 Окружение ведёт Poetry (`poetry.toml` — venv внутри проекта), wheel с Rust-ядром собирает

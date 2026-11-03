@@ -4,8 +4,9 @@
 Go-стека (`bench/go_pg_orm`: pgx, sqlx, GORM, ent) и два Rust-фреймворка
 (`bench/rust_http`: Axum, Actix Web) в **одной сессии**: одинаковые
 эндпоинты и одна и та же 6-колоночная таблица `bench_rows`, каждый — своим
-идиоматичным путём (Ferronit=rawmodel, BlackSheep/Litestar=asyncpg+msgspec,
-FastAPI=SQLAlchemy ORM, Django=Django ORM, Go=net/http + свой слой доступа).
+идиоматичным путём (Ferronit=rawmodel, BlackSheep=SQLAlchemy Core + штатный
+stdlib-JSON, Litestar=SQLAlchemy Core + msgspec, FastAPI=SQLAlchemy ORM,
+Django=Django ORM, Go=net/http + свой слой доступа).
 
 Замеры идут **раундами по кругу** (все приложения по очереди, `BENCH_RUNS` раундов,
 берётся лучшее): дрейф машины внутри раунда затрагивает всех одинаково, поэтому
@@ -562,9 +563,9 @@ import os
 from datetime import UTC, date, datetime, timedelta
 
 import jwt
-import msgspec
 from blacksheep import Application, Request, Response
 from blacksheep.contents import Content
+from blacksheep.server.responses import json
 from sqlalchemy import Column, Date, DateTime, Integer, Interval, MetaData, String, Table, func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import create_async_engine
@@ -593,10 +594,6 @@ bench_rows = Table(
 engine = create_async_engine(DSN, pool_size=16)
 
 
-def _json(data):
-    return Response(200, content=Content(b"application/json", msgspec.json.encode(data)))
-
-
 app = Application()
 
 
@@ -606,7 +603,7 @@ async def rows(request: Request):
     async with engine.connect() as conn:
         result = await conn.execute(select(bench_rows).limit(limit))
         records = result.mappings().all()
-    return _json({"rows": [dict(r) for r in records]})
+    return json({"rows": [dict(r) for r in records]})
 
 
 @app.router.post("/rows")
@@ -622,7 +619,7 @@ async def insert(request: Request):
             .returning(bench_rows.c.id)
         )
         row_id = result.scalar_one()
-    return _json({"id": row_id})
+    return json({"id": row_id})
 
 
 @app.router.put("/rows/{row_id}")
@@ -636,14 +633,14 @@ async def update(request: Request, row_id: str):
             .returning(bench_rows.c.id)
         )
         row_id_out = result.scalar_one_or_none()
-    return _json({"id": row_id_out})
+    return json({"id": row_id_out})
 
 
 @app.router.delete("/rows/{row_id}")
 async def delete(row_id: str):
     async with engine.begin() as conn:
         await conn.execute(bench_rows.delete().where(bench_rows.c.id == int(row_id)))
-    return _json({"ok": True})
+    return json({"ok": True})
 
 
 @app.router.put("/rows/any")
@@ -656,7 +653,7 @@ async def update_any(request: Request):
             .values(name=data["name"], email=data["email"])
             .returning(bench_rows.c.id)
         )
-        return _json({"id": result.scalar_one_or_none()})
+        return json({"id": result.scalar_one_or_none()})
 
 
 @app.router.post("/rows/upsert-any")
@@ -674,7 +671,7 @@ async def upsert_any(request: Request):
               "ttl": stmt.excluded.ttl},
     ).returning(bench_rows.c.id)
     async with engine.begin() as conn:
-        return _json({"id": (await conn.execute(stmt)).scalar_one()})
+        return json({"id": (await conn.execute(stmt)).scalar_one()})
 
 
 @app.router.delete("/rows/oldest")
@@ -688,7 +685,7 @@ async def delete_oldest():
             .scalar_subquery()
         )
         await conn.execute(bench_rows.delete().where(bench_rows.c.id == locked))
-    return _json({"ok": True})
+    return json({"ok": True})
 
 
 @app.router.post("/rows/upsert")
@@ -711,7 +708,7 @@ async def upsert(request: Request):
     async with engine.begin() as conn:
         result = await conn.execute(stmt)
         row_id = result.scalar_one()
-    return _json({"id": row_id})
+    return json({"id": row_id})
 
 
 @app.router.get("/ping")
@@ -746,14 +743,13 @@ app.middlewares.append(jwt_middleware)
 @app.router.get("/me")
 async def me(request: Request):
     claims = request.scope["jwt_claims"]
-    return _json({"sub": claims["sub"], "role": claims["role"]})
+    return json({"sub": claims["sub"], "role": claims["role"]})
 '''
 
 
 LITESTAR_APP = '''\
 import itertools
 import os
-import msgspec
 from datetime import UTC, date, datetime, timedelta
 
 import jwt

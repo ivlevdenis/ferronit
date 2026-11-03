@@ -9,7 +9,7 @@ BlackSheep и две на Ferronit.
 | Вариант | Где лежит | Модель исполнения |
 |---|---|---|
 | **BS1** — BlackSheep, идиоматичный | `bench/blacksheep_bench/app.py` — 1 файл | DI-сервис в `app.services`, `FromQuery`, dataclass-модели, OpenAPI |
-| **BS2** — BlackSheep, стендовый | строка `BLACKSHEEP_APP` в `bench/api_bench.py` | сырой asyncpg + msgspec, без bindings и DI |
+| **BS2** — BlackSheep, стендовый | строка `BLACKSHEEP_APP` в `bench/api_bench.py` | SQLAlchemy Core + штатный stdlib-JSON, без bindings и DI |
 | **B** — Ferronit: агрегат + `Repository` | `bench/django_bench/ferronit_service.py` | Mapper/Repository/UoW, роуты вызывают репозиторий |
 | **C** — Ferronit: + CQRS | `FERRONIT_APP` в `bench/api_bench.py` | то же плюс CommandBus/QueryBus и хендлеры |
 
@@ -73,11 +73,16 @@ CPython 3.14.4 аннотации `From*[T]` не резолвятся — па�
 
 ## Вариант BS2 — стендовый BlackSheep
 
-`BLACKSHEEP_APP` в `bench/api_bench.py`: пул asyncpg с ленивой инициализацией,
-`request.json()` вместо bindings, `msgspec.json.encode` вместо нормализации
-ответа. Так сняты цифры в [benchmarks.md](benchmarks.md) — чтобы ни одна ветка не
-получала преимущества от «магии» фреймворка. DI и типизации здесь нет вообще:
+`BLACKSHEEP_APP` в `bench/api_bench.py`: SQLAlchemy Core (async-движок) и
+`request.json()` вместо bindings; ответы отдаёт штатный
+`blacksheep.server.responses.json` (stdlib `json` + `FriendlyEncoder`), без подмены
+сериализатора. DI и типизации здесь нет вообще:
 невалидные данные падают 500-й (кроме тела — JSON разбирает сам BlackSheep).
+
+> Цифры в [benchmarks.md](benchmarks.md) до 03.11.2026 снимались с
+> `msgspec.json.encode` в `BLACKSHEEP_APP`. msgspec быстрее stdlib JSON, поэтому
+> старые числа завышены в пользу BlackSheep; после смены сериализатора стенд
+> нужно перемерить.
 
 ## Что BlackSheep даёт из коробки
 

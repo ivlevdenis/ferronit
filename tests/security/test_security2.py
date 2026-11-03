@@ -103,7 +103,7 @@ async def test_content_type_header_injection():
     app = Ferronit()
 
     @app.route("/ct")
-    def ct(req):
+    async def ct(req):
         return Response(body=b"x", content_type='text/html\r\nX-Injected: yes')
 
     status, hdrs, _ = await call_app(app, "GET", "/ct")
@@ -151,7 +151,7 @@ async def test_gzip_response_valid():
     app = Ferronit()
 
     @app.route("/data")
-    def data(req):
+    async def data(req):
         return {"items": ["a" * 1000] * 20}
 
     status, hdrs, body = await call_app(
@@ -172,7 +172,7 @@ async def test_giant_query_string_no_crash():
     app = Ferronit()
 
     @app.route("/search")
-    def search(req):
+    async def search(req):
         return {"n": len(req.query)}
 
     q = b"&".join(b"p%d=%d" % (i, i) for i in range(10000))
@@ -188,7 +188,7 @@ async def test_control_chars_escaped_in_json():
     app = Ferronit()
 
     @app.route("/ctrl")
-    def ctrl(req):
+    async def ctrl(req):
         return {"payload": "\x00\x1f\x7f"}
 
     status, _, body = await call_app(app, "GET", "/ctrl")
@@ -227,7 +227,7 @@ async def test_method_not_allowed_no_500():
     app = Ferronit()
 
     @app.route("/only-get")
-    def only_get(req):
+    async def only_get(req):
         return {"ok": True}
 
     # POST на GET-маршрут

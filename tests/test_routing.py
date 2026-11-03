@@ -11,15 +11,15 @@ def app():
     v = Ferronit(debug=True)
 
     @v.route("/users/{user_id}")
-    def get_user(req):
+    async def get_user(req):
         return {"user_id": req.params["user_id"]}
 
     @v.route("/posts/{post_id}/comments/{comment_id}")
-    def get_comment(req):
+    async def get_comment(req):
         return {"post_id": req.params["post_id"], "comment_id": req.params["comment_id"]}
 
     @v.route("/")
-    def home(req):
+    async def home(req):
         return {"root": True}
 
     return v
@@ -62,6 +62,38 @@ async def test_404_unmatched(client):
     assert r.status_code == 404
 
 
+def test_sync_http_handler_is_rejected_at_registration():
+    """Sync route handlers are rejected before they can block the event loop."""
+    app = Ferronit()
+
+    with pytest.raises(TypeError, match=r"'sync_handler'.*async"):
+
+        @app.route("/sync")
+        def sync_handler(req):
+            return {"ok": True}
+
+
+def test_sync_websocket_handler_is_rejected_at_registration():
+    app = Ferronit()
+
+    with pytest.raises(TypeError, match=r"'sync_ws'.*async"):
+
+        @app.websocket("/ws")
+        def sync_ws(ws):
+            return None
+
+
+def test_async_callable_object_handler_is_accepted():
+    """HealthCheck-style objects expose an async ``__call__`` and must register."""
+
+    class Handler:
+        async def __call__(self, req):
+            return {"ok": True}
+
+    app = Ferronit()
+    app.route("/callable")(Handler())
+
+
 def test_route_with_26_params_is_rejected_with_value_error():
     """Шаблон из 26 параметров matchit не раскладывает по буквам a..z и паникует.
 
@@ -71,12 +103,20 @@ def test_route_with_26_params_is_rejected_with_value_error():
     """
     v = Ferronit()
     pattern = "/" + "/".join(f"{{p{i}}}" for i in range(26))
+
+    async def dummy(req):
+        return {}
+
     with pytest.raises(ValueError, match="Invalid route"):
-        v.route(pattern)(lambda req: {})
+        v.route(pattern)(dummy)
 
 
 def test_route_with_25_params_is_accepted():
     """25 параметров — предел matchit, шаблон ещё регистрируется."""
     v = Ferronit()
     pattern = "/" + "/".join(f"{{p{i}}}" for i in range(25))
-    v.route(pattern)(lambda req: {})
+
+    async def dummy(req):
+        return {}
+
+    v.route(pattern)(dummy)

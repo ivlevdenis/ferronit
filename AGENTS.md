@@ -134,8 +134,9 @@ docker run -d --name ferronit-pg -e POSTGRES_PASSWORD=postgres -e POSTGRES_USER=
 6. **PyO3 `#[getter]` срезает префикс `get_`**: Rust `fn get_status()` → в Python `.status`.
    Тесты на заголовки нормализуют регистр (`Content-Encoding` с большой буквы).
 7. **Python 3.14+**: сборка ядра только с `PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1`.
-8. **Middleware не должен await'ить синхронные хендлеры**:
-   `result = next_handler(req); if hasattr(result, "__await__"): result = await result`.
+8. **Хендлеры — только async**: `binding.plan()` бросает `TypeError` на синхронном
+   callable при регистрации, поэтому event loop не блокируется. Middleware может быть
+   sync или async — `Middleware.wrap` проверяет `hasattr(result, "__await__")`.
 9. **`X-Trace-Id` ставить в `Ferronit.__call__` ПОСЛЕ `_to_response`** — иначе заголовок теряется
    на возвратах dict/pydantic.
 10. **Что понимает `_to_response`**: `msgspec.Struct` и непустой список из них (JSON

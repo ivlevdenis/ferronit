@@ -30,47 +30,45 @@ def app():
     v = Ferronit(debug=True)
 
     @v.route("/users/{user_id}")
-    def get_user(user_id: int, format: str = "json"):
+    async def get_user(user_id: int, format: str = "json"):
         return {"id": user_id, "format": format}
 
     @v.route("/search")
-    def search(q: str = "", limit: int = 10):
+    async def search(q: str = "", limit: int = 10):
         return {"q": q, "limit": limit}
 
     @v.route("/echo")
-    def echo(name: str = "World"):
+    async def echo(name: str = "World"):
         return {"hello": name}
 
     @v.route("/ids")
-    def ids(ids: list[int]):
+    async def ids(ids: list[int]):
         return {"ids": ids}
 
     @v.route("/tags")
-    def tags(tags: list[str]):
+    async def tags(tags: list[str]):
         return {"tags": tags}
 
     @v.route("/flags")
-    def flags(flags: list[bool]):
+    async def flags(flags: list[bool]):
         return {"flags": flags}
 
     @v.route("/mixed")
-    def mixed(items: list[int | str]):
+    async def mixed(items: list[int | str]):
         return {"items": items}
 
     @v.route("/maybe")
-    def maybe(n: int | None = None):
+    async def maybe(n: int | None = None):
         return {"n": n}
 
     @v.route("/whoami")
-    def whoami(
-        req,
-        x_api_key: Annotated[str, Header("x-api-key")] = "",
-        x_user_id: Annotated[int, Header("x-user-id")] = 0,
-    ):
+    async def whoami(req,
+    x_api_key: Annotated[str, Header("x-api-key")] = "",
+    x_user_id: Annotated[int, Header("x-user-id")] = 0,):
         return {"key": x_api_key, "uid": x_user_id}
 
     @v.route("/required")
-    def required(q: str):
+    async def required(q: str):
         return {"q": q}
 
     @v.route("/items", methods=["POST"])
@@ -78,7 +76,7 @@ def app():
         return {"name": payload.name, "price": payload.price}
 
     @v.route("/filters")
-    def filters(query: Annotated[SearchQuery, Query()]):
+    async def filters(query: Annotated[SearchQuery, Query()]):
         return {
             "q": query.q,
             "page": query.page,
@@ -87,7 +85,7 @@ def app():
         }
 
     @v.route("/filters-required")
-    def filters_required(query: Annotated[RequiredQuery, Query()]):
+    async def filters_required(query: Annotated[RequiredQuery, Query()]):
         return {"page": query.page}
 
     @v.route("/body-marked", methods=["POST"])

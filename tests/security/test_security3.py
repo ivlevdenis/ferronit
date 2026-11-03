@@ -155,7 +155,7 @@ async def test_path_params_decoding():
     app = Ferronit()
 
     @app.route("/users/{user_id}")
-    def get_user(req):
+    async def get_user(req):
         return {"id": req.params["user_id"]}
 
     # декодированный scope path (как отдают uvicorn/granian)
@@ -182,7 +182,7 @@ async def test_middleware_error_500_generic():
     app.use(evil_mw)
 
     @app.route("/ok")
-    def ok(req):
+    async def ok(req):
         return {"ok": True}
 
     status, _, body = await call_app(app, "GET", "/ok")
@@ -198,7 +198,7 @@ async def test_unicode_paths_no_crash():
     app = Ferronit()
 
     @app.route("/users/{user_id}")
-    def get_user(req):
+    async def get_user(req):
         return {"id": req.params["user_id"]}
 
     status, _, body = await call_app(app, "GET", "/users/привет")

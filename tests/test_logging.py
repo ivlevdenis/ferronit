@@ -212,7 +212,7 @@ async def test_access_log_json():
     app = Ferronit(logger=logger, access_log=True)
 
     @app.route("/ping")
-    def ping(req):
+    async def ping(req):
         return "pong"
 
     try:
@@ -238,7 +238,7 @@ async def test_access_log_off_by_default():
     app = Ferronit(logger=logger)  # access_log defaults to False
 
     @app.route("/ping")
-    def ping(req):
+    async def ping(req):
         return "pong"
 
     try:

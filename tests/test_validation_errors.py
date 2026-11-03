@@ -45,7 +45,7 @@ def app():
     v = Ferronit()
 
     @v.route("/items/{item_id}")
-    def get_item(item_id: int):
+    async def get_item(item_id: int):
         return {"id": item_id}
 
     @v.route("/items", methods=["POST"])
@@ -53,15 +53,15 @@ def app():
         return {"name": payload.name}
 
     @v.route("/search")
-    def search(query: Annotated[Search, Query()]):
+    async def search(query: Annotated[Search, Query()]):
         return {"q": query.q, "page": query.page}
 
     @v.route("/required")
-    def required(query: Annotated[RequiredQuery, Query()]):
+    async def required(query: Annotated[RequiredQuery, Query()]):
         return {"page": query.page}
 
     @v.route("/scalar")
-    def scalar(limit: int = 10, x_user_id: Annotated[int, Header("x-user-id")] = 0):
+    async def scalar(limit: int = 10, x_user_id: Annotated[int, Header("x-user-id")] = 0):
         return {"limit": limit, "uid": x_user_id}
 
     @v.route("/signup", methods=["POST"])
@@ -70,7 +70,7 @@ def app():
         raise ValidationError([FieldError("email_taken", "Email already registered", "name")])
 
     @v.route("/boom")
-    def boom():
+    async def boom():
         raise RuntimeError("secret traceback")
 
     return v
@@ -276,7 +276,7 @@ async def test_unhandled_error_is_500_without_traceback() -> None:
     v = Ferronit()
 
     @v.route("/boom")
-    def boom():
+    async def boom():
         raise RuntimeError("secret traceback")
 
     async with AsyncClient(

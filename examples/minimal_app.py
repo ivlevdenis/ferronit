@@ -20,19 +20,19 @@ app = Ferronit()
 
 
 @app.route("/")
-def index() -> dict:
+async def index() -> dict:
     """Service banner."""
     return {"service": "minimal", "status": "ok"}
 
 
 @app.route("/hello")
-def hello(name: str = "world") -> str:
+async def hello(name: str = "world") -> str:
     """Query parameter with a default — returned as plain text."""
     return f"Hello, {name}!"
 
 
 @app.route("/items/{item_id}")
-def item(item_id: int) -> dict:
+async def item(item_id: int) -> dict:
     """Typed path parameter: ``/items/abc`` yields 404 instead of a 500."""
     return {"item_id": item_id, "type": type(item_id).__name__}
 

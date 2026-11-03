@@ -15,23 +15,23 @@ def client() -> AsyncClient:
     app = Ferronit(debug=True)
 
     @app.route("/dict-404")
-    def not_found():
+    async def not_found():
         return {"error": "not found"}, 404
 
     @app.route("/text-201")
-    def created():
+    async def created():
         return "created", 201
 
     @app.route("/list-207")
-    def multi_status():
+    async def multi_status():
         return [{"id": 1}], 207
 
     @app.route("/plain")
-    def plain():
+    async def plain():
         return {"ok": True}
 
     @app.route("/items")
-    def items():
+    async def items():
         return [{"id": 1}, {"id": 2}]
 
     return AsyncClient(transport=ASGITransport(app=app), base_url="http://test")

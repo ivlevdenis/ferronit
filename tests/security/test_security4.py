@@ -51,7 +51,7 @@ async def test_gzip_q0_disables_compression():
     app = Ferronit()
 
     @app.route("/data")
-    def data(req):
+    async def data(req):
         return {"items": ["x" * 500] * 10}
 
     status, hdrs, body = await call_app(
@@ -81,7 +81,7 @@ async def test_trace_id_not_reflected_without_middleware():
     app = Ferronit()
 
     @app.route("/api")
-    def api(req):
+    async def api(req):
         return {"ok": True}
 
     status, hdrs, _ = await call_app(
@@ -98,7 +98,7 @@ async def test_header_flood_no_crash():
     app = Ferronit()
 
     @app.route("/api")
-    def api(req):
+    async def api(req):
         return {"n": len(req.headers)}
 
     hdrs = [(b"x-h%d" % i, b"v%d" % i) for i in range(1000)]
@@ -115,7 +115,7 @@ async def test_huge_header_no_crash():
     app = Ferronit()
 
     @app.route("/api")
-    def api(req):
+    async def api(req):
         return {"len": len(req.headers.get("x-big", ""))}
 
     status, _, body = await call_app(
@@ -170,7 +170,7 @@ async def test_broken_query_pairs_no_crash():
     app = Ferronit()
 
     @app.route("/q")
-    def q(req):
+    async def q(req):
         return {"n": len(req.query)}
 
     for raw in (b"a=1&b&c", b"=x", b"a==1", b"%zz=%", b"&&&", b"a=%"):
@@ -186,7 +186,7 @@ async def test_utf8_query_decoding():
     app = Ferronit()
 
     @app.route("/search")
-    def search(req):
+    async def search(req):
         return {"q": req.query.get("q", [""])[0]}
 
     status, _, body = await call_app(
@@ -208,7 +208,7 @@ async def test_very_long_path_no_crash():
     app = Ferronit()
 
     @app.route("/")
-    def home(req):
+    async def home(req):
         return {"ok": True}
 
     long_path = "/" + "a" * (64 * 1024)
@@ -237,7 +237,7 @@ async def test_auth_middleware_short_circuit():
     called = []
 
     @app.route("/private")
-    def private(req):
+    async def private(req):
         called.append(True)
         return {"secret": "data"}
 

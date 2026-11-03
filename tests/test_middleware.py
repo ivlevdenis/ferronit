@@ -20,7 +20,7 @@ def app():
     v.use(logger)
 
     @v.route("/")
-    def home(req):
+    async def home(req):
         return {"mw": req._scope.get("x-mw", "none")}
 
     @v.route("/hello")

@@ -11,16 +11,16 @@ def app() -> Ferronit:
     v = Ferronit(debug=True)
 
     @v.route("/")
-    def home(req):
+    async def home(req):
         return {"ok": True}
 
     @v.route("/hello")
-    def hello(req):
+    async def hello(req):
         name = req.query.get("name", ["world"])[0]
         return f"Hello, {name}!"
 
     @v.route("/echo", methods=["POST"])
-    def echo(req):
+    async def echo(req):
         return {"method": req.method, "path": req.path}
 
     return v

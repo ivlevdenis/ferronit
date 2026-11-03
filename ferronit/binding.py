@@ -60,15 +60,45 @@ class Body:
     __slots__ = ()
 
 
+def _handler_name(handler) -> str:
+    """Human-readable handler name for errors and wrapper metadata."""
+    return getattr(handler, "__name__", type(handler).__name__)
+
+
+def _is_async_callable(handler: object) -> bool:
+    """True for ``async def`` functions and objects with an async ``__call__``."""
+    if inspect.iscoroutinefunction(handler):
+        return True
+    # B004: нужен именно bind'нутый __call__, а не callable() — проверяем async-ность.
+    return inspect.iscoroutinefunction(getattr(handler, "__call__", None))  # noqa: B004
+
+
+def _ensure_async_handler(handler) -> None:
+    """Reject a sync handler at registration, before it can block the event loop.
+
+    Args:
+        handler: The callable being registered as a route or WebSocket handler.
+
+    Raises:
+        TypeError: If ``handler`` is not an async callable.
+    """
+    if _is_async_callable(handler):
+        return
+    name = _handler_name(handler)
+    raise TypeError(
+        f"Ferronit route handler {name!r} must be an async function (`async def`). "
+        "Move blocking work off the event loop with `await asyncio.to_thread(...)`."
+    )
+
+
 class _Plan:
     """Pre-computed handler binding plan (classification, no wrapper yet)."""
 
-    __slots__ = ("body_resolvers", "di_keys", "is_async", "pass_through", "resolvers")
+    __slots__ = ("body_resolvers", "di_keys", "pass_through", "resolvers")
 
-    def __init__(self, resolvers, body_resolvers, is_async, pass_through, di_keys) -> None:
+    def __init__(self, resolvers, body_resolvers, pass_through, di_keys) -> None:
         self.resolvers = resolvers
         self.body_resolvers = body_resolvers
-        self.is_async = is_async
         self.pass_through = pass_through
         self.di_keys = di_keys
 
@@ -88,13 +118,16 @@ def plan(handler, container=None) -> _Plan:
 
     Returns:
         A :class:`_Plan` ready for :func:`build`.
+
+    Raises:
+        TypeError: If ``handler`` is not an async callable.
     """
+    _ensure_async_handler(handler)
     sig = inspect.signature(handler)
     try:
         hints = get_type_hints(handler, include_extras=True)
     except Exception:
         hints = {}
-    is_async = inspect.iscoroutinefunction(handler)
 
     param_names = list(sig.parameters.keys())
     defaults = {n: p.default for n, p in sig.parameters.items()
@@ -106,7 +139,7 @@ def plan(handler, container=None) -> _Plan:
         and not hints
         and next(iter(sig.parameters.values())).annotation is inspect.Parameter.empty
     ):
-        return _Plan([], [], is_async, True, [])
+        return _Plan([], [], True, [])
 
     # Резолвер — (kind, name, coercer, default, is_list, element_coercer, extra):
     #   kind="req"    → сам Request;
@@ -156,7 +189,7 @@ def plan(handler, container=None) -> _Plan:
             None,
         ))
 
-    return _Plan(resolvers, body_resolvers, is_async, False, di_keys)
+    return _Plan(resolvers, body_resolvers, False, di_keys)
 
 
 def build(handler, plan: _Plan, container=None, resolved: dict | None = None):
@@ -176,12 +209,10 @@ def build(handler, plan: _Plan, container=None, resolved: dict | None = None):
         A wrapper callable ready to be registered as a route handler.
     """
     if plan.pass_through:
-        if plan.is_async:
-            async def pass_through_async(req):
-                return await handler(req)
-            pass_through_async.__name__ = handler.__name__
-            return pass_through_async
-        return handler  # no wrapping needed
+        async def pass_through_async(req):
+            return await handler(req)
+        pass_through_async.__name__ = _handler_name(handler)
+        return pass_through_async
 
     resolvers = plan.resolvers
     if resolved:
@@ -195,33 +226,17 @@ def build(handler, plan: _Plan, container=None, resolved: dict | None = None):
     # Все параметры — заранее подставленные константы → прямой вызов без резолвера.
     if resolvers and all(r[0] == "value" for r in resolvers):
         values = tuple(r[6] for r in resolvers)
-        if plan.is_async:
-            async def direct_async(req):
-                return await handler(*values)
-            direct_async.__name__ = handler.__name__
-            return direct_async
-        def direct_sync(req):
-            return handler(*values)
-        direct_sync.__name__ = handler.__name__
-        return direct_sync
 
-    if plan.is_async:
-        async def bind_async(req):
-            body = {n: await req.model(m) for n, m in plan.body_resolvers} if plan.body_resolvers else {}
-            return await handler(*_bind_values(req, resolvers, body, container))
-        bind_async.__name__ = handler.__name__
-        return bind_async
+        async def direct_async(req):
+            return await handler(*values)
+        direct_async.__name__ = _handler_name(handler)
+        return direct_async
 
-    if plan.body_resolvers:
-        raise TypeError(
-            f"{handler.__name__}: body-параметры требуют async-хендлер "
-            f"(нельзя await в sync-функции)"
-        )
-
-    def bind_sync(req):
-        return handler(*_bind_values(req, resolvers, {}, container))
-    bind_sync.__name__ = handler.__name__
-    return bind_sync
+    async def bind_async(req):
+        body = {n: await req.model(m) for n, m in plan.body_resolvers} if plan.body_resolvers else {}
+        return await handler(*_bind_values(req, resolvers, body, container))
+    bind_async.__name__ = _handler_name(handler)
+    return bind_async
 
 
 def bind(handler, container=None):

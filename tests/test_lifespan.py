@@ -20,7 +20,7 @@ def _make_app(container: Container) -> Ferronit:
     container.factory(Repo)
 
     @app.route("/token")
-    def token(repo: Repo):
+    async def token(repo: Repo):
         return {"token": repo.token}
 
     return app

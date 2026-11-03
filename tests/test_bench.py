@@ -18,11 +18,11 @@ def app():
     v = Ferronit()
 
     @v.route("/")
-    def home(req):
+    async def home(req):
         return {"ok": True}
 
     @v.route("/reflect")
-    def reflect(req):
+    async def reflect(req):
         return {"method": req.method, "path": req.path}
 
     return v

@@ -98,7 +98,7 @@ async def test_crlf_header_injection():
     app = Ferronit()
 
     @app.route("/echo")
-    def echo(req):
+    async def echo(req):
         resp = __import__("ferronit").Response(body=b"ok")
         resp._headers["X-User"] = req.query.get("v", [""])[0]
         return resp
@@ -117,7 +117,7 @@ async def test_xss_json_html_escaping():
     app = Ferronit()
 
     @app.route("/xss")
-    def xss(req):
+    async def xss(req):
         return {"user_input": "<script>alert(1)</script>"}
 
     status, _, body = await call_app(app, "GET", "/xss")
@@ -135,7 +135,7 @@ async def test_xss_msgspec_struct_html_escaping():
     app = Ferronit()
 
     @app.route("/xss-struct")
-    def xss_struct(req):
+    async def xss_struct(req):
         return Item(user_input="<script>alert(1)</script>&")
 
     status, _, body = await call_app(app, "GET", "/xss-struct")
@@ -173,7 +173,7 @@ async def test_cors_denied_origin():
     app.use(cors(allow_origins=["https://good.example"]))
 
     @app.route("/api")
-    def api(req):
+    async def api(req):
         return {"ok": True}
 
     # preflight с запрещённым origin
@@ -205,7 +205,7 @@ async def test_debug_off_hides_error_details():
     app = Ferronit(debug=False)
 
     @app.route("/boom")
-    def boom(req):
+    async def boom(req):
         raise RuntimeError("secret-internal-detail-42")
 
     status, hdrs, body = await call_app(app, "GET", "/boom")
@@ -239,7 +239,7 @@ async def test_malformed_path_no_crash():
     app = Ferronit()
 
     @app.route("/users/{user_id}")
-    def get_user(req):
+    async def get_user(req):
         return {"id": req.params["user_id"]}
 
     for bad_path in ("/users/\x00", "/users/%00", "/users/a/b/c", "//users//", "/users/../admin"):

@@ -51,7 +51,7 @@ async def test_asvs_v1_2_1_output_encoding_for_json_context():
     app = Ferronit()
 
     @app.route("/xss")
-    def xss(req):
+    async def xss(req):
         return {"user_input": "<script>alert(1)</script>&"}
 
     status, _, body = await call_app(app, "GET", "/xss")
@@ -102,7 +102,7 @@ async def test_asvs_v3_2_1_clickjacking_protection():
     app.use(security_headers())
 
     @app.route("/api")
-    def api(req):
+    async def api(req):
         return {"ok": True}
 
     status, hdrs, _ = await call_app(app, "GET", "/api")
@@ -116,7 +116,7 @@ async def test_asvs_v3_4_1_hsts():
     app.use(security_headers())
 
     @app.route("/api")
-    def api(req):
+    async def api(req):
         return {"ok": True}
 
     status, hdrs, _ = await call_app(app, "GET", "/api")
@@ -133,7 +133,7 @@ async def test_asvs_v3_4_2_cors_fixed_origin():
     ))
 
     @app.route("/api")
-    def api(req):
+    async def api(req):
         return {"ok": True}
 
     # evil origin не получает ACAO
@@ -157,7 +157,7 @@ async def test_asvs_v3_5_2_cors_preflight_origin_check():
     app.use(cors(allow_origins=["https://good.example"]))
 
     @app.route("/api", methods=["POST"])
-    def api(req):
+    async def api(req):
         return {"ok": True}
 
     status, hdrs, _ = await call_app(
@@ -177,11 +177,11 @@ async def test_asvs_v4_1_1_content_type_matches_content_with_charset():
     app = Ferronit()
 
     @app.route("/json")
-    def json_resp(req):
+    async def json_resp(req):
         return {"ok": True}
 
     @app.route("/text")
-    def text_resp(req):
+    async def text_resp(req):
         return "hello"
 
     status, hdrs, _ = await call_app(app, "GET", "/json")
@@ -241,7 +241,7 @@ async def test_asvs_v6_3_1_brute_force_protection():
     app.use(rate_limit(limit=3, window=60.0))
 
     @app.route("/login", methods=["POST"])
-    def login(req):
+    async def login(req):
         return {"ok": True}
 
     for _ in range(3):
@@ -294,7 +294,7 @@ async def test_asvs_v1_2_2_no_untrusted_url_building():
     app = Ferronit()
 
     @app.route("/redirect")
-    def redirect(req):
+    async def redirect(req):
         return {"next": req.query.get("next", [""])[0]}
 
     status, _, body = await call_app(app, "GET", "/redirect", query=b"next=javascript:alert(1)")

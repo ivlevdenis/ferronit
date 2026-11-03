@@ -139,7 +139,7 @@ async def lifespan():
 
 
 @app.route("/")
-def home(req):
+async def home(req):
     return {{"app": "{name}"}}
 
 

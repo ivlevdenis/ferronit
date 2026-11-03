@@ -58,7 +58,7 @@ class HttpOrdersAdapter:
             return order
 
         @app.route(f"{base}/openapi.json")
-        def openapi_spec():
+        async def openapi_spec():
             return app.openapi.build()
 
         @app.route(f"{base}/ping")

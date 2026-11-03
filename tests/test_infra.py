@@ -90,7 +90,7 @@ async def test_trace_id_generated():
     v.use(trace_middleware)
 
     @v.route("/")
-    def home(req):
+    async def home(req):
         return {"ok": True}
 
     transport = ASGITransport(app=v)
@@ -107,7 +107,7 @@ async def test_trace_id_propagated():
     v.use(trace_middleware)
 
     @v.route("/")
-    def home(req):
+    async def home(req):
         return {"ok": True}
 
     transport = ASGITransport(app=v)

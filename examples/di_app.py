@@ -59,7 +59,7 @@ async def greet(name: str) -> dict:
 
 
 @app.route("/stats")
-def stats() -> dict:
+async def stats() -> dict:
     """Show that the container returned a singleton-scoped service."""
     return {"served": greeter.served}
 

@@ -24,23 +24,23 @@ def app():
     v = Ferronit(debug=True)
 
     @v.route("/struct")
-    def struct():
+    async def struct():
         return Item(name="widget", price=9.9)
 
     @v.route("/structs")
-    def structs():
+    async def structs():
         return [Item(name="a", price=1.0), Item(name="b", price=2.0)]
 
     @v.route("/struct-404")
-    def struct_404():
+    async def struct_404():
         return Item(name="missing", price=0.0), 404
 
     @v.route("/structs-207")
-    def structs_207():
+    async def structs_207():
         return [Item(name="a", price=1.0)], 207
 
     @v.route("/empty")
-    def empty():
+    async def empty():
         return []
 
     return v

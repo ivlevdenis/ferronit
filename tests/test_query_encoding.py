@@ -28,7 +28,7 @@ async def query_of(app, query_string: bytes) -> dict:
     captured: dict = {}
 
     @app.route("/q")
-    def echo(req):
+    async def echo(req):
         captured.update(req.query)
         return {"ok": True}
 

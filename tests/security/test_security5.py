@@ -49,7 +49,7 @@ async def test_security_headers_defaults():
     app.use(security_headers())
 
     @app.route("/api")
-    def api(req):
+    async def api(req):
         return {"ok": True}
 
     status, hdrs, _ = await call_app(app, "GET", "/api")
@@ -66,7 +66,7 @@ async def test_security_headers_options_and_override():
     app.use(security_headers(hsts=None, csp="default-src 'self'"))
 
     @app.route("/api")
-    def api(req):
+    async def api(req):
         resp = Response(body=b"ok")
         resp._headers["X-Frame-Options"] = "SAMEORIGIN"  # пользователь переопределяет
         return resp
@@ -166,7 +166,7 @@ async def test_rate_limit_429():
     app.use(rate_limit(limit=3, window=60.0))
 
     @app.route("/api")
-    def api(req):
+    async def api(req):
         return {"ok": True}
 
     for i in range(3):
@@ -184,7 +184,7 @@ async def test_rate_limit_per_ip():
     app.use(rate_limit(limit=2, window=60.0))
 
     @app.route("/api")
-    def api(req):
+    async def api(req):
         return {"ok": True}
 
     # разные IP не мешают друг другу
@@ -202,7 +202,7 @@ async def test_rate_limit_custom_key():
     app.use(rate_limit(limit=2, window=60.0, key=lambda req: req.get_header("x-api-key") or "anon"))
 
     @app.route("/api")
-    def api(req):
+    async def api(req):
         return {"ok": True}
 
     hdr = [(b"x-api-key", b"key1")]
@@ -220,7 +220,7 @@ async def test_no_server_fingerprint_headers():
     app = Ferronit()
 
     @app.route("/api")
-    def api(req):
+    async def api(req):
         return {"ok": True}
 
     status, hdrs, _ = await call_app(app, "GET", "/api")
@@ -235,7 +235,7 @@ async def test_trace_method_not_allowed():
     app = Ferronit()
 
     @app.route("/api")
-    def api(req):
+    async def api(req):
         return {"ok": True}
 
     for method in ("TRACE", "TRACK"):

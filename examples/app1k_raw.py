@@ -1001,4 +1001,5 @@ app._app.add_route("GET","/api/user997",lambda req,id=997:{"id":id})
 app._app.add_route("GET","/api/user998",lambda req,id=998:{"id":id})
 app._app.add_route("GET","/api/user999",lambda req,id=999:{"id":id})
 @app.route("/")
-def home(req):return{"ok":True}
+async def home(req):
+    return{"ok":True}

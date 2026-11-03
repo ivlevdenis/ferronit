@@ -173,9 +173,11 @@ class Ferronit:
         """Decorator registering an HTTP handler for one or more methods.
 
         The handler is wrapped for dependency injection and registered both in
-        the router and in the OpenAPI document. Extra keyword arguments are
-        forwarded to :meth:`OpenAPI.add_route` (for example ``summary=`` or
-        ``tags=``).
+        the router and in the OpenAPI document. It must be an ``async def``
+        function (or expose an async ``__call__``); a sync callable is rejected
+        with :class:`TypeError` at registration time, because it would block the
+        event loop. Extra keyword arguments are forwarded to
+        :meth:`OpenAPI.add_route` (for example ``summary=`` or ``tags=``).
 
         Args:
             path: Route pattern, e.g. ``"/users/{id}"``.
@@ -208,6 +210,9 @@ class Ferronit:
     def websocket(self, path: str, *, origins: list[str] | None = None):
         """Decorator registering a WebSocket handler.
 
+        The handler must be an ``async def`` function; a sync callable is
+        rejected with :class:`TypeError` at registration time.
+
         Args:
             path: WebSocket path, e.g. ``"/ws"``.
             origins: Allowed ``Origin`` header values. When provided, a
@@ -221,6 +226,9 @@ class Ferronit:
             self._ws_origins[path] = origins
 
         def decorator(handler):
+            from ferronit.binding import _ensure_async_handler
+
+            _ensure_async_handler(handler)
             self._app.add_route("WS", path, handler)
             return handler
         return decorator
@@ -315,9 +323,7 @@ class Ferronit:
             handler, _ = result
             ws = WebSocket(scope, receive, send)
             try:
-                r = handler(ws)
-                if hasattr(r, "__await__"):
-                    await r
+                await handler(ws)
             except Exception:
                 if ws.state.value < 2:
                     await ws.close(1011)
@@ -361,9 +367,7 @@ class Ferronit:
             if wrapped is None:
                 wrapped = self._middleware.wrap(handler_py)
                 self._mw_cache[handler_py] = wrapped
-            py_result = wrapped(req)
-            if hasattr(py_result, "__await__"):
-                py_result = await py_result
+            py_result = await wrapped(req)
         except RequestError as exc:
             self._log_access(method, path, exc.status, start_ns)
             await _send_error(send, exc)
@@ -446,9 +450,7 @@ class Ferronit:
             if wrapped is None:
                 wrapped = self._middleware.wrap(handler_py)
                 self._mw_cache[handler_py] = wrapped
-            py_result = wrapped(req)
-            if hasattr(py_result, "__await__"):
-                py_result = await py_result
+            py_result = await wrapped(req)
         except RequestError as exc:
             self._log_access(method, path, exc.status, start_ns)
             _rsgi_error(proto, exc)

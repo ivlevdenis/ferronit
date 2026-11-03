@@ -42,6 +42,7 @@ import asyncio
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -67,6 +68,33 @@ RUNS = int(os.environ.get("BENCH_RUNS", "3"))
 # Кросс-языковые стенды в общей сессии (BENCH_NO_GO=1 / BENCH_NO_RUST=1 — отключить).
 WITH_GO = os.environ.get("BENCH_NO_GO") != "1"
 WITH_RUST = os.environ.get("BENCH_NO_RUST") != "1"
+
+# Привязка к ядрам (необязательно). Гибридный Intel i7-12700H на этом хосте:
+#   P-ядра 0-11, E-ядра 12-19 (см. /sys/devices/cpu_core|cpu_atom/cpus).
+#   BENCH_SERVER_CPUS=12-19 .venv/bin/python bench/api_bench.py   # серверы — только E-ядра
+#   BENCH_CLIENT_CPUS=0-11  ...                                   # ab — только P-ядра
+# affinity наследуется детьми (granian supervisor → worker), поэтому taskset на команде достаточно.
+SERVER_CPUS = os.environ.get("BENCH_SERVER_CPUS", "").strip()
+CLIENT_CPUS = os.environ.get("BENCH_CLIENT_CPUS", "").strip()
+
+
+def _pin(cmd: list[str], cpus: str) -> list[str]:
+    """Обернуть команду в ``taskset``, чтобы процесс и потомки жили на ядрах ``cpus``.
+
+    Args:
+        cmd: Команда запуска.
+        cpus: Список CPU для ``taskset -c`` (например, ``"12-19"``); пусто — без привязки.
+
+    Returns:
+        Команду с префиксом ``taskset -c`` либо исходную.
+    """
+    if not cpus:
+        return cmd
+    if shutil.which("taskset") is None:
+        raise RuntimeError("BENCH_SERVER_CPUS/BENCH_CLIENT_CPUS заданы, но taskset не найден")
+    return ["taskset", "-c", cpus, *cmd]
+
+
 SELECT_REQUESTS = 5000
 PING_REQUESTS = 10000
 WRITE_REQUESTS = 3000
@@ -1237,16 +1265,16 @@ def start(name: str, port: int, workers: int = WORKERS) -> subprocess.Popen:
         # axum: число потоков tokio из env; actix: --workers
         env = {**os.environ, "TOKIO_WORKER_THREADS": str(workers)}
         return subprocess.Popen(
-            [str(binary), "--port", str(port), "--pool", str(max(16, workers)),
-             "--workers", str(workers)],
+            _pin([str(binary), "--port", str(port), "--pool", str(max(16, workers)),
+                  "--workers", str(workers)], SERVER_CPUS),
             cwd=RUST_DIR, env=env,
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         )
     if name in GO_MODES:
         env = {**os.environ, "GOMAXPROCS": str(workers)}  # аналог «1 воркер» у granian
         return subprocess.Popen(
-            [str(GO_BIN), "--serve", "--mode", GO_MODES[name], "--port", str(port),
-             "--pool", str(max(16, workers))],
+            _pin([str(GO_BIN), "--serve", "--mode", GO_MODES[name], "--port", str(port),
+                  "--pool", str(max(16, workers))], SERVER_CPUS),
             cwd=GO_DIR, env=env,
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         )
@@ -1271,7 +1299,7 @@ def start(name: str, port: int, workers: int = WORKERS) -> subprocess.Popen:
             cmd.append("--no-ws")
         cmd += ["--log-level", "warning", f"_bench_api_{module}:app"]
     return subprocess.Popen(
-        cmd,
+        _pin(cmd, SERVER_CPUS),
         cwd=HERE,
         env={**os.environ, "DJANGO_SETTINGS_MODULE": "django_bench.settings"},
         stdout=subprocess.DEVNULL,
@@ -1371,7 +1399,7 @@ def ab_reqs(
     for header in headers:
         cmd += ["-H", header]
     cmd.append(f"http://127.0.0.1:{port}{path}")
-    out = subprocess.run(cmd, capture_output=True, text=True, timeout=300).stdout
+    out = subprocess.run(_pin(cmd, CLIENT_CPUS), capture_output=True, text=True, timeout=300).stdout
     match = re.search(r"Requests per second:\s+([\d.]+)", out)
     if not match:
         raise RuntimeError(f"ab не дал результат для {path}:\n{out[-400:]}")
@@ -1391,7 +1419,7 @@ def ab_write(port: int, path: str, method: str, body: str | None, n: int) -> flo
     elif method == "DELETE":
         cmd += ["-m", "DELETE"]
     cmd.append(f"http://127.0.0.1:{port}{path}")
-    out = subprocess.run(cmd, capture_output=True, text=True, timeout=300).stdout
+    out = subprocess.run(_pin(cmd, CLIENT_CPUS), capture_output=True, text=True, timeout=300).stdout
     match = re.search(r"Requests per second:\s+([\d.]+)", out)
     if not match:
         raise RuntimeError(f"ab не дал результат для {method} {path}:\n{out[-400:]}")
@@ -1688,6 +1716,8 @@ def main() -> None:
     seed()
     stages = selected_stages()
     print(f"{_transport_note()}, ab -c 50 -k, раундов {RUNS}, приложений {len(PORTS)}")
+    if SERVER_CPUS or CLIENT_CPUS:
+        print(f"affinity: server={SERVER_CPUS or 'any'} client={CLIENT_CPUS or 'any'}")
     print(f"стадии: {', '.join(stages)}")
 
     results: dict[str, dict[str, float]] = {}

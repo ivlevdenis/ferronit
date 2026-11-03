@@ -168,15 +168,19 @@ jobs:
 
   macos:
     name: macOS
-    runs-on: ${{ matrix.runner }}
+    # Оба колеса собирает один Intel-раннер: x86_64 — родная сборка, aarch64 —
+    # кросс-сборка (`--target aarch64-apple-darwin`; SDK macOS универсален, а PyO3
+    # с abi3-py312 не требует интерпретатора целевой архитектуры, maturin-action
+    # сам ставит rustup-target и SDKROOT). Раньше arm64 собирался на
+    # `macos-latest`, но 2026-11-02 эта джоба дважды не получила раннер и была
+    # отменена через 15 минут — «The job was not acquired by Runner of type
+    # hosted even after multiple attempts» + «capacity constraints … macOS arm64
+    # runners». Из-за неё не вышел 0.24.0: релиз ждёт все джобы matrix.
+    runs-on: macos-15-intel
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - runner: macos-15-intel
-            target: x86_64
-          - runner: macos-latest
-            target: aarch64
+        target: [x86_64, aarch64]
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6

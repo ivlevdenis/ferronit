@@ -56,7 +56,8 @@ frameworks (Axum/Actix; the gap closes as rows grow — at 1000 rows Ferronit is
 BlackSheep by ~2.8–5.1× and FastAPI/Django by an order of magnitude: typed row models + `msgspec`
 reply building cost tens of microseconds, not multiples. Methodology — `ab` (C client) only,
 granian/`net/http`, 1 worker, **Ferronit and every competitor measured in the same session
-(3 interleaved rounds)**; full breakdown in [`docs/benchmarks.md`](docs/benchmarks.md).
+(3 interleaved rounds)**; full breakdown in
+[`ferronit-bench/docs/benchmarks.md`](https://github.com/ivlevdenis/ferronit-bench/blob/main/docs/benchmarks.md).
 On the JWT stage the cost is the verifier, not the framework: Python stacks pay ~18–29 µs for
 `PyJWT`'s pure-Python HS256 decode (Rust/Go verify in ~1–6 µs), so Ferronit ties BlackSheep and
 is 5.1× ahead of FastAPI.
@@ -68,7 +69,8 @@ is 5.1× ahead of FastAPI.
 | GET /rows?limit=100 | 5 677 req/s | 1 748 req/s | 593 req/s | 5 935 req/s | **6 971** req/s |
 | GET /rows?limit=1000 | 896 req/s | 321 req/s | 83 req/s | 830 req/s | 914 req/s |
 
-Rows reading and `ping`/JWT — разные сессии одного дня (см. даты в `docs/benchmarks.md`), поэтому
+Rows reading and `ping`/JWT — разные сессии одного дня (см. даты в
+[`benchmarks.md`](https://github.com/ivlevdenis/ferronit-bench/blob/main/docs/benchmarks.md)), поэтому
 абсолюты между строками сдвинуты на 2–10%, а соотношения внутри строки — честные.
 
 ## Data layer
@@ -121,7 +123,8 @@ so Poetry itself never installs the project.
 - **[AGENTS.md](AGENTS.md)** — guidance for code agents (Claude Code, Codex, Cursor, …).
 - **`examples/`** — minimal, DI, LLM + SSE, RAG, WebSocket; `examples/app.py` is the DDD example.
 - The package ships `py.typed`; type stubs for the Rust core live in `ferronit/_core.pyi`.
-- `bench/` — the measurement rig behind every number above; not part of the package.
+- **[ferronit-bench](https://github.com/ivlevdenis/ferronit-bench)** — the measurement rig behind
+  every number above (methodology, scripts, charts); not part of the package.
 
 ## Release
 

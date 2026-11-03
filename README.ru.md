@@ -56,7 +56,8 @@ Rust-фреймворков (Axum/Actix, разрыв тает с ростом �
 FastAPI/Django — на порядок: типизированные модели строк и
 сборка ответа через `msgspec` стоят десятки микросекунд, а не разы. Методика — только `ab`
 (C-клиент), granian/`net/http`, 1 воркер, **Ferronit и все конкуренты меряются в одной сессии
-(3 раунда по кругу)**; полный разбор — [`docs/benchmarks.md`](docs/benchmarks.md).
+(3 раунда по кругу)**; полный разбор —
+[`ferronit-bench/docs/benchmarks.md`](https://github.com/ivlevdenis/ferronit-bench/blob/main/docs/benchmarks.md).
 
 | Scenario | Ferronit | BlackSheep | FastAPI | Go pgx | Rust Axum |
 |---|---|---|---|---|---|
@@ -128,7 +129,8 @@ maturin (см. `[tool.maturin]` в `pyproject.toml`), поэтому сам пр
 - **[AGENTS.md](AGENTS.md)** — инструкция для код-агентов (Claude Code, Codex, Cursor, ...).
 - **`examples/`** — minimal, DI, LLM + SSE, RAG, WebSocket; `examples/app.py` — DDD-пример.
 - Пакет помечен `py.typed`; для Rust-ядра лежит `ferronit/_core.pyi`.
-- `bench/` — измерительный стенд (все цифры выше), не входит в пакет.
+- **[ferronit-bench](https://github.com/ivlevdenis/ferronit-bench)** — измерительный стенд
+  (методика, скрипты, диаграммы), не входит в пакет.
 
 ## Релиз
 

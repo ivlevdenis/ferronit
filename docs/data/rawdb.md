@@ -33,7 +33,7 @@ async with pool.uow() as uow:                     # BEGIN / COMMIT (или rollb
   и Rust `sqlx`). Это убирает ~30 мкс с каждого маленького чтения. Если хендлер меняет
   **состояние сессии** (`SET`, temp-таблицы, `LISTEN`, advisory-локи), создавай пул так:
   `create_pool(dsn, reset_on_release=True)` — вернётся полная гигиена asyncpg.
-  Детали и цифры — [benchmarks.md](../benchmarks.md#малые-выборки-цена-возврата-соединения-в-пул-01112026).
+  Детали и цифры — [benchmarks.md](https://github.com/ivlevdenis/ferronit-bench/blob/main/docs/benchmarks.md).
 - `RawUnitOfWork(pool, readonly=False)` — то же напрямую.
   `readonly=True` пропускает `BEGIN` (экономия одного round-trip) для read-only.
 - `Condition(sql, params)` — фрагмент с PostgreSQL-плейсхолдерами (`$1`…).
@@ -259,7 +259,8 @@ Generic `Repository[A, M, MAP, P]` — агрегат `A`, модель стро
 Клиентов разводит пул, а не приложение: на каждый запрос берётся своё соединение, в нём
 открывается один UoW (`BEGIN` … `COMMIT`), после коммита соединение возвращается в пул.
 Транзакции параллельных клиентов идут одновременно и не видят друг друга. Проверено замером
-(`bench/_probe_tx_isolation.py`, `bench/_probe_tx_transfer.py`, 50 клиентов):
+(`_probe_tx_isolation.py`, `_probe_tx_transfer.py` в
+[ferronit-bench](https://github.com/ivlevdenis/ferronit-bench), 50 клиентов):
 
 - внутри своей транзакции клиент видел **2 свои строки и 0 чужих**, после всех коммитов — 100 строк
   (2 × 50), пул вернулся целиком (свободно 50 из 50) — утечек нет;

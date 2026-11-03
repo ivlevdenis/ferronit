@@ -1,5 +1,8 @@
 # Ferronit и Tornado: один сервис, N реализаций
 
+> Стендовые приложения и скрипты замеров — в отдельном репозитории [ferronit-bench](https://github.com/ivlevdenis/ferronit-bench); пути ниже (`api_bench.py`, `django_bench/…`) указаны относительно его корня.
+
+
 Тот же контракт, что и в [сравнении с Django](vs-django.md) и
 [с BlackSheep](vs-blacksheep.md): шесть эндпоинтов над таблицей `bench_rows`
 (PostgreSQL). Tornado — классический Python-фреймворк (2009, FriendFeed/Facebook)
@@ -10,9 +13,9 @@ granian.
 
 | Вариант | Где лежит | Модель исполнения |
 |---|---|---|
-| **T1** — Tornado, идиоматичный | `bench/tornado_bench/app.py` — 1 файл | `RequestHandler` + `async def`, сырой asyncpg, свой `HTTPServer` |
-| **B** — Ferronit: агрегат + `Repository` | `bench/django_bench/ferronit_service.py` | Mapper/Repository/UoW, granian |
-| **C** — Ferronit: + CQRS | `FERRONIT_APP` в `bench/api_bench.py` | то же плюс CommandBus/QueryBus и хендлеры |
+| **T1** — Tornado, идиоматичный | `tornado_bench/app.py` — 1 файл | `RequestHandler` + `async def`, сырой asyncpg, свой `HTTPServer` |
+| **B** — Ferronit: агрегат + `Repository` | `django_bench/ferronit_service.py` | Mapper/Repository/UoW, granian |
+| **C** — Ferronit: + CQRS | `FERRONIT_APP` в `api_bench.py` | то же плюс CommandBus/QueryBus и хендлеры |
 
 Контракт (одинаковый у всех):
 
@@ -27,7 +30,7 @@ granian.
 
 ## Цена в строках
 
-Подсчёт — AST-обход (`bench/loc_compare.py`): без пустых строк, комментариев и
+Подсчёт — AST-обход (`loc_compare.py`): без пустых строк, комментариев и
 докстрингов.
 
 | Вариант | Файлов | Всего строк | Значимых |
@@ -172,17 +175,17 @@ Ferronit async-only: sync-хендлера нет, заблокировать ц
 docker start ferronit-pg || docker run -d --name ferronit-pg \
   -e POSTGRES_PASSWORD=postgres -e POSTGRES_USER=postgres -e POSTGRES_DB=postgres \
   -p 5432:5432 postgres:18
-.venv/bin/python bench/api_bench.py            # seed(): CREATE TABLE bench_rows + 1000 строк
+.venv/bin/python api_bench.py            # seed(): CREATE TABLE bench_rows + 1000 строк
 
 # 2. T1 — Tornado (свой сервер, :8246)
-.venv/bin/python bench/tornado_bench/app.py &
+.venv/bin/python tornado_bench/app.py &
 curl -s localhost:8246/ping
 curl -s "localhost:8246/rows?limit=3"
 curl -s -X POST localhost:8246/rows -H 'content-type: application/json' -d '{"name":"ada","email":"a@x"}'
 
 # 3. B — Ferronit (granian, :8321)
 .venv/bin/python -m granian --interface asgi --no-ws --host 127.0.0.1 --port 8321 \
-  --workers 1 --log-level warning django_bench.ferronit_service:app --working-dir bench
+  --workers 1 --log-level warning django_bench.ferronit_service:app --working-dir .
 
 # 4. Замеры (только ab)
 ab -n 20000 -c 50 -k localhost:8246/ping
@@ -190,9 +193,9 @@ ab -n 20000 -c 50 -k "localhost:8246/rows?limit=100"
 ab -n 10000 -c 50 -k "localhost:8246/rows?limit=1000"
 
 # 5. Объём кода
-.venv/bin/python bench/loc_compare.py
+.venv/bin/python loc_compare.py
 ```
 
 Смежные доки: [Ferronit и Django](vs-django.md), [Ferronit и FastAPI](vs-fastapi.md),
 [Ferronit и BlackSheep](vs-blacksheep.md), [Ferronit и Litestar](vs-litestar.md),
-[Ferronit и Twisted](vs-twisted.md), [бенчмарки](benchmarks.md).
+[Ferronit и Twisted](vs-twisted.md), [бенчмарки](https://github.com/ivlevdenis/ferronit-bench/blob/main/docs/benchmarks.md).

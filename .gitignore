@@ -26,43 +26,12 @@ Cargo.lock.bak
 *.log
 .DS_Store
 
-# Rust/Go артефакты и бинарники стенда
-bench/**/target/
-bench/go_pg_orm/go_pg_bench
-bench/go_pg_orm/go_chi
-bench/go_pg_orm/go_echo
-bench/go_pg_orm/go_fiber
-bench/go_pg_orm/go_fasthttp
-bench/go_pg_orm/go_gin
-bench/results/
-bench/rust_http/target/
-bench/go_pg_1row/pgx10
-# ent: генерируемый код не храним, но generate.go и схема — источник, они нужны для сборки
-bench/go_pg_orm/ent/*
-!bench/go_pg_orm/ent/generate.go
-!bench/go_pg_orm/ent/schema/
-
-# генерируемые стендом приложения и результаты
-bench/_bench_*.py
-bench/_bench_*.json
-bench/_bench_rows_*.py
-bench/_bench_pg_*.py
-bench/_bench_db_*.py
-bench/_abgen_*.py
-bench/_abrun_*.py
-bench/RESULTS_ab.txt
-
 # граф знаний: генерируется `graphify update .`, в репо не хранится
 graphify-out/
 
 # собранное ядро: maturin кладёт .so внутрь пакета при develop/build
 ferronit/_core*.so
 
-# генерируемые графики стендов
-bench/bench_params.html
-bench_rows.html
-
 # ── Инфографика (вне репозитория) ────────────────────────
 # вёрстка и рендеры презентации лежат локально, в публичный репо не идут
 infographic/
-bench/pgbench_scripts/

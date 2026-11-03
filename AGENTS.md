@@ -53,29 +53,22 @@ ferronit/
 ferronit-rs/src/lib.rs        # Rust: Router, parse_headers, Response::text, gzip, CORS, multipart
 pyproject.toml                # метаданные, extras, [tool.poetry], [tool.maturin], ruff/mypy
 poetry.toml, poetry.lock      # окружение Poetry (venv в .venv/) и зафиксированные зависимости
-bench/                     # измерительный стенд (все цифры — docs/benchmarks.md) + README.md внутри
 tests/                     # 468 тестов; tests/security/ — 65 (в т.ч. 14 ASVS L1)
 examples/                  # минимальный, DI, LLM+SSE, RAG, WebSocket + README
 docker/                    # Dockerfile-обвязка: demo_app.py, entrypoint.sh
-docs/                      # документация: README.md (хаб), data/ (слой данных), benchmarks.md,
+docs/                      # документация: README.md (хаб), data/ (слой данных),
                            #   security/ASVS.md (OWASP ASVS 5.0 L1)
 ```
 
-Бенчмарк-скрипты лежат в `bench/` (см. `bench/README.md`) — **измерительный стенд, а не часть
-пакета**: не рефактори их, не линтуй (каталог исключён из ruff и Docker), не переноси обратно в
-корень. **req/s по HTTP меряем только `ab`** (`./bench/run_all_ab.sh` → `bench/RESULTS_ab.txt`):
-httpx-скрипты убраны в `bench/legacy_httpx/`, потому что Python-клиент упирается в ~3.7k req/s
-и измеряет сам себя. **Ferronit меряется и профилируется только через RSGI** (`granian
---interface rsgi`, `__rsgi__`; in-process — `bench/_rsgi.py`): ASGI-вход `__call__` — другой
-hot path (два `send`-события вместо `response_bytes`, другое построение запроса), для замеров
-Ferronit он не используется. Helper-приложения (`bench/_bench_*.py`) запускаются основными скриптами
-динамически (`f"_bench_pool_{name}.py"`), поэтому поиск по имени их «не находит» — не удаляй их,
-не проверив `bench/bench_*.py`.
-
-**Основной конкурент для сравнения — BlackSheep.** Во всех бенчах Ferronit по умолчанию
-сравнивается с BlackSheep (ближайший соперник: на granian/1000 маршрутов Ferronit быстрее
-лишь в ~1.1×). FastAPI/Litestar/Django — дополнительные точки отсчёта. Новые бенчи добавляй
-так, чтобы BlackSheep шёл первым конкурентом в выводе.
+Замеры и методика живут в отдельном репозитории
+[`ferronit-bench`](https://github.com/ivlevdenis/ferronit-bench) (`docs/benchmarks.md`,
+`api_bench.py`, диаграммы). В этом репозитории стенда нет — не добавляй бенч-скрипты
+в корень. **req/s по HTTP меряем только `ab`** (C-клиент): Python-клиент упирается в
+~3.7k req/s и измеряет сам себя. **Ferronit меряется и профилируется только через
+RSGI** (`granian --interface rsgi`, `__rsgi__`): ASGI-вход `__call__` — другой hot path
+(два `send`-события вместо `response_bytes`, другое построение запроса). **Основной
+конкурент для сравнения — BlackSheep**; остальные стеки — дополнительные точки отсчёта.
+Новые стенды и цифры добавляй в `ferronit-bench`, а не сюда.
 
 ## Команды
 
@@ -217,7 +210,7 @@ docker run -d --name ferronit-pg -e POSTGRES_PASSWORD=postgres -e POSTGRES_USER=
 - Не добавлять новые внешние зависимости в `ferronit/` без необходимости (msgspec — единственная
   обязательная; драйверы БД и прочее — только optional extras в `pyproject.toml`, импорт внутри
   фабрики, чтобы модуль импортировался без extra).
-- Не трогать `bench/` (стенд замеров) при работе над фреймворком.
+- Стенд замеров — отдельный репозиторий `ferronit-bench`; бенч-скрипты в этот репозиторий не добавлять.
 - Не коммитить: `.venv/`, `dist/`, `ferronit-rs/target/`, `*.session`, `.env`.
 - Не переписывать числа в README без реального замера (`ab -n 30000 -c 50 -k`, Granian/uvicorn
   1 воркер, медиана прогонов).

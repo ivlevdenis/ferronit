@@ -1,5 +1,8 @@
 # Ferronit и Litestar: один сервис, четыре реализации
 
+> Стендовые приложения и скрипты замеров — в отдельном репозитории [ferronit-bench](https://github.com/ivlevdenis/ferronit-bench); пути ниже (`api_bench.py`, `django_bench/…`) указаны относительно его корня.
+
+
 Тот же контракт, что и в сравнениях [с Django](vs-django.md),
 [FastAPI](vs-fastapi.md) и [BlackSheep](vs-blacksheep.md): шесть эндпоинтов над
 таблицей `bench_rows` (PostgreSQL). Здесь две реализации на Litestar и две на
@@ -7,10 +10,10 @@ Ferronit.
 
 | Вариант | Где лежит | Модель исполнения |
 |---|---|---|
-| **LS1** — Litestar, идиоматичный | `bench/litestar_bench/app.py` — 1 файл | msgspec-модели тела, DI через `Provide`, `Parameter` с констрейнтами |
-| **LS2** — Litestar, стендовый | строка `LITESTAR_APP` в `bench/api_bench.py` | сырой asyncpg + msgspec, тело через `request.json()`, без DI |
-| **B** — Ferronit: агрегат + `Repository` | `bench/django_bench/ferronit_service.py` | Mapper/Repository/UoW, роуты вызывают репозиторий |
-| **C** — Ferronit: + CQRS | `FERRONIT_APP` в `bench/api_bench.py` | то же плюс CommandBus/QueryBus и хендлеры |
+| **LS1** — Litestar, идиоматичный | `litestar_bench/app.py` — 1 файл | msgspec-модели тела, DI через `Provide`, `Parameter` с констрейнтами |
+| **LS2** — Litestar, стендовый | строка `LITESTAR_APP` в `api_bench.py` | сырой asyncpg + msgspec, тело через `request.json()`, без DI |
+| **B** — Ferronit: агрегат + `Repository` | `django_bench/ferronit_service.py` | Mapper/Repository/UoW, роуты вызывают репозиторий |
+| **C** — Ferronit: + CQRS | `FERRONIT_APP` в `api_bench.py` | то же плюс CommandBus/QueryBus и хендлеры |
 
 | Метод и путь | Ответ | Litestar по умолчанию |
 |---|---|---|
@@ -23,7 +26,7 @@ Ferronit.
 
 ## Цена в строках
 
-Подсчёт — AST-обход (`bench/loc_compare.py`): без пустых строк, комментариев и
+Подсчёт — AST-обход (`loc_compare.py`): без пустых строк, комментариев и
 докстрингов.
 
 | Вариант | Файлов | Всего строк | Значимых |
@@ -76,9 +79,9 @@ app = Litestar(
 
 ## Вариант LS2 — стендовый Litestar
 
-`LITESTAR_APP` в `bench/api_bench.py`: пул с ленивым `get_pool()`, `await
+`LITESTAR_APP` в `api_bench.py`: пул с ленивым `get_pool()`, `await
 request.json()` вместо моделей, `dict(r)` вместо проекций, `asyncpg` без DI. Так
-сняты цифры в [benchmarks.md](benchmarks.md) — ни одна ветка не получает
+сняты цифры в [benchmarks.md](https://github.com/ivlevdenis/ferronit-bench/blob/main/docs/benchmarks.md) — ни одна ветка не получает
 преимущества от «магии» фреймворка. Схема OpenAPI при этом всё равно генерируется:
 `/schema/openapi.json` в этом варианте отвечает 200.
 
@@ -151,7 +154,7 @@ Litestar — самый «батареечный» из четырёх фрей�
   пределах 1.04–1.11. На `limit=1000` Litestar-варианты впереди Ferronit B:
   1 628–1 665 против 1 363. Причина не в фреймворке, а в проекции: LS1/LS2 отдают
   `dict(r)` сразу из asyncpg, а Ferronit B собирает агрегаты через
-  `Repository`/`Mapper`. Публикация [benchmarks.md](benchmarks.md) сравнивает
+  `Repository`/`Mapper`. Публикация [benchmarks.md](https://github.com/ivlevdenis/ferronit-bench/blob/main/docs/benchmarks.md) сравнивает
   «сырые» ветки (прогон 16.10.2026): Ferronit-стенд (rawmodel) впереди на `limit=1`
   — 12 540 против 10 828, но отстаёт на `limit=100` (5 674 против 6 340) и
   `limit=1000` (1 179 против 1 496): у Litestar-стенда тот же сырой asyncpg-путь.
@@ -177,20 +180,20 @@ Litestar — самый «батареечный» из четырёх фрей�
 docker start ferronit-pg || docker run -d --name ferronit-pg \
   -e POSTGRES_PASSWORD=postgres -e POSTGRES_USER=postgres -e POSTGRES_DB=postgres \
   -p 5432:5432 postgres:18
-.venv/bin/python bench/api_bench.py            # seed(): CREATE TABLE bench_rows + 1000 строк
+.venv/bin/python api_bench.py            # seed(): CREATE TABLE bench_rows + 1000 строк
 
 # 2. LS1 — Litestar идиоматичный
-.venv/bin/python -m uvicorn app:app --port 8340 --app-dir bench/litestar_bench
+.venv/bin/python -m uvicorn app:app --port 8340 --app-dir litestar_bench
 curl -s localhost:8340/ping
 curl -s "localhost:8340/rows?limit=3"
 curl -s -X POST localhost:8340/rows -H 'content-type: application/json' -d '{"name":"ada","email":"a@x"}'
 curl -s -o /dev/null -w '%{http_code}\n' localhost:8340/schema/swagger   # 200 (UI)
 
 # 3. LS2 — Litestar стендовый (файл пишет api_bench.py)
-.venv/bin/python -m granian --interface asgi --no-ws --working-dir bench _bench_api_litestar:app --port 8341
+.venv/bin/python -m granian --interface asgi --no-ws --working-dir . _bench_api_litestar:app --port 8341
 
 # 4. B — Ferronit (агрегат + Repository)
-.venv/bin/python -m uvicorn django_bench.ferronit_service:app --port 8321 --app-dir bench
+.venv/bin/python -m uvicorn django_bench.ferronit_service:app --port 8321 --app-dir .
 
 # 5. Замеры в одном окне (только ab: Python-клиент меряет себя)
 ab -n 20000 -c 50 -k localhost:8340/ping
@@ -198,9 +201,9 @@ ab -n 20000 -c 50 -k "localhost:8341/rows?limit=100"
 ab -n 10000 -c 50 -k "localhost:8321/rows?limit=1000"
 
 # 6. Объём кода всех вариантов
-.venv/bin/python bench/loc_compare.py
+.venv/bin/python loc_compare.py
 ```
 
 Смежные доки: [Ferronit и Django](vs-django.md), [Ferronit и FastAPI](vs-fastapi.md),
 [Ferronit и BlackSheep](vs-blacksheep.md), [Tornado](vs-tornado.md), [Twisted](vs-twisted.md),
-[бенчмарки](benchmarks.md).
+[бенчмарки](https://github.com/ivlevdenis/ferronit-bench/blob/main/docs/benchmarks.md).

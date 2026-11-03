@@ -1,17 +1,20 @@
 # Ferronit и Django: один сервис, три реализации
 
+> Стендовые приложения и скрипты замеров — в отдельном репозитории [ferronit-bench](https://github.com/ivlevdenis/ferronit-bench); пути ниже (`api_bench.py`, `django_bench/…`) указаны относительно его корня.
+
+
 Сравнение не «фреймворков вообще», а одного и того же сервиса: REST API из шести
 эндпоинтов над одной таблицей `bench_rows` (PostgreSQL). Все три варианта лежат в
-репозитории (A и B — файлами, C — строкой в `bench/api_bench.py`), поднимаются одной
+репозитории (A и B — файлами, C — строкой в `api_bench.py`), поднимаются одной
 командой и отвечают одинаково.
 
 | Вариант | Где лежит | Модель исполнения |
 |---|---|---|
-| **A** — Django ORM | `bench/django_bench/` — 5 файлов | sync-first |
-| **B** — Ferronit: агрегат + `Repository` | `bench/django_bench/ferronit_service.py` — 1 файл | async, Mapper/Repository/UoW, роуты вызывают репозиторий |
-| **C** — Ferronit: + CQRS | строка `FERRONIT_APP` в `bench/api_bench.py` — 1 файл | то же плюс CommandBus/QueryBus и хендлеры |
+| **A** — Django ORM | `django_bench/` — 5 файлов | sync-first |
+| **B** — Ferronit: агрегат + `Repository` | `django_bench/ferronit_service.py` — 1 файл | async, Mapper/Repository/UoW, роуты вызывают репозиторий |
+| **C** — Ferronit: + CQRS | строка `FERRONIT_APP` в `api_bench.py` — 1 файл | то же плюс CommandBus/QueryBus и хендлеры |
 
-Одна и та же таблица (`DDL` — `bench/api_bench.py::seed`), один и тот же контракт:
+Одна и та же таблица (`DDL` — `api_bench.py::seed`), один и тот же контракт:
 
 | Метод и путь | Ответ |
 |---|---|
@@ -28,7 +31,7 @@ Django-версия и обе Ferronit-версии отдают одни и т�
 
 ## Цена в строках
 
-Подсчёт — AST-обход (`bench/loc_compare.py`): без пустых строк, комментариев и
+Подсчёт — AST-обход (`loc_compare.py`): без пустых строк, комментариев и
 докстрингов.
 
 | Вариант | Файлов | Всего строк | Значимых |
@@ -44,7 +47,7 @@ Django-версия и обе Ferronit-версии отдают одни и т�
 
 ## Вариант A — Django
 
-`bench/django_bench/models.py` — схема описывается классом, миграцию генерирует
+`django_bench/models.py` — схема описывается классом, миграцию генерирует
 `makemigrations`:
 
 ```python
@@ -57,7 +60,7 @@ class BenchRow(models.Model):
         db_table = "bench_rows"
 ```
 
-`bench/django_bench/views.py` — sync-хендлер, ORM прямо в представлении
+`django_bench/views.py` — sync-хендлер, ORM прямо в представлении
 (полный файл — 30 значимых строк):
 
 ```python
@@ -79,7 +82,7 @@ def rows(request):
 Доступ к БД — полностью фреймворковый: агрегат `Row`, `RowMapper` и
 `RowsRepository(Repository[Row, BenchRow, RowMapper, ShopPool])`. Ни своего SQL, ни
 самописного репозитория — только базовые `list/save/delete` и `uow.model()`.
-Полный листинг — `bench/django_bench/ferronit_service.py`; ядро (33 строки,
+Полный листинг — `django_bench/ferronit_service.py`; ядро (33 строки,
 объявления `DSN`, `Container`, `ShopPool`, `RowBody` опущены):
 
 ```python
@@ -143,8 +146,8 @@ async def insert(body: Annotated[RowBody, Body()], repo: RowsRepository):
 
 ## Вариант C — Ferronit: + CQRS
 
-`FERRONIT_APP` в `bench/api_bench.py` (128 значимых строк; при прогоне стенд пишет
-его в `bench/_bench_api_ferronit.py` — файл генерируется и в git не хранится) берёт
+`FERRONIT_APP` в `api_bench.py` (128 значимых строк; при прогоне стенд пишет
+его в `_bench_api_ferronit.py` — файл генерируется и в git не хранится) берёт
 тот же `Repository` и `Mapper`, что и вариант B, и добавляет поверх шины:
 `InsertRow`/`UpdateRow`/`UpsertRow`/`DeleteRow` (`Command`) и `ListRows` (`Query`) —
 простые `msgspec.Struct`, то есть команду можно отправить и во внешнюю шину.
@@ -204,7 +207,7 @@ Ferronit async-only, поэтому Django-специфика тут принц�
 
 ## Производительность
 
-Методика и полные таблицы — [benchmarks.md](benchmarks.md): `ab -n … -c 50 -k`,
+Методика и полные таблицы — [benchmarks.md](https://github.com/ivlevdenis/ferronit-bench/blob/main/docs/benchmarks.md): `ab -n … -c 50 -k`,
 granian 1 воркер, лучший из прогонов, одна машина.
 
 | Сценарий | Ferronit | Django | Отношение |
@@ -273,10 +276,10 @@ Ferronit — публичный API с нагрузкой.
 docker start ferronit-pg || docker run -d --name ferronit-pg \
   -e POSTGRES_PASSWORD=postgres -e POSTGRES_USER=postgres -e POSTGRES_DB=postgres \
   -p 5432:5432 postgres:18
-.venv/bin/python bench/api_bench.py   # seed(): CREATE TABLE bench_rows + 1000 строк
+.venv/bin/python api_bench.py   # seed(): CREATE TABLE bench_rows + 1000 строк
 
 # 2. Вариант B — Ferronit
-.venv/bin/python -m uvicorn django_bench.ferronit_service:app --port 8321 --app-dir bench
+.venv/bin/python -m uvicorn django_bench.ferronit_service:app --port 8321 --app-dir .
 curl -s localhost:8321/ping
 curl -s -X POST localhost:8321/rows -H 'content-type: application/json' \
      -d '{"name":"ada","email":"a@x"}'
@@ -288,14 +291,14 @@ cd bench && DJANGO_SETTINGS_MODULE=django_bench.settings \
 curl -s localhost:8322/ping
 
 # 4. Цифры: бенч-стенд целиком (req/s меряем только ab — Python-клиент меряет себя)
-BENCH_APPS=ferronit,django .venv/bin/python bench/api_bench.py
-./bench/run_all_ab.sh
+BENCH_APPS=ferronit,django .venv/bin/python api_bench.py
+./run_all_ab.sh
 
 # 5. Объём кода вариантов A/B/C
-.venv/bin/python bench/loc_compare.py
+.venv/bin/python loc_compare.py
 ```
 
 Смежные доки: [слой данных](data/rawdb.md), [DDD и DI](ddd.md),
-[бенчмарки](benchmarks.md), [FastAPI](vs-fastapi.md), [BlackSheep](vs-blacksheep.md),
+[бенчмарки](https://github.com/ivlevdenis/ferronit-bench/blob/main/docs/benchmarks.md), [FastAPI](vs-fastapi.md), [BlackSheep](vs-blacksheep.md),
 [Litestar](vs-litestar.md), [Tornado](vs-tornado.md), [Twisted](vs-twisted.md),
 [быстрый старт](getting-started.md).

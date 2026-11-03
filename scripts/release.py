@@ -5,7 +5,7 @@ Usage:
 
 Перед запуском допиши записи в CHANGELOG.md (заголовок ``## <версия>``) — тогда
 скрипт их не тронет. Иначе он вставит заголовок с датой (тело — из ``--notes``).
-Версия живёт в 15 местах (см. ``TARGETS``); ``docs/vs-*.md`` и ``bench/go_*`` не трогаем.
+Версия живёт в 15 местах (см. ``TARGETS``); ``docs/vs-*.md`` не трогаем.
 Push тега ``v<версия>`` запускает CI-релиз (сборка колёс + PyPI + GitHub Release).
 """
 
@@ -40,7 +40,7 @@ TARGETS = [
 # Здесь старая версия может остаться (исторические записи и сторонние крейты).
 # poetry.lock — не наш номер: там constraints и хэши колес, которые могут содержать
 # те же цифры (нижняя граница зависимости, sha256 колеса).
-WHITELIST = ("CHANGELOG.md", "docs/vs-", "bench/go_", "poetry.lock")
+WHITELIST = ("CHANGELOG.md", "docs/vs-", "poetry.lock")
 
 SEMVER = re.compile(r"^\d+\.\d+\.\d+$")
 
@@ -116,8 +116,7 @@ def main() -> None:
 
     # 2) старая версия не должна остаться вне whitelist.
     # -F: номер ищем как строку. Без этого точка в номере версии работает как
-    # «любой символ» и совпадает с hex-хэшами в lock-файлах сторонних крейтов
-    # (bench/rust_pg_orm/Cargo.lock) — релиз падал на ложном остатке.
+    # «любой символ» и совпадает с hex-хэшами в lock-файлах — ложный остаток.
     leftover = git("grep", "-n", "-F", old, "--", ".").splitlines()
     bad = [ln for ln in leftover if not any(ln.split(":", 1)[0].startswith(w) for w in WHITELIST)]
     if bad:

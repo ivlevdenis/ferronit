@@ -42,7 +42,7 @@ mysql = ["aiomysql>=0.2"]
 # Зеркалит группу Poetry ниже — для установки без Poetry: pip install "ferronit[dev]".
 # asyncpg здесь, чтобы сюита не пропускала тесты rawdb/rawmodel.
 dev = ["pytest>=8", "pytest-asyncio", "pytest-benchmark", "httpx", "maturin>=1.14,<2",
-       "ruff>=0.6", "mypy>=1.11", "asyncpg>=0.29", "pyjwt>=2.8"]
+       "ruff>=0.6", "mypy>=1.11", "asyncpg>=0.29"]
 
 # ── Poetry ────────────────────────────────────────────────────────────
 # Poetry ведёт окружение и зависимости. Сам проект Poetry не устанавливает
@@ -59,8 +59,6 @@ httpx = "*"
 maturin = ">=1.14,<2"
 ruff = ">=0.6"
 mypy = ">=1.11"
-# PyJWT — только для JWT-стадии бенча (bench/api_bench.py), не для пакета.
-pyjwt = ">=2.8"
 
 [build-system]
 requires = ["maturin>=1.14,<2"]
@@ -88,8 +86,6 @@ target-version = "py312"
 extend-exclude = [
     ".venv", "build", "dist", "ferronit-rs/target",
     "graphify-out", "infographic",
-    "bench",                 # измерительный стенд: черновые скрипты, не часть пакета
-    "examples/app1k_raw.py", # генератор 1000 маршрутов для замеров
 ]
 
 [tool.ruff.lint]

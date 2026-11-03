@@ -1,15 +1,18 @@
 # Ferronit и FastAPI: один сервис, четыре реализации
 
+> Стендовые приложения и скрипты замеров — в отдельном репозитории [ferronit-bench](https://github.com/ivlevdenis/ferronit-bench); пути ниже (`api_bench.py`, `django_bench/…`) указаны относительно его корня.
+
+
 Тот же контракт, что и в [сравнении с Django](vs-django.md): шесть эндпоинтов над
 таблицей `bench_rows` (PostgreSQL). Здесь две реализации на FastAPI и две на
 Ferronit — все в репозитории, поднимаются одной командой, отвечают одинаково.
 
 | Вариант | Где лежит | Модель исполнения |
 |---|---|---|
-| **F1** — FastAPI, идиоматичный | `bench/fastapi_bench/app.py` — 1 файл | pydantic-модели, `Depends`-сессия, SQLAlchemy 2.0 async ORM |
-| **F2** — FastAPI, стендовый | строка `FASTAPI_APP` в `bench/api_bench.py` | то же без pydantic: тело через `request.json()`, ответ — dict |
-| **B** — Ferronit: агрегат + `Repository` | `bench/django_bench/ferronit_service.py` | Mapper/Repository/UoW, роуты вызывают репозиторий |
-| **C** — Ferronit: + CQRS | `FERRONIT_APP` в `bench/api_bench.py` | то же плюс CommandBus/QueryBus и хендлеры |
+| **F1** — FastAPI, идиоматичный | `fastapi_bench/app.py` — 1 файл | pydantic-модели, `Depends`-сессия, SQLAlchemy 2.0 async ORM |
+| **F2** — FastAPI, стендовый | строка `FASTAPI_APP` в `api_bench.py` | то же без pydantic: тело через `request.json()`, ответ — dict |
+| **B** — Ferronit: агрегат + `Repository` | `django_bench/ferronit_service.py` | Mapper/Repository/UoW, роуты вызывают репозиторий |
+| **C** — Ferronit: + CQRS | `FERRONIT_APP` в `api_bench.py` | то же плюс CommandBus/QueryBus и хендлеры |
 
 Контракт (одинаковый у всех; Django — пятая точка сравнения, см. [vs-django.md](vs-django.md)):
 
@@ -24,7 +27,7 @@ Ferronit — все в репозитории, поднимаются одной
 
 ## Цена в строках
 
-Подсчёт — AST-обход (`bench/loc_compare.py`): без пустых строк, комментариев и
+Подсчёт — AST-обход (`loc_compare.py`): без пустых строк, комментариев и
 докстрингов.
 
 | Вариант | Файлов | Всего строк | Значимых |
@@ -83,9 +86,9 @@ async def insert(body: RowIn, session: Session) -> dict[str, int]:
 
 ## Вариант F2 — стендовый FastAPI (для замеров)
 
-`FASTAPI_APP` в `bench/api_bench.py` — тот же API, но без pydantic: тело читается
+`FASTAPI_APP` в `api_bench.py` — тот же API, но без pydantic: тело читается
 `await request.json()`, ответ собирается dict-ом вручную. Смысл: замеры в
-[benchmarks.md](benchmarks.md) сняты так, чтобы ни одна ветка не получала
+[benchmarks.md](https://github.com/ivlevdenis/ferronit-bench/blob/main/docs/benchmarks.md) сняты так, чтобы ни одна ветка не получала
 преимущества от «магии» фреймворка, и FastAPI в них не платил за pydantic.
 Валидация при этом отсутствует — битые данные дают **500**, а не 422 (см. таблицу
 ниже).
@@ -160,7 +163,7 @@ SQLAlchemy на rawdb/rawmodel.
 
 Абсолюты шумят между сессиями (±2–3%) — сравнивать стоит отношения внутри одного
 прогона, как здесь. Публикация цифр по всему стенду (включая записи и остальные
-фреймворки) — в [benchmarks.md](benchmarks.md); там FastAPI-ветка рядом с Django и
+фреймворки) — в [benchmarks.md](https://github.com/ivlevdenis/ferronit-bench/blob/main/docs/benchmarks.md); там FastAPI-ветка рядом с Django и
 BlackSheep. По записям из того прогона картина неровная: INSERT/DELETE у Ferronit
 кратно быстрее (×4.7 и ×4.3), UPSERT — ×1.4, а UPDATE у FastAPI даже выше
 (1 519 против 946) за счёт сессионного кэша, то есть выигрыш Ferronit — не «на всём»,
@@ -182,30 +185,30 @@ BlackSheep. По записям из того прогона картина не
 docker start ferronit-pg || docker run -d --name ferronit-pg \
   -e POSTGRES_PASSWORD=postgres -e POSTGRES_USER=postgres -e POSTGRES_DB=postgres \
   -p 5432:5432 postgres:18
-.venv/bin/python bench/api_bench.py            # seed(): CREATE TABLE bench_rows + 1000 строк
+.venv/bin/python api_bench.py            # seed(): CREATE TABLE bench_rows + 1000 строк
 
 # 2. F1 — FastAPI идиоматичный
-.venv/bin/python -m uvicorn app:app --port 8322 --app-dir bench/fastapi_bench
+.venv/bin/python -m uvicorn app:app --port 8322 --app-dir fastapi_bench
 curl -s localhost:8322/ping
 curl -s "localhost:8322/rows?limit=3"
 curl -s -X POST localhost:8322/rows -H 'content-type: application/json' -d '{"name":"ada","email":"a@x"}'
 curl -s localhost:8322/openapi.json | head -c 200
 
 # 3. F2 — FastAPI стендовый (файл пишет api_bench.py)
-.venv/bin/python -m granian --interface asgi --no-ws --working-dir bench _bench_api_fastapi:app --port 8323
+.venv/bin/python -m granian --interface asgi --no-ws --working-dir . _bench_api_fastapi:app --port 8323
 
 # 4. B — Ferronit (агрегат + Repository)
-.venv/bin/python -m uvicorn django_bench.ferronit_service:app --port 8321 --app-dir bench
+.venv/bin/python -m uvicorn django_bench.ferronit_service:app --port 8321 --app-dir .
 
 # 5. Замеры в одном окне
 ab -n 20000 -c 50 -k localhost:8322/ping
 ab -n 10000 -c 50 -k "localhost:8321/rows?limit=1000"
 
 # 6. Объём кода всех вариантов
-.venv/bin/python bench/loc_compare.py
+.venv/bin/python loc_compare.py
 ```
 
 Смежные доки: [Ferronit и Django](vs-django.md), [Ferronit и BlackSheep](vs-blacksheep.md),
-[бенчмарки](benchmarks.md), [Litestar](vs-litestar.md), [Tornado](vs-tornado.md),
+[бенчмарки](https://github.com/ivlevdenis/ferronit-bench/blob/main/docs/benchmarks.md), [Litestar](vs-litestar.md), [Tornado](vs-tornado.md),
 [Twisted](vs-twisted.md), [слой данных](data/rawdb.md),
 [DDD и DI](ddd.md).

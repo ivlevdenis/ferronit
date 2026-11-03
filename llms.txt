@@ -42,4 +42,4 @@ docker build -t ferronit:0.24.0 . && ./scripts/docker_smoke.sh
 
 ## Optional
 
-- Бенчмарк-скрипты в `bench/` (`bench_*.py`, `micro_bench_*.py`, `prof_*.py`): измерительный стенд, не часть пакета
+- Стенд замеров — отдельный репозиторий ferronit-bench (https://github.com/ivlevdenis/ferronit-bench): скрипты, методика и диаграммы, не часть пакета

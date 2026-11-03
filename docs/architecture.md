@@ -173,7 +173,7 @@ bound-параметры, максимум throughput.
 - `pool.uow(readonly=True)` для чтений — пропускает `BEGIN`, экономит round-trip.
 - `uow.model(User)` — типизированный доступ к строкам.
 - `RawModelRepository` маппит строку **позиционно** (`cls(*row)`) без словаря —
-  дешевле dict в ~1.85–1.9× (см. `bench/README.md`).
+  дешевле dict в ~1.85–1.9× (см. [стенд ferronit-bench](https://github.com/ivlevdenis/ferronit-bench)).
 
 Подробно — [data/overview.md](data/overview.md) и [data/rawdb.md](data/rawdb.md).
 
@@ -217,4 +217,4 @@ bound-параметры, максимум throughput.
 | OpenAPI | [openapi.md](openapi.md) |
 | WebSocket | [websocket.md](websocket.md) |
 | Безопасность (ASVS) | [security/](security/) |
-| Бенчмарки | [benchmarks.md](benchmarks.md) |
+| Бенчмарки | [ferronit-bench/docs/benchmarks.md](https://github.com/ivlevdenis/ferronit-bench/blob/main/docs/benchmarks.md) |

@@ -1,5 +1,8 @@
 # Ferronit и BlackSheep: один сервис, четыре реализации
 
+> Стендовые приложения и скрипты замеров — в отдельном репозитории [ferronit-bench](https://github.com/ivlevdenis/ferronit-bench); пути ниже (`api_bench.py`, `django_bench/…`) указаны относительно его корня.
+
+
 Тот же контракт, что и в [сравнении с Django](vs-django.md) и
 [с FastAPI](vs-fastapi.md): шесть эндпоинтов над таблицей `bench_rows`
 (PostgreSQL). BlackSheep — основной конкурент Ferronit по роутингу (разрыв
@@ -8,10 +11,10 @@ BlackSheep и две на Ferronit.
 
 | Вариант | Где лежит | Модель исполнения |
 |---|---|---|
-| **BS1** — BlackSheep, идиоматичный | `bench/blacksheep_bench/app.py` — 1 файл | DI-сервис в `app.services`, `FromQuery`, dataclass-модели, OpenAPI |
-| **BS2** — BlackSheep, стендовый | строка `BLACKSHEEP_APP` в `bench/api_bench.py` | SQLAlchemy Core + штатный stdlib-JSON, без bindings и DI |
-| **B** — Ferronit: агрегат + `Repository` | `bench/django_bench/ferronit_service.py` | Mapper/Repository/UoW, роуты вызывают репозиторий |
-| **C** — Ferronit: + CQRS | `FERRONIT_APP` в `bench/api_bench.py` | то же плюс CommandBus/QueryBus и хендлеры |
+| **BS1** — BlackSheep, идиоматичный | `blacksheep_bench/app.py` — 1 файл | DI-сервис в `app.services`, `FromQuery`, dataclass-модели, OpenAPI |
+| **BS2** — BlackSheep, стендовый | строка `BLACKSHEEP_APP` в `api_bench.py` | SQLAlchemy Core + штатный stdlib-JSON, без bindings и DI |
+| **B** — Ferronit: агрегат + `Repository` | `django_bench/ferronit_service.py` | Mapper/Repository/UoW, роуты вызывают репозиторий |
+| **C** — Ferronit: + CQRS | `FERRONIT_APP` в `api_bench.py` | то же плюс CommandBus/QueryBus и хендлеры |
 
 Контракт (одинаковый у всех):
 
@@ -26,7 +29,7 @@ BlackSheep и две на Ferronit.
 
 ## Цена в строках
 
-Подсчёт — AST-обход (`bench/loc_compare.py`): без пустых строк, комментариев и
+Подсчёт — AST-обход (`loc_compare.py`): без пустых строк, комментариев и
 докстрингов.
 
 | Вариант | Файлов | Всего строк | Значимых |
@@ -73,13 +76,13 @@ CPython 3.14.4 аннотации `From*[T]` не резолвятся — па�
 
 ## Вариант BS2 — стендовый BlackSheep
 
-`BLACKSHEEP_APP` в `bench/api_bench.py`: SQLAlchemy Core (async-движок) и
+`BLACKSHEEP_APP` в `api_bench.py`: SQLAlchemy Core (async-движок) и
 `request.json()` вместо bindings; ответы отдаёт штатный
 `blacksheep.server.responses.json` (stdlib `json` + `FriendlyEncoder`), без подмены
 сериализатора. DI и типизации здесь нет вообще:
 невалидные данные падают 500-й (кроме тела — JSON разбирает сам BlackSheep).
 
-> Цифры в [benchmarks.md](benchmarks.md) до 03.11.2026 снимались с
+> Цифры в [benchmarks.md](https://github.com/ivlevdenis/ferronit-bench/blob/main/docs/benchmarks.md) до 03.11.2026 снимались с
 > `msgspec.json.encode` в `BLACKSHEEP_APP`. msgspec быстрее stdlib JSON, поэтому
 > старые числа завышены в пользу BlackSheep; после смены сериализатора стенд
 > нужно перемерить.
@@ -149,7 +152,7 @@ FastAPI, где sync уходит в threadpool. Ferronit async-only: sync-хе�
   msgspec, без bindings/DI) быстрее сервисного Ferronit B в 1.26–1.28×, а Ferronit B
   быстрее идиоматичного BS1 в 1.16–1.18×. Причина — не язык и не роутер, а слой:
   `Repository`/`Mapper` собирает агрегаты, bindings-вариант BlackSheep тратит время
-  на нормализацию. Публикация [benchmarks.md](benchmarks.md) (тот же стенд, прогон
+  на нормализацию. Публикация [benchmarks.md](https://github.com/ivlevdenis/ferronit-bench/blob/main/docs/benchmarks.md) (тот же стенд, прогон
   16.10.2026) даёт на `limit=1000` для Ferronit-стенда (rawmodel) **1 179 req/s
   против 1 588** у BlackSheep — сравниваются именно «сырые» ветки, и впереди
   BlackSheep: сырой asyncpg остаётся быстрее слоя моделей. Таблица выше — свой
@@ -177,20 +180,20 @@ FastAPI, где sync уходит в threadpool. Ferronit async-only: sync-хе�
 docker start ferronit-pg || docker run -d --name ferronit-pg \
   -e POSTGRES_PASSWORD=postgres -e POSTGRES_USER=postgres -e POSTGRES_DB=postgres \
   -p 5432:5432 postgres:18
-.venv/bin/python bench/api_bench.py            # seed(): CREATE TABLE bench_rows + 1000 строк
+.venv/bin/python api_bench.py            # seed(): CREATE TABLE bench_rows + 1000 строк
 
 # 2. BS1 — BlackSheep идиоматичный
-.venv/bin/python -m uvicorn app:app --port 8324 --app-dir bench/blacksheep_bench
+.venv/bin/python -m uvicorn app:app --port 8324 --app-dir blacksheep_bench
 curl -s localhost:8324/ping
 curl -s "localhost:8324/rows?limit=3"
 curl -s -X POST localhost:8324/rows -H 'content-type: application/json' -d '{"name":"ada","email":"a@x"}'
 curl -s -o /dev/null -w '%{http_code}\n' -L localhost:8324/docs      # 200 (UI)
 
 # 3. BS2 — BlackSheep стендовый (файл пишет api_bench.py)
-.venv/bin/python -m granian --interface asgi --no-ws --working-dir bench _bench_api_blacksheep:app --port 8325
+.venv/bin/python -m granian --interface asgi --no-ws --working-dir . _bench_api_blacksheep:app --port 8325
 
 # 4. B — Ferronit (агрегат + Repository)
-.venv/bin/python -m uvicorn django_bench.ferronit_service:app --port 8321 --app-dir bench
+.venv/bin/python -m uvicorn django_bench.ferronit_service:app --port 8321 --app-dir .
 
 # 5. Замеры в одном окне (только ab: Python-клиент меряет себя)
 ab -n 20000 -c 50 -k localhost:8324/ping
@@ -198,9 +201,9 @@ ab -n 20000 -c 50 -k "localhost:8325/rows?limit=100"
 ab -n 10000 -c 50 -k "localhost:8321/rows?limit=1000"
 
 # 6. Объём кода всех вариантов
-.venv/bin/python bench/loc_compare.py
+.venv/bin/python loc_compare.py
 ```
 
 Смежные доки: [Ferronit и Django](vs-django.md), [Ferronit и FastAPI](vs-fastapi.md),
 [Ferronit и Litestar](vs-litestar.md), [Tornado](vs-tornado.md), [Twisted](vs-twisted.md),
-[бенчмарки](benchmarks.md), [слой данных](data/rawdb.md).
+[бенчмарки](https://github.com/ivlevdenis/ferronit-bench/blob/main/docs/benchmarks.md), [слой данных](data/rawdb.md).

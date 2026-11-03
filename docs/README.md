@@ -28,7 +28,7 @@ Ferronit — быстрая замена легаси Python-сервисов, �
 - [Rust-ядро](rust-core.md) — что лежит в `ferronit._core` и зачем
 
 ## Справочно
-- [Бенчмарки](benchmarks.md) — измеренные цифры и методика
+- [Бенчмарки](https://github.com/ivlevdenis/ferronit-bench/blob/main/docs/benchmarks.md) — измеренные цифры и методика (стенд — в отдельном репозитории)
 - [Ferronit и Django](vs-django.md) — один сервис в трёх реализациях: код, что даёт Django из коробки, цена в строках и req/s
 - [Ferronit и FastAPI](vs-fastapi.md) — тот же сервис на FastAPI (pydantic vs стенд): валидация, схема, цена в строках и req/s
 - [Ferronit и BlackSheep](vs-blacksheep.md) — ближайший конкурент: DI и bindings, паритет на ping и разница на строках

@@ -66,3 +66,31 @@ async def test_websocket_echo(client):
     async with client.stream("GET", "http://test/ws/echo") as _ws:
         # httpx doesn't support WebSocket natively; test via ASGI transport
         pass
+
+
+async def test_ws_accept_headers_go_through_the_header_contract() -> None:
+    """Handshake headers are field lines too: no CRLF, lowercase, latin-1."""
+    app = Ferronit()
+
+    @app.websocket("/ws/h")
+    async def h(ws):
+        await ws.accept(headers={"Set-Cookie": "a=1\r\nX-Injected: yes", "X-Tag": "v"})
+
+    sent: list[dict] = []
+
+    scope = {"type": "websocket", "path": "/ws/h", "headers": [], "query_string": b""}
+
+    async def receive():
+        return {"type": "websocket.connect"}
+
+    async def send(message):
+        sent.append(message)
+
+    await app(scope, receive, send)
+
+    accept = sent[0]
+    assert accept["type"] == "websocket.accept"
+    assert [name for name, _ in accept["headers"]] == [b"set-cookie", b"x-tag"]
+    value = accept["headers"][0][1]
+    assert b"\r" not in value and b"\n" not in value
+    assert value.startswith(b"a=1")

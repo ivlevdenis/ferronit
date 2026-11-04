@@ -108,8 +108,10 @@ async def test_content_type_header_injection():
 
     status, hdrs, _ = await call_app(app, "GET", "/ct")
     assert status == 200
-    assert "X-Injected" not in hdrs
-    assert hdrs["content-type"] == "text/html"
+    assert "x-injected" not in hdrs
+    value = hdrs["content-type"]  # CRLF заменён на SP, второй строки не возникло
+    assert "\r" not in value and "\n" not in value
+    assert value.startswith("text/html")
 
 
 # ── 14. WebSocket: unknown path → 404 close ───────────────────────────

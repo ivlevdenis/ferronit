@@ -12,6 +12,7 @@ import msgspec
 from ferronit._core import FerronitApp as RustApp
 from ferronit.contrib.logging import LoggerProtocol, StdlibLogger
 from ferronit.contrib.tracing import current_trace_id
+from ferronit.core.headers import Headers
 from ferronit.core.request import Request as PyRequest
 from ferronit.core.request import RequestError
 from ferronit.core.response import (
@@ -19,7 +20,6 @@ from ferronit.core.response import (
     Response,
     StreamingResponse,
     TextResponse,
-    _clean_header,
     _json_encode,
 )
 from ferronit.di import Container
@@ -343,7 +343,7 @@ class Ferronit:
                 await send({
                     "type": "http.response.start",
                     "status": 204,
-                    "headers": [(k.encode(), v.encode()) for k, v in preflight.items()],
+                    "headers": Headers(preflight).raw(),
                 })
                 await send({"type": "http.response.body", "body": b""})
                 self._log_access(method, path, 204, start_ns)
@@ -432,7 +432,7 @@ class Ferronit:
             origin = _rsgi_header(scope, "origin") or ""
             preflight = self._app.cors_preflight_headers(origin)
             if preflight is not None:
-                proto.response_bytes(204, list(preflight.items()), b"")
+                proto.response_bytes(204, Headers(preflight).str_pairs(), b"")
                 self._log_access(method, path, 204, start_ns)
                 return
 
@@ -718,9 +718,10 @@ def _rsgi_error(proto, exc: RequestError) -> None:
 
 
 def _rsgi_send(proto, resp: Response) -> None:
-    """Send a :class:`Response` through the RSGI protocol (one native call)."""
-    headers = [("content-type", _clean_header(resp._content_type))]
-    for k, v in resp._headers.items():
-        headers.append((_clean_header(k), _clean_header(v)))
+    """Send a :class:`Response` through the RSGI protocol (one native call).
+
+    RSGI takes ``list[tuple[str, str]]`` — the same ordered field lines the
+    response holds, so repeats (``Set-Cookie``) are not collapsed.
+    """
     body = resp._body if isinstance(resp._body, bytes) else resp._body.encode()
-    proto.response_bytes(resp._status, headers, body)
+    proto.response_bytes(resp._status, resp._headers.str_pairs(), body)

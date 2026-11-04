@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from enum import Enum
 
+from ferronit.core.headers import HeaderInput, Headers
+
 __all__ = ["WebSocket", "WebSocketState"]
 
 
@@ -60,16 +62,15 @@ class WebSocket:
             k.decode("latin-1").lower(): v.decode("latin-1") for k, v in raw
         }
 
-    async def accept(self, headers: dict[str, str] | None = None) -> None:
+    async def accept(self, headers: HeaderInput = None) -> None:
         """Accept the handshake and mark the connection as connected.
 
         Args:
-            headers: Extra response headers to send with ``websocket.accept``.
+            headers: Extra handshake headers — a mapping or ``(name, value)``
+                pairs. They go through the same :class:`Headers` contract as
+                HTTP responses: lowercased names, no CR/LF, latin-1 only.
         """
-        extra: list[tuple[bytes, bytes]] = []
-        if headers:
-            for k, v in headers.items():
-                extra.append((k.encode("latin-1"), v.encode("latin-1")))
+        extra = Headers(headers).raw()
         await self._send({"type": "websocket.accept", "headers": extra} if extra else {"type": "websocket.accept"})
         self._state = WebSocketState.CONNECTED
 

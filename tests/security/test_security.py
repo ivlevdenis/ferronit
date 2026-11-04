@@ -32,7 +32,7 @@ async def call_app(app, method: str, path: str, headers: list | None = None,
     await app(scope, receive, send)
     start = sent[0]
     status = start["status"]
-    hdrs = {k.decode(): v.decode() for k, v in start["headers"]}
+    hdrs = {k.decode().lower(): v.decode() for k, v in start["headers"]}
     body_b = b"".join(m.get("body", b"") for m in sent if m["type"] == "http.response.body")
     return status, hdrs, body_b
 
@@ -105,8 +105,10 @@ async def test_crlf_header_injection():
 
     status, hdrs, _ = await call_app(app, "GET", "/echo", query=b"v=a%0d%0aSet-Cookie:%20evil=1")
     assert status == 200
-    assert "Set-Cookie" not in hdrs
-    assert hdrs.get("X-User") == "a"  # обрезано до CRLF
+    assert "set-cookie" not in hdrs
+    value = hdrs["x-user"]  # CRLF заменён на SP, второй строки не возникло
+    assert "\r" not in value and "\n" not in value
+    assert value.startswith("a")
 
 
 # ── 5. XSS — HTML escaping in JSON ────────────────────────────────────
@@ -182,19 +184,19 @@ async def test_cors_denied_origin():
         headers=[(b"origin", b"https://evil.example"),
                  (b"access-control-request-method", b"GET")],
     )
-    assert "Access-Control-Allow-Origin" not in hdrs or hdrs["Access-Control-Allow-Origin"] != "https://evil.example"
+    assert "access-control-allow-origin" not in hdrs or hdrs["access-control-allow-origin"] != "https://evil.example"
 
     # обычный запрос с запрещённым origin — без ACAO
     status, hdrs, _ = await call_app(
         app, "GET", "/api", headers=[(b"origin", b"https://evil.example")],
     )
-    assert "Access-Control-Allow-Origin" not in hdrs
+    assert "access-control-allow-origin" not in hdrs
 
     # разрешённый origin — с ACAO
     status, hdrs, _ = await call_app(
         app, "GET", "/api", headers=[(b"origin", b"https://good.example")],
     )
-    assert hdrs.get("Access-Control-Allow-Origin") == "https://good.example"
+    assert hdrs.get("access-control-allow-origin") == "https://good.example"
 
 
 # ── 8. Debug off hides error details ──────────────────────────────────

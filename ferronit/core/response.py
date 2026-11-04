@@ -7,17 +7,9 @@ import json
 import msgspec
 
 from ferronit.contrib.pydantic import encode_json
+from ferronit.core.headers import HeaderInput, Headers
 
 __all__ = ["JSONResponse", "Response", "StreamingResponse", "TextResponse"]
-
-
-def _clean_header(value: str) -> str:
-    """CRLF/LF injection guard — truncate at the first line break."""
-    for bad in ("\r", "\n"):
-        idx = value.find(bad)
-        if idx != -1:
-            value = value[:idx]
-    return value
 
 
 def _escape_html(body: bytes) -> bytes:
@@ -73,38 +65,43 @@ def _json_encode(data) -> bytes:
 
 
 class Response:
-    """Base ASGI response."""
+    """Base ASGI response.
 
-    __slots__ = ("_body", "_content_type", "_headers", "_status")
+    Headers are an ordered sequence of field lines: iteration over
+    :attr:`headers` yields ``(name, value)`` pairs with repeats preserved, so
+    several ``Set-Cookie`` lines survive to the wire.
+    """
+
+    __slots__ = ("_body", "_headers", "_status")
 
     def __init__(
         self,
         body: bytes | str = b"",
         status: int = 200,
         content_type: str = "text/plain",
-        headers: dict[str, str] | None = None,
+        headers: HeaderInput = None,
     ) -> None:
         self._status = status
-        self._content_type = content_type
         self._body = body.encode() if isinstance(body, str) else body
-        self._headers = headers or {}
+        self._headers = Headers(headers)
+        if "content-type" not in self._headers:
+            self._headers._prepend("content-type", content_type)
+
+    @property
+    def headers(self) -> Headers:
+        """Headers: Mutable ordered field lines; duplicates are preserved."""
+        return self._headers
+
+    def _start_message(self) -> dict:
+        """Build the ASGI ``http.response.start`` message for this response."""
+        return {
+            "type": "http.response.start",
+            "status": self._status,
+            "headers": self._headers.raw(),
+        }
 
     async def _send(self, send) -> None:
-        raw_headers = [
-            (b"content-type", _clean_header(self._content_type).encode("latin-1")),
-        ]
-        for k, v in self._headers.items():
-            raw_headers.append(
-                (_clean_header(k).encode("latin-1"), _clean_header(v).encode("latin-1"))
-            )
-
-        await send(
-            {
-                "type": "http.response.start",
-                "status": self._status,
-                "headers": raw_headers,
-            }
-        )
+        await send(self._start_message())
         await send(
             {
                 "type": "http.response.body",
@@ -135,7 +132,7 @@ class JSONResponse(Response):
         self,
         data: object,
         status: int = 200,
-        headers: dict[str, str] | None = None,
+        headers: HeaderInput = None,
     ) -> None:
         body = _json_encode(data)
         super().__init__(
@@ -146,7 +143,9 @@ class JSONResponse(Response):
         )
 
     @classmethod
-    def from_model(cls, model, status: int = 200, headers: dict[str, str] | None = None):
+    def from_model(
+        cls, model, status: int = 200, headers: HeaderInput = None
+    ) -> JSONResponse:
         """Encode Pydantic/dataclass model to JSON response."""
         return cls(encode_json(model), status=status, headers=headers)
 
@@ -161,27 +160,13 @@ class StreamingResponse(Response):
         iterator,
         status: int = 200,
         content_type: str = "text/event-stream",
-        headers: dict[str, str] | None = None,
+        headers: HeaderInput = None,
     ) -> None:
         super().__init__(status=status, content_type=content_type, headers=headers)
         self._iterator = iterator
 
     async def _send(self, send) -> None:
-        raw_headers = [
-            (b"content-type", _clean_header(self._content_type).encode("latin-1")),
-        ]
-        for k, v in self._headers.items():
-            raw_headers.append(
-                (_clean_header(k).encode("latin-1"), _clean_header(v).encode("latin-1"))
-            )
-
-        await send(
-            {
-                "type": "http.response.start",
-                "status": self._status,
-                "headers": raw_headers,
-            }
-        )
+        await send(self._start_message())
         async for chunk in self._iterator:
             if isinstance(chunk, str):
                 chunk = chunk.encode()

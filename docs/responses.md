@@ -17,7 +17,40 @@ from ferronit import Response, TextResponse, JSONResponse, StreamingResponse
 | `JSONResponse(data, status=200, headers=None)` | JSON-сериализация |
 | `StreamingResponse(iterator, status=200, content_type="text/event-stream")` | чанки / SSE |
 
-Значения заголовков очищаются от CRLF/LF-инъекций перед отправкой.
+`headers` принимает как mapping, так и список пар — второй нужен, когда поле
+повторяется.
+
+## Заголовки
+
+Заголовки ответа — упорядоченная последовательность field-lines (RFC 9110 §5.3),
+а не словарь: порядок значим, повторы сохраняются, поэтому несколько
+`Set-Cookie` доходят до клиента как отдельные строки. Имена приводятся к нижнему
+регистру (требование ASGI), значения обязаны быть latin-1. Итерация отдаёт пары:
+
+```python
+from ferronit import JSONResponse
+
+resp = JSONResponse({"ok": True}, headers=[("Set-Cookie", "a=1"), ("Set-Cookie", "b=2")])
+list(resp.headers)      # [('content-type', 'application/json; charset=utf-8'),
+                        #  ('set-cookie', 'a=1'), ('set-cookie', 'b=2')]
+
+resp.headers.add("Set-Cookie", "c=3")   # добавить ещё одну строку
+resp.headers["X-Tag"] = "v"             # заменить все строки x-tag одной
+resp.headers.get_all("Set-Cookie")      # ['a=1', 'b=2', 'c=3']
+resp.headers["Set-Cookie"]              # 'a=1' — первое значение
+```
+
+Чтение регистронезависимо; повторённые поля, кроме `set-cookie`, склеиваются
+через `", "` (RFC 9110 §5.2) — `set-cookie` склеивать запятой запрещено
+(RFC 6265), поэтому для него возвращается первая строка. Невалидное имя
+(не токен) и не-latin-1 значение дают `ValueError` при записи.
+
+Значения нормализуются по RFC 9110 §5.5: CR, LF и NUL заменяются на SP (спека
+разрешает получателю reject или SP-replace; SP не теряет данные, например
+`"a\r\nb"` → `"a  b"`), любой другой CTL — `ValueError`, ведущие и хвостовые
+SP/HTAB отбрасываются как OWS. Внутренние HTAB, SP, VCHAR и obs-text
+(0x80–0xFF) сохраняются. WebSocket-хендшейк идёт через тот же контракт:
+`conn.accept(headers=...)` принимает mapping или пары и нормализует их одинаково.
 
 ## Модели в ответе
 

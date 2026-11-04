@@ -2,6 +2,7 @@
 
 from ferronit.binding import Body, Header, Query
 from ferronit.core.app import Ferronit
+from ferronit.core.headers import Headers
 from ferronit.core.request import Request, UploadedFile
 from ferronit.core.response import JSONResponse, Response, StreamingResponse, TextResponse
 from ferronit.errors import FieldError, ValidationError
@@ -12,6 +13,7 @@ __all__ = [
     "Ferronit",
     "FieldError",
     "Header",
+    "Headers",
     "JSONResponse",
     "Query",
     "Request",

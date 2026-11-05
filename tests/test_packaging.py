@@ -28,7 +28,7 @@ def test_native_core_lives_under_ferronit() -> None:
     """Ядро доступно как `ferronit._core`."""
     import ferronit._core as core
 
-    for name in ("Router", "Request", "Response", "FerronitApp"):
+    for name in ("Router", "Request", "FerronitApp", "build_set_cookie", "parse_headers", "first_header"):
         assert hasattr(core, name), f"ferronit._core.{name} отсутствует"
 
 

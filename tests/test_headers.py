@@ -76,9 +76,9 @@ async def test_duplicate_headers_asgi() -> None:
     seen: dict = {}
     await _asgi(_app(seen), [(b"x-tag", b"a"), (b"x-tag", b"b")])
 
-    assert seen["first"] == "a"          # get_header — первый
-    assert seen["headers"]["x-tag"] == "b"  # dict — последний
-    assert seen["all"] == ["a", "b"]     # get_all — все, в порядке провода
+    assert seen["first"] == "a"             # get_header — первое значение
+    assert seen["headers"]["x-tag"] == "a, b"  # headers — склейка по RFC 9110
+    assert seen["all"] == ["a", "b"]        # get_all — все, в порядке провода
 
 
 async def test_duplicate_headers_rsgi() -> None:
@@ -89,8 +89,40 @@ async def test_duplicate_headers_rsgi() -> None:
     )
 
     assert seen["first"] == "a"
-    assert seen["headers"]["x-tag"] == "b"
+    assert seen["headers"]["x-tag"] == "a, b"
     assert seen["all"] == ["a", "b"]
+
+
+async def test_cookie_header_is_joined_with_semicolon_space() -> None:
+    """RFC 9113 §8.2.3: repeated Cookie fields are concatenated with "; "."""
+    seen: dict = {}
+    await _asgi(_app(seen), [(b"cookie", b"a=1"), (b"cookie", b"b=2")])
+
+    assert seen["headers"]["cookie"] == "a=1; b=2"
+
+
+async def test_set_cookie_is_never_combined() -> None:
+    """RFC 6265 §4.1.1: joining Set-Cookie with a comma changes semantics."""
+    seen: dict = {}
+    await _asgi(_app(seen), [(b"set-cookie", b"a=1"), (b"set-cookie", b"b=2")])
+
+    assert seen["headers"]["set-cookie"] == "a=1"
+    assert seen["all"] == []
+
+
+async def test_headers_keep_first_seen_order() -> None:
+    seen: dict = {}
+    await _asgi(_app(seen), [(b"z-last", b"1"), (b"a-first", b"2"), (b"z-last", b"3")])
+
+    # _asgi prepends host; the rest must follow first-seen order.
+    assert list(seen["headers"]) == ["host", "z-last", "a-first"]
+
+
+async def test_headers_decode_bytes_lossily_like_get_all() -> None:
+    seen: dict = {}
+    await _asgi(_app(seen), [(b"x-tag", b"\xd0\xbf\xd1\x80")])
+
+    assert seen["headers"]["x-tag"] == "пр"
 
 
 async def test_multiple_cookie_headers_are_merged() -> None:

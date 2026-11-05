@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from enum import Enum
 
+from ferronit._core import parse_headers as _parse_headers
 from ferronit.core.headers import HeaderInput, Headers
 
 __all__ = ["WebSocket", "WebSocketState"]
@@ -56,11 +57,13 @@ class WebSocket:
 
     @property
     def headers(self) -> dict[str, str]:
-        """dict[str, str]: Handshake headers with lower-cased keys."""
-        raw: list[tuple[bytes, bytes]] = self._scope.get("headers", [])
-        return {
-            k.decode("latin-1").lower(): v.decode("latin-1") for k, v in raw
-        }
+        """dict[str, str]: Handshake headers with lower-cased keys.
+
+        Parsed in the Rust core with the same rules as :attr:`Request.headers`:
+        repeats are combined with ``", "`` (``cookie`` with ``"; "``), and
+        ``set-cookie`` keeps its first line.
+        """
+        return _parse_headers(self._scope.get("headers") or ())
 
     async def accept(self, headers: HeaderInput = None) -> None:
         """Accept the handshake and mark the connection as connected.

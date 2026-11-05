@@ -120,13 +120,14 @@ Ferronit — высокопроизводительный ASGI-фреймвор�
 ## Rust-ядро (`ferronit._core`)
 
 Собирается maturin-ом из `ferronit-rs/` (крейт с `abi3-py312` — один wheel на
-все CPython 3.12+). Публичная поверхность: `FerronitApp`, `Request`, `Response`,
-`Router`. Стабы типов — `ferronit/_core.pyi`.
+все CPython 3.12+). Публичная поверхность: `FerronitApp`, `Request`, `Headers`,
+`Router`, `build_set_cookie`, `parse_headers`, `first_header`. Стабы типов —
+`ferronit/_core.pyi`.
 
 | Задача | Реализация |
 |---|---|
 | Маршрутизация | radix-дерево `matchit` — O(1), без regex |
-| Разбор запроса | method/path/query/headers нативно |
+| Разбор запроса | method/path/query/headers/cookies нативно |
 | gzip | сжатие в Rust, q-факторы |
 | CORS | preflight и origin в Rust |
 | Multipart | нативный парсер form-data |

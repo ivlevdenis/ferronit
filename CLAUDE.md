@@ -1,20 +1,23 @@
 @AGENTS.md
 
-Канон-инструкция для агентов лежит в `AGENTS.md` (импортируется выше).
-Ниже — минимум, который нужен до его прочтения:
+The canonical agent instruction lives in `AGENTS.md` (imported above).
+Below is the minimum needed before reading it:
 
-- Ferronit = единый пакет: Python `ferronit/` + одно Rust-ядро `ferronit-rs/` (→ `ferronit._core`), Python ≥ 3.12; слой данных — rawdb/rawmodel для PostgreSQL (asyncpg), MySQL (aiomysql), SQLite (aiosqlite), все три драйвера — необязательные extras.
-- Правки в Rust требуют пересборки: `PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 poetry run maturin develop --release` (из корня).
-- Проверка перед коммитом: `./scripts/check.sh` (ruff → mypy → сборка ядра → pytest).
-- Типы обязательны, докстринги на английском (Google-style), публичный API — в `__all__`.
-- Версию править в двух местах: `ferronit/__init__.py` и `ferronit-rs/Cargo.toml`.
-- Бенчмарки: основной конкурент — BlackSheep, сравниваем с ним по умолчанию (детали в AGENTS.md).
-- Бенчмарки запускать **только на производительных (P) ядрах**, если пользователь явно не попросил иначе:
-  серверы — `BENCH_SERVER_CPUS=0-5`, клиент `ab` — `BENCH_CLIENT_CPUS=6-11`. E-ядра `12-19` не использовать.
-  После запуска проверять фактическую affinity (`taskset -pc <pid>`), а в подписи диаграммы/ответе указывать,
-  как раскладывались ядра.
-- Доставка артефактов: изображения и диаграммы бенчмарков отправлять **только** в Mattermost-канал
-  `ferronit-omp` (Ferronit-OMP, channel_id `kdsscsgqm7nu5mmte9m5ssop5r`). Не в `ferronit-pi`.
-  Как отправлять: `POST $MATTERMOST_URL/api/v4/files` (multipart: `channel_id`, `files`) →
-  `POST $MATTERMOST_URL/api/v4/posts` (`channel_id`, `message`, `file_ids`), заголовок
-  `Authorization: Bearer $MATTERMOST_TOKEN`; бот должен быть участником канала.
+- Ferronit is a single package: Python `ferronit/` + one Rust core `ferronit-rs/` (→ `ferronit._core`),
+  Python ≥ 3.12; the data layer is rawdb/rawmodel for PostgreSQL (asyncpg), MySQL (aiomysql) and
+  SQLite (aiosqlite), all three drivers are optional extras.
+- Rust changes require a rebuild: `PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 poetry run maturin develop --release`
+  (from the repository root).
+- Pre-commit check: `./scripts/check.sh` (ruff → mypy → core build → pytest).
+- Types are mandatory, docstrings are English (Google-style), public API goes in `__all__`.
+- Edit the version in two places: `ferronit/__init__.py` and `ferronit-rs/Cargo.toml`.
+- Benchmarks: the primary competitor is BlackSheep; compare against it by default (details in AGENTS.md).
+- Run benchmarks **only on performance (P) cores** unless the user explicitly asks otherwise:
+  servers — `BENCH_SERVER_CPUS=0-5`, the `ab` client — `BENCH_CLIENT_CPUS=6-11`. Do not use the
+  E-cores `12-19`. After a run, check the actual affinity (`taskset -pc <pid>`) and state the core
+  layout in the chart caption / reply.
+- Artifact delivery: send benchmark images and charts **only** to the Mattermost channel
+  `ferronit-omp` (Ferronit-OMP, channel_id `kdsscsgqm7nu5mmte9m5ssop5r`). Never to `ferronit-pi`.
+  How to send: `POST $MATTERMOST_URL/api/v4/files` (multipart: `channel_id`, `files`) →
+  `POST $MATTERMOST_URL/api/v4/posts` (`channel_id`, `message`, `file_ids`), header
+  `Authorization: Bearer $MATTERMOST_TOKEN`; the bot must be a member of the channel.

@@ -31,29 +31,6 @@ __all__ = [
 ]
 
 
-def _parse_cookies(header: str | None) -> dict[str, str]:
-    """Parse a ``Cookie`` header into ``{name: value}``.
-
-    Handles whitespace around separators and quoted values; malformed pairs
-    (no ``=``) are skipped.
-    """
-    result: dict[str, str] = {}
-    if not header:
-        return result
-    for part in header.split(";"):
-        part = part.strip()
-        if not part or "=" not in part:
-            continue
-        name, _, value = part.partition("=")
-        name = name.strip()
-        value = value.strip()
-        if len(value) >= 2 and value[0] == '"' and value[-1] == '"':
-            value = value[1:-1]
-        if name:
-            result[name] = value
-    return result
-
-
 @dataclass(frozen=True, slots=True)
 class UploadedFile:
     """An uploaded file part from a ``multipart/form-data`` request."""
@@ -106,8 +83,6 @@ class Request:
         "_multipart_cache",
         "_params",
         "_query_cache",
-        "_raw_headers",
-        "_raw_headers_norm",
         "_receive",
         "_rust",
         "_scope",
@@ -129,11 +104,10 @@ class Request:
             qs = qs.decode("latin-1")
 
         self._rust = RustRequest(method, path, qs)
-        # Заголовки не трогаем до первого обращения: большинство запросов их не читает,
-        # и платить за конвертацию/парсинг на каждом запросе незачем. ASGI отдаёт
-        # bytes-пары, адаптер RSGI — строки; нормализация — в `_normalised_headers`.
-        self._raw_headers = scope.get("headers") or ()
-        self._raw_headers_norm: list[tuple[bytes, bytes]] | None = None
+        # Пары уходят в ядро один раз (только incref): поиск по имени, разбор
+        # cookie и построение dict — целиком в Rust, при первом обращении.
+        # ASGI даёт bytes, адаптер RSGI строки — конверсии нет.
+        self._rust.set_headers(scope.get("headers") or ())
 
     @property
     def params(self) -> dict[str, str]:
@@ -153,48 +127,29 @@ class Request:
         """str: Request path with the query string stripped."""
         return self._rust.path
 
-    def _normalised_headers(self) -> list[tuple[bytes, bytes]]:
-        """Raw headers as ``(bytes, bytes)`` pairs, converted once and cached.
-
-        Only the full ``headers`` dict needs this: it goes into the Rust
-        ``_core.Request``, which takes bytes. ``get_header`` does not call it —
-        it scans the raw pairs in whatever form the transport gave them.
-
-        ASGI passes bytes pairs already; the RSGI adapter passes str pairs
-        (encoded as latin-1 — the HTTP byte↔str mapping).
-        """
-        if self._raw_headers_norm is None:
-            raw = self._raw_headers
-            if not raw:
-                self._raw_headers_norm = []
-            elif isinstance(raw[0][0], bytes):
-                self._raw_headers_norm = [(key, value) for key, value in raw]
-            else:
-                self._raw_headers_norm = [
-                    (str(key).encode("latin-1"), str(value).encode("latin-1"))
-                    for key, value in raw
-                ]
-        return self._raw_headers_norm
-
     @property
     def headers(self) -> dict[str, str]:
         """dict[str, str]: Request headers with lower-cased keys.
 
-        Parsed lazily on first access and cached for the request's lifetime.
+        Repeated fields are combined in wire order per RFC 9110 §5.2 with
+        ``", "``; ``cookie`` uses the ``"; "`` delimiter required by RFC 9113
+        §8.2.3, and ``set-cookie`` keeps its first line because RFC 6265 forbids
+        joining it. Raw duplicates stay available through :meth:`get_all`.
+
+        Parsed lazily on first access (in Rust) and cached for the request's
+        lifetime; both transport forms — ASGI ``bytes`` and RSGI ``str`` — are
+        accepted without an intermediate copy.
         """
         if self._headers_cache is None:
-            raw = self._normalised_headers()
-            if raw:
-                self._rust.set_headers(raw)
             self._headers_cache = self._rust.headers
         return self._headers_cache
 
     def get_header(self, name: str) -> str | None:
-        """Look up a single header without parsing the whole header block.
+        """First value of a header, case-insensitive; ``None`` when absent.
 
-        Scans the raw pairs **as the transport gave them** — bytes on ASGI, str on
-        RSGI — so no conversion pass is needed for a one-header lookup (that was a
-        redundant ``str → bytes → str`` round-trip on RSGI). No Rust call, no dict.
+        The scan runs in the Rust core over the stored pairs — no dict build and
+        no transport-specific conversion. Repeated fields keep their first value
+        here; :meth:`get_all` returns every line and :attr:`headers` combines them.
 
         Args:
             name: Header name; matching is case-insensitive.
@@ -202,28 +157,12 @@ class Request:
         Returns:
             str | None: The first matching value, or ``None`` when absent.
         """
-        raw = self._raw_headers
-        if not raw:
-            return None
-        if isinstance(raw[0][0], bytes):
-            needle_bytes = name.encode("latin-1").lower()
-            for key, value in raw:
-                if key.lower() == needle_bytes:
-                    return value.decode("utf-8", "replace")
-            return None
-        needle = name.lower()
-        for key, value in raw:
-            if str(key).lower() == needle:
-                return str(value)
-        return None
+        return self._rust.get_header(name)
 
     def get_all(self, name: str) -> list[str]:
-        """Return **all** values of a repeated header, in wire order.
+        """Every value of a repeated header, in wire order; empty when absent.
 
-        ``headers`` keeps one value per name and ``get_header`` returns the first,
-        so repeated lines (two ``Cookie`` headers, several ``X-Forwarded-For``)
-        would otherwise be lost. Scans the raw pairs as the transport gave them
-        (bytes on ASGI, str on RSGI) — no conversion, no dict build.
+        Raw duplicates stay reachable even though :attr:`headers` combines them.
 
         Args:
             name: Header name; matching is case-insensitive.
@@ -231,29 +170,19 @@ class Request:
         Returns:
             list[str]: Every value of that header (empty list when absent).
         """
-        raw = self._raw_headers
-        if not raw:
-            return []
-        if isinstance(raw[0][0], bytes):
-            needle_bytes = name.encode("latin-1").lower()
-            return [
-                value.decode("utf-8", "replace")
-                for key, value in raw
-                if key.lower() == needle_bytes
-            ]
-        needle = name.lower()
-        return [str(value) for key, value in raw if str(key).lower() == needle]
+        return self._rust.get_all(name)
 
     @property
     def cookies(self) -> dict[str, str]:
-        """dict[str, str]: Cookies from the ``Cookie`` header, parsed lazily and cached.
+        """dict[str, str]: Parsed ``Cookie`` header, cached per request.
 
-        Values are unquoted when they arrive ``"quoted"``; whitespace around
-        ``name=value`` pairs is ignored. Several ``Cookie`` headers (allowed by
-        RFC 6265) are merged in wire order, not just the first one.
+        Parsing runs in the Rust core. Values are unquoted when they arrive
+        ``"quoted"``; whitespace around ``name=value`` is ignored; malformed
+        pairs are skipped. Several ``Cookie`` fields (allowed by RFC 6265) are
+        joined with ``"; "`` (RFC 9113 §8.2.3) before parsing.
         """
         if self._cookies_cache is None:
-            self._cookies_cache = _parse_cookies("; ".join(self.get_all("cookie")))
+            self._cookies_cache = self._rust.cookies
         return self._cookies_cache
 
     def get_cookie(self, name: str, default: str | None = None) -> str | None:

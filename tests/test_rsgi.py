@@ -105,8 +105,8 @@ async def test_get_header_is_case_insensitive() -> None:
     assert seen == {"lower": "Bearer t", "upper": "Bearer t", "missing": None}
 
 
-async def test_duplicate_headers_first_wins_for_get_header_last_for_dict() -> None:
-    """Поведение как у Rust-реализации: get_header — первый, headers-dict — последний."""
+async def test_duplicate_headers_combine_in_dict() -> None:
+    """get_header — первое значение, headers — склейка в порядке провода."""
     app = Ferronit()
     seen: dict[str, object] = {}
 
@@ -121,4 +121,4 @@ async def test_duplicate_headers_first_wins_for_get_header_last_for_dict() -> No
         _Scope(path="/h", headers=[("x-tag", "first"), ("x-tag", "second")]), proto
     )
 
-    assert seen == {"value": "first", "dict": "second"}
+    assert seen == {"value": "first", "dict": "first, second"}

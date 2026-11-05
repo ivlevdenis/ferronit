@@ -6,6 +6,7 @@ import json
 
 import msgspec
 
+from ferronit._core import build_set_cookie as _build_set_cookie
 from ferronit.contrib.pydantic import encode_json
 from ferronit.core.headers import HeaderInput, Headers
 
@@ -99,6 +100,78 @@ class Response:
             "status": self._status,
             "headers": self._headers.raw(),
         }
+
+    def set_cookie(
+        self,
+        name: str,
+        value: str = "",
+        *,
+        path: str | None = "/",
+        domain: str | None = None,
+        max_age: int | None = None,
+        expires: str | None = None,
+        http_only: bool = False,
+        secure: bool = False,
+        same_site: str | None = "Lax",
+    ) -> None:
+        """Append a ``Set-Cookie`` field line.
+
+        Serialisation and RFC 6265 §4.1.1 validation run in the Rust core:
+        the name must be a token, the value a ``cookie-octet`` sequence, and
+        path/domain/expires must not carry a CTL or ``;``. Repeats are appended,
+        never replaced, so several cookies survive in one response.
+
+        Args:
+            name: Cookie name (RFC 9110 token).
+            value: Cookie value (RFC 6265 ``cookie-octet`` sequence).
+            path: ``Path`` attribute; ``None`` omits it.
+            domain: ``Domain`` attribute; ``None`` omits it.
+            max_age: ``Max-Age`` in seconds; negative expires immediately.
+            expires: ``Expires`` attribute as an HTTP-date string.
+            http_only: Emit ``HttpOnly``.
+            secure: Emit ``Secure``.
+            same_site: ``Strict``, ``Lax`` or ``None`` (case-insensitive);
+                the default ``"Lax"`` is emitted unless ``None`` is passed.
+
+        Raises:
+            ValueError: A component cannot appear in a cookie attribute.
+        """
+        self._headers.add(
+            "set-cookie",
+            _build_set_cookie(
+                name,
+                value,
+                path=path,
+                domain=domain,
+                max_age=max_age,
+                expires=expires,
+                http_only=http_only,
+                secure=secure,
+                same_site=same_site,
+            ),
+        )
+
+    def delete_cookie(
+        self, name: str, *, path: str | None = "/", domain: str | None = None
+    ) -> None:
+        """Append a ``Set-Cookie`` line that expires the cookie immediately.
+
+        Args:
+            name: Cookie name (RFC 9110 token).
+            path: ``Path`` attribute; ``None`` omits it.
+            domain: ``Domain`` attribute; ``None`` omits it.
+        """
+        self._headers.add(
+            "set-cookie",
+            _build_set_cookie(
+                name,
+                "",
+                path=path,
+                domain=domain,
+                max_age=0,
+                expires="Thu, 01 Jan 1970 00:00:00 GMT",
+            ),
+        )
 
     async def _send(self, send) -> None:
         await send(self._start_message())

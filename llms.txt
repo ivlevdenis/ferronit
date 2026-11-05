@@ -1,39 +1,39 @@
 # Ferronit
 
-> Ferronit — высокопроизводительный Python ASGI-фреймворк с Rust-ядром: роутинг, парсинг
-> запроса, JSON, gzip и CORS реализованы на Rust (`ferronit._core`), а бизнес-логика остаётся
-> обычным Python с DDD/CQRS, hexagonal-портами и DI. Слой данных — rawdb + rawmodel
-> для PostgreSQL (asyncpg), MySQL (aiomysql), SQLite (aiosqlite); все три драйвера —
-> необязательные extras. Python ≥ 3.12, abi3-py312 (один wheel на 3.12+).
-> Замеры: 88 768 req/s на Granian против 11 082 у FastAPI (×8.0), hot path ~11 мкс на запрос.
+> Ferronit is a high-performance Python ASGI framework with a Rust core: routing, request
+> parsing, JSON, gzip and CORS are implemented in Rust (`ferronit._core`), while business logic
+> stays plain Python with DDD/CQRS, hexagonal ports and DI. The data layer is rawdb + rawmodel
+> for PostgreSQL (asyncpg), MySQL (aiomysql) and SQLite (aiosqlite); all three drivers are
+> optional extras. Python ≥ 3.12, abi3-py312 (one wheel for 3.12+).
+> Benchmarks: 117 536 req/s on Granian versus 18 777 for FastAPI (×6.3).
 
-Этот файл — краткая карта для языковых моделей и агентов.
+This file is a short map for language models and agents.
 
-## Основное
+## Essentials
 
-- [AGENTS.md](AGENTS.md): инструкция для код-агентов — структура, команды, инварианты, стиль, границы работ
-- [README.md](README.md): обзор, установка, бенчмарки, Docker, релиз — основной README (на английском)
-- [README.ru.md](README.ru.md): то же на русском
+- [AGENTS.md](AGENTS.md): instructions for coding agents — structure, commands, invariants, style, work boundaries
+- [README.md](README.md): overview, installation, benchmarks, Docker, release — the main README (English)
+- [README.ru.md](README.ru.md): the same in Russian
 - [LICENSE](LICENSE): Apache License 2.0
-- [docs/security/ASVS.md](docs/security/ASVS.md): карта соответствия OWASP ASVS 5.0 Level 1 (17/70)
-- [examples/app.py](examples/app.py): полный пример — DDD + CQRS + hexagonal + SQLAlchemy
+- [docs/security/ASVS.md](docs/security/ASVS.md): OWASP ASVS 5.0 Level 1 compliance map (17/70)
+- [examples/app.py](examples/app.py): full example — DDD + CQRS + hexagonal + rawdb/rawmodel
 
-## Публичный API
+## Public API
 
-- Приложение: `ferronit.Ferronit` (`@app.route`, `@app.websocket`, `app.use`, `app.mount`, `@app.lifespan`, `app.container`)
-- Запрос/ответ: `ferronit.Request`, `ferronit.Response`, `ferronit.JSONResponse`, `ferronit.StreamingResponse`, `ferronit.TextResponse`
-- DDD: `ferronit.ddd` — `AggregateRoot`, `Command`, `Query` (оба `msgspec.Struct`, то есть сериализуемы), `CommandBus`, `QueryBus`, `Repository`
-- Порты и адаптеры: `ferronit.hexagonal` — `Port`, `Adapter`, `UnitOfWork`, `ApplicationService`, `Logger`, `Cache`, `MessageBus`, `EventBus`
-- DI: `ferronit.di.Container` (singleton/factory/get/has); привязка параметров — `ferronit.binding`; конфиг: `ferronit.config.EnvConfig`
-- БД: `ferronit.contrib.rawdb` + `rawmodel` (без ORM, три необязательных драйвера: asyncpg/aiomysql/aiosqlite) — `Pool`, `create_pool`, `RawUnitOfWork`, `Model`, `Relation`, query DSL
+- Application: `ferronit.Ferronit` (`@app.route`, `@app.websocket`, `app.use`, `app.mount`, `@app.lifespan`, `app.container`)
+- Request/response: `ferronit.Request`, `ferronit.Response`, `ferronit.Headers`, `ferronit.JSONResponse`, `ferronit.StreamingResponse`, `ferronit.TextResponse`
+- DDD: `ferronit.ddd` — `AggregateRoot`, `Command`, `Query` (both `msgspec.Struct`, hence serialisable), `CommandBus`, `QueryBus`, `Repository`
+- Ports and adapters: `ferronit.hexagonal` — `Port`, `Adapter`, `UnitOfWork`, `ApplicationService`, `Logger`, `Cache`, `MessageBus`, `EventBus`
+- DI: `ferronit.di.Container` (singleton/factory/get/has); parameter binding — `ferronit.binding`; config: `ferronit.config.EnvConfig`
+- Database: `ferronit.contrib.rawdb` + `rawmodel` (no ORM, three optional drivers: asyncpg/aiomysql/aiosqlite) — `Pool`, `create_pool`, `RawUnitOfWork`, `Model`, `Relation`, query DSL
 - LLM: `ferronit.contrib.llm` — `LlmPort`, `OpenAiAdapter`, `ClaudeAdapter`, `MockLlmAdapter`
-- Векторный поиск: `ferronit.contrib.vectordb` — `VectorDbPort`, `QdrantAdapter`, `ChromaAdapter`, `MockVectorDb`
-- Прочее: `ferronit.contrib.cors`, `security`, `ratelimit`, `staticfiles`, `tracing`, `health`, `kafka`, `pydantic`
+- Vector search: `ferronit.contrib.vectordb` — `VectorDbPort`, `QdrantAdapter`, `ChromaAdapter`, `MockVectorDb`
+- Other: `ferronit.contrib.cors`, `security`, `ratelimit`, `staticfiles`, `tracing`, `health`, `kafka`, `pydantic`
 
-## Команды
+## Commands
 
 ```bash
-./scripts/check.sh        # линт → типы → сборка Rust-ядра → тесты
+./scripts/check.sh        # lint → types → Rust core build → tests
 poetry run pytest tests/ -q
 poetry run ferronit dev --server granian
 poetry run ferronit run --workers 4
@@ -42,4 +42,4 @@ docker build -t ferronit:0.24.0 . && ./scripts/docker_smoke.sh
 
 ## Optional
 
-- Стенд замеров — отдельный репозиторий ferronit-bench (https://github.com/ivlevdenis/ferronit-bench): скрипты, методика и диаграммы, не часть пакета
+- The benchmark stand is a separate repository, ferronit-bench (https://github.com/ivlevdenis/ferronit-bench): scripts, methodology and charts, not part of the package

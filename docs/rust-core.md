@@ -9,7 +9,8 @@
 | Задача | Реализация |
 |---|---|
 | Маршрутизация | radix-дерево `matchit` — O(1) поиск, без regex на запрос |
-| Разбор запроса | method/path/query/headers парсятся нативно |
+| Разбор запроса | method/path/query/headers/cookies парсятся нативно |
+| Заголовки ответа | упорядоченные field-lines, валидация RFC 9110 |
 | gzip | сжатие в Rust с учётом q-факторов `Accept-Encoding` |
 | CORS | preflight и разрешение origin без Python |
 | Multipart | нативный парсер multipart/form-data |
@@ -17,7 +18,15 @@
 ## Публичная поверхность
 
 ```python
-from ferronit._core import FerronitApp, Request, Response, Router
+from ferronit._core import (
+    FerronitApp,
+    Headers,
+    Request,
+    Router,
+    build_set_cookie,
+    first_header,
+    parse_headers,
+)
 ```
 
 ### `FerronitApp`
@@ -35,17 +44,41 @@ app.cors_origin(origin)                         # значение allow-origin 
 app.gzip_compress(data: bytes) -> bytes
 ```
 
-### `Request` / `Response`
+### `Request`
 
 ```python
 r = Request(method, path, query_string)
-r.set_headers(raw_bytes_headers)
-r.headers / r.query / r.get_header(name)
+r.set_headers(raw_pairs)          # список пар bytes (ASGI) или str (RSGI)
+r.headers                         # dict: повторы склеены по RFC 9110
+r.get_header(name)                # первое значение | None
+r.get_all(name)                   # все значения в порядке провода
+r.cookies                         # разобранный Cookie (повторы через "; ")
+r.query                           # dict[str, list[str]]
 r.set_body(body)
 r.parse_multipart(boundary)       # → (fields, files)
+```
 
-resp = Response.text(text, status)
-resp.body / resp.status / resp.content_type
+### `Headers`
+
+```python
+h = Headers()                     # или mapping / список пар / другой Headers
+h.add(name, value)                # дописать поле (дубликаты сохраняются)
+h["x-tag"] = value                # заменить все строки поля одной
+del h["x-tag"]
+h["x-tag"] / h.get(name, default) / h.get_all(name) / h.setdefault(name, value) / h.pop(name)
+list(h)                           # пары (name, value) в порядке добавления
+h.keys() / h.values() / h.items()
+h.raw()                           # ASGI: [(bytes, bytes)]
+h.str_pairs()                     # RSGI: [(str, str)]
+```
+
+### Функции
+
+```python
+build_set_cookie(name, value="", *, path=None, domain=None, max_age=None,
+                 expires=None, http_only=False, secure=False, same_site=None) -> str
+parse_headers(raw_pairs) -> dict[str, str]     # те же правила склейки, что у Request.headers
+first_header(raw, name) -> str | None          # список пар или объект с items()
 ```
 
 ### `Router`

@@ -10,6 +10,8 @@ from typing import Any
 import msgspec
 
 from ferronit._core import FerronitApp as RustApp
+from ferronit._core import first_header as _first_header
+from ferronit.binding import _ensure_async_handler, build, plan
 from ferronit.contrib.logging import LoggerProtocol, StdlibLogger
 from ferronit.contrib.tracing import current_trace_id
 from ferronit.core.headers import Headers
@@ -26,6 +28,7 @@ from ferronit.di import Container
 from ferronit.errors import InternalError, NotFoundError
 from ferronit.middleware import Middleware
 from ferronit.openapi import OpenAPI
+from ferronit.websocket import WebSocket
 
 __all__ = ["Ferronit"]
 
@@ -191,8 +194,6 @@ class Ferronit:
 
         def decorator(handler):
             # Auto-bind: request-параметры резолвим сразу, DI — на старте (pre-bind)
-            from ferronit.binding import build, plan
-
             p = plan(handler, container=self._container)
             if p.di_keys:
                 self._deferred_routes.append((_methods, path, handler, p))
@@ -226,8 +227,6 @@ class Ferronit:
             self._ws_origins[path] = origins
 
         def decorator(handler):
-            from ferronit.binding import _ensure_async_handler
-
             _ensure_async_handler(handler)
             self._app.add_route("WS", path, handler)
             return handler
@@ -251,8 +250,6 @@ class Ferronit:
         """
         if not self._deferred_routes:
             return
-        from ferronit.binding import build
-
         deferred, self._deferred_routes = self._deferred_routes, []
         for methods, path, handler, p in deferred:
             resolved = {name: self._container.get(key) for name, key in p.di_keys}
@@ -307,7 +304,6 @@ class Ferronit:
             await self._run_lifespan(scope, receive, send)
             return
         if scope["type"] == "websocket":
-            from ferronit.websocket import WebSocket
             path = scope.get("path", "/")
             # WS CSRF guard: проверка Origin для защищённых эндпоинтов
             allowed_origins = self._ws_origins.get(path)
@@ -550,11 +546,7 @@ def _scope_header(scope: dict, name: str) -> str | None:
     Returns:
         str | None: The decoded header value, or ``None`` when absent.
     """
-    needle = name.lower().encode("latin-1")
-    for k, v in scope.get("headers", []):
-        if k.lower() == needle:
-            return v.decode("latin-1")
-    return None
+    return _first_header(scope.get("headers") or (), name)
 
 
 def _is_struct(obj) -> bool:
@@ -700,15 +692,9 @@ def _rsgi_request(scope, proto, params, max_body_size):
 
 
 def _rsgi_header(scope, name: str) -> str | None:
-    """Read a header from a native RSGI scope, case-insensitively."""
-    needle = name.lower()
-    try:
-        for k, v in scope.headers.items():
-            if str(k).lower() == needle:
-                return v if isinstance(v, str) else v.decode("latin-1")
-    except AttributeError:  # у скудного/фейкового scope нет headers
-        return None
-    return None
+    """Read a header from a native RSGI scope (``headers.items()`` or pairs)."""
+    raw = getattr(scope, "headers", None)
+    return None if raw is None else _first_header(raw, name)
 
 
 def _rsgi_error(proto, exc: RequestError) -> None:

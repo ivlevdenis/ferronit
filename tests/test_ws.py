@@ -94,3 +94,39 @@ async def test_ws_accept_headers_go_through_the_header_contract() -> None:
     value = accept["headers"][0][1]
     assert b"\r" not in value and b"\n" not in value
     assert value.startswith(b"a=1")
+
+
+async def test_ws_headers_combine_repeats() -> None:
+    """Handshake headers use the same Rust parser as Request.headers."""
+    app = Ferronit()
+    seen: dict[str, str] = {}
+
+    @app.websocket("/ws/h")
+    async def h(ws):
+        seen.update(ws.headers)
+        await ws.accept()
+
+    scope = {
+        "type": "websocket",
+        "path": "/ws/h",
+        "headers": [
+            (b"x-tag", b"a"),
+            (b"x-tag", b"b"),
+            (b"cookie", b"a=1"),
+            (b"cookie", b"b=2"),
+        ],
+        "query_string": b"",
+    }
+    sent: list[dict] = []
+
+    async def receive():
+        return {"type": "websocket.connect"}
+
+    async def send(message):
+        sent.append(message)
+
+    await app(scope, receive, send)
+
+    assert seen["x-tag"] == "a, b"
+    assert seen["cookie"] == "a=1; b=2"
+    assert sent[0]["type"] == "websocket.accept"

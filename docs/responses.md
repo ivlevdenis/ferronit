@@ -23,7 +23,7 @@ from ferronit import Response, TextResponse, JSONResponse, StreamingResponse
 ## Заголовки
 
 Заголовки ответа — упорядоченная последовательность field-lines (RFC 9110 §5.3),
-а не словарь: порядок значим, повторы сохраняются, поэтому несколько
+а не словарь; контейнер `Headers` реализован в Rust-ядре (`ferronit._core`): порядок значим, повторы сохраняются, поэтому несколько
 `Set-Cookie` доходят до клиента как отдельные строки. Имена приводятся к нижнему
 регистру (требование ASGI), значения обязаны быть latin-1. Итерация отдаёт пары:
 
@@ -51,6 +51,26 @@ resp.headers["Set-Cookie"]              # 'a=1' — первое значени�
 SP/HTAB отбрасываются как OWS. Внутренние HTAB, SP, VCHAR и obs-text
 (0x80–0xFF) сохраняются. WebSocket-хендшейк идёт через тот же контракт:
 `conn.accept(headers=...)` принимает mapping или пары и нормализует их одинаково.
+
+## Куки
+
+`Set-Cookie` — повторяемое поле, поэтому куки ставятся через `add`, а не
+присваиванием. Готовый путь — `set_cookie`/`delete_cookie`: сериализация и
+валидация по RFC 6265 §4.1.1 выполняются в Rust-ядре, наружу уходят отдельные
+field-lines.
+
+```python
+resp = JSONResponse({"ok": True})
+resp.set_cookie("sid", "abc123", path="/app", http_only=True, secure=True)
+resp.set_cookie("theme", "dark")          # вторая строка, первая не затирается
+resp.delete_cookie("legacy")              # Max-Age=0 + истёкший Expires
+```
+
+`set_cookie(name, value="", *, path="/", domain=None, max_age=None, expires=None,
+http_only=False, secure=False, same_site="Lax")`. Имя — токен; значение —
+`cookie-octet` (без CTL, пробела, `"`, `,`, `;`, `\`); `path`/`domain`/`expires`
+не могут содержать CTL или `;`. Нарушение — `ValueError`, ничего не уходит в
+ответ. `expires` принимает готовую HTTP-дату строкой.
 
 ## Модели в ответе
 

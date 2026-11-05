@@ -1,231 +1,261 @@
 # AGENTS.md — Ferronit
 
-Инструкция для код-агентов (Claude Code, Codex, Cursor, Copilot, Pi, Gemini CLI и др.).
-Прочитай целиком до первого изменения кода.
+Instructions for coding agents (Claude Code, Codex, Cursor, Copilot, Pi, Gemini CLI, etc.).
+Read it in full before changing any code.
 
-## Что это
+## What this is
 
-Ferronit — высокопроизводительный Python ASGI-фреймворк, у которого инфраструктурный слой
-написан на Rust: **роутинг, парсинг запроса, gzip и CORS** (JSON — msgspec в Python). Бизнес-логика
-остаётся обычным Python: DDD / CQRS, hexagonal (порты и адаптеры), DI-контейнер.
+Ferronit is a high-performance Python ASGI framework whose infrastructure layer is written in
+Rust: **routing, request parsing, gzip and CORS** (JSON stays in Python via msgspec). Business
+logic remains plain Python: DDD / CQRS, hexagonal (ports and adapters), a DI container.
 
-Версия 0.24.0, требуется Python ≥ 3.12. Скорость: ~140k req/s на granian (RSGI, ping),
-×1.5 к BlackSheep (основному конкуренту), ×7 к FastAPI; полный hot path ~10 мкс на запрос.
+Version 0.24.0, requires Python ≥ 3.12. Speed (local `ab -c 50 -n 30000 -k`, granian RSGI,
+1 worker): ~125–130k req/s on `GET /ping`, ~×1.4 vs BlackSheep, ~×6–11 vs FastAPI (uvicorn).
+Official numbers and methodology live in `ferronit-bench/docs/benchmarks.md`; do not copy them
+here. A single `ab` process tops out at ~200k req/s on 20 vCPU: if the server is faster, run
+parallel `ab` clients, otherwise you are measuring the client.
 
-Репозиторий — **один дистрибутив** `ferronit` (maturin mixed):
+The repository is **one distribution** `ferronit` (maturin mixed):
 
-| Каталог | Что это |
+| Directory | What it is |
 |---|---|
-| `ferronit/` | Python-пакет: ASGI-движок, DDD, DI, contrib + нативное ядро `ferronit._core` |
-| `ferronit-rs/` | Rust-крейт (роутинг/gzip/CORS), собирается как `ferronit._core` |
+| `ferronit/` | Python package: ASGI engine, DDD, DI, contrib + native core `ferronit._core` |
+| `ferronit-rs/` | Rust crate (routing/gzip/CORS), built as `ferronit._core` |
 
-Сборка — maturin (`abi3-py312`), один wheel: `pip install ferronit` ставит сразу Python-слой и ядро.
+Build is maturin (`abi3-py312`), one wheel: `pip install ferronit` installs both the Python layer
+and the core.
 
-## Карта репозитория
+## Repository map
 
 ```
 ferronit/
-├── __init__.py            # Ferronit, Request, Response, WebSocket, __version__
+├── __init__.py            # Ferronit, Request, Response, Headers, WebSocket, __version__
 ├── core/
-│   ├── app.py             # ASGI-движок: маршруты, middleware, gzip, CORS, lifespan
-│   ├── request.py         # Request (заголовки/query в Rust), PathParamError, BodyTooLarge
-│   └── response.py        # Response, JSONResponse, StreamingResponse, TextResponse
-├── binding.py            # привязка параметров хендлера: request + контейнер (выбирается при регистрации)
-├── middleware.py          # стек middleware
-├── di.py                  # Container: синглтоны/фабрики по типу или строке
+│   ├── app.py             # ASGI engine: routes, middleware, gzip, CORS, lifespan
+│   ├── request.py         # Request facade (headers/query/cookies in Rust), BodyTooLarge
+│   ├── headers.py         # Headers — alias for the Rust class (RFC rules live in the core)
+│   └── response.py        # Response, JSONResponse, StreamingResponse, TextResponse, set_cookie
+├── binding.py             # handler parameter binding: request + container (resolved at registration)
+├── middleware.py          # middleware stack
+├── di.py                  # Container: singletons/factories by type or string
 ├── ddd.py                 # AggregateRoot, Command/Query, CommandBus, Repository
 ├── hexagonal.py           # Port, Adapter, UnitOfWork, ApplicationService + Logger/Cache/EventBus
-├── openapi.py             # генерация OpenAPI из type hints
-├── websocket.py           # WebSocket-хендлеры, Origin-guard
-├── config.py              # EnvConfig: типизированные переменные окружения
-├── cli.py                 # ferronit new / dev / run + шаблоны scaffold-проекта
-└── contrib/               # инфраструктурные адаптеры (опциональные зависимости)
-    ├── sql.py             # дерево выражений + диалекты (POSTGRES/SQLITE/MYSQL) и компиляция SQL
-    ├── drivers.py         # адаптеры соединений/пулов: asyncpg (PostgreSQL), aiomysql (MySQL), aiosqlite (SQLite) — все три драйвера в extras
-    ├── rawdb.py           # тонкий слой поверх драйвера: RawRepository/RawUnitOfWork/Condition (без ORM)
-    ├── rawmodel.py        # декларативные модели + Query/select + связи (Relation) поверх rawdb
+├── openapi.py             # OpenAPI generation from type hints
+├── websocket.py           # WebSocket handlers, Origin guard
+├── config.py              # EnvConfig: typed environment variables
+├── cli.py                 # ferronit new / dev / run + scaffold project templates
+└── contrib/               # infrastructure adapters (optional dependencies)
+    ├── sql.py             # expression tree + dialects (POSTGRES/SQLITE/MYSQL) and SQL compilation
+    ├── drivers.py         # connection/pool adapters: asyncpg (PostgreSQL), aiomysql (MySQL), aiosqlite (SQLite) — all three drivers are extras
+    ├── rawdb.py           # thin layer over the driver: RawRepository/RawUnitOfWork/Condition (no ORM)
+    ├── rawmodel.py        # declarative models + Query/select + relations (Relation) on top of rawdb
     ├── llm.py             # LlmPort + OpenAiAdapter, ClaudeAdapter, MockLlmAdapter
     ├── vectordb.py        # VectorDbPort + Qdrant, Chroma, Mock
     ├── kafka.py           # KafkaMessageBus (aiokafka)
     ├── cors.py, security.py, ratelimit.py, staticfiles.py, tracing.py, health.py, logging.py
-    └── pydantic/          # кодек pydantic v2
+    └── pydantic/          # pydantic v2 codec
 
-ferronit-rs/src/lib.rs        # Rust: Router, parse_headers, Response::text, gzip, CORS, multipart
-pyproject.toml                # метаданные, extras, [tool.poetry], [tool.maturin], ruff/mypy
-poetry.toml, poetry.lock      # окружение Poetry (venv в .venv/) и зафиксированные зависимости
-tests/                     # 468 тестов; tests/security/ — 65 (в т.ч. 14 ASVS L1)
-examples/                  # минимальный, DI, LLM+SSE, RAG, WebSocket + README
-docker/                    # Dockerfile-обвязка: demo_app.py, entrypoint.sh
-docs/                      # документация: README.md (хаб), data/ (слой данных),
+ferronit-rs/src/lib.rs        # Rust: Router, Request (headers/cookies/query), Headers,
+                               #    build_set_cookie, parse_headers, first_header, gzip, CORS, multipart
+pyproject.toml                # metadata, extras, [tool.poetry], [tool.maturin], ruff/mypy
+poetry.toml, poetry.lock      # Poetry environment (venv inside .venv/) and locked dependencies
+tests/                     # 545 tests (+9 skipped); tests/security/ — 65 (incl. 14 ASVS L1)
+examples/                  # minimal, DI, LLM+SSE, RAG, WebSocket + README
+docker/                    # Dockerfile glue: demo_app.py, entrypoint.sh
+docs/                      # documentation: README.md (hub), data/ (data layer),
                            #   security/ASVS.md (OWASP ASVS 5.0 L1)
 ```
 
-Замеры и методика живут в отдельном репозитории
+Benchmarks and methodology live in a separate repository
 [`ferronit-bench`](https://github.com/ivlevdenis/ferronit-bench) (`docs/benchmarks.md`,
-`api_bench.py`, диаграммы). В этом репозитории стенда нет — не добавляй бенч-скрипты
-в корень. **req/s по HTTP меряем только `ab`** (C-клиент): Python-клиент упирается в
-~3.7k req/s и измеряет сам себя. **Ferronit меряется и профилируется только через
-RSGI** (`granian --interface rsgi`, `__rsgi__`): ASGI-вход `__call__` — другой hot path
-(два `send`-события вместо `response_bytes`, другое построение запроса). **Основной
-конкурент для сравнения — BlackSheep**; остальные стеки — дополнительные точки отсчёта.
-Новые стенды и цифры добавляй в `ferronit-bench`, а не сюда.
+`api_bench.py`, charts). There is no benchmark stand in this repository — do not add bench
+scripts to the root. **HTTP req/s is measured with `ab` only** (C client): a Python client tops
+out at ~3.7k req/s and measures itself. **Ferronit is measured and profiled through RSGI only**
+(`granian --interface rsgi`, `__rsgi__`): the ASGI entry `__call__` is a different hot path
+(two `send` events instead of `response_bytes`, a different request build). **The primary
+competitor to compare against is BlackSheep**; other stacks are extra reference points. Add new
+stands and numbers to `ferronit-bench`, not here.
 
-## Команды
+## Commands
 
 ```bash
-# установка для разработки (Poetry ведёт окружение, maturin собирает Rust-ядро)
-poetry install --all-extras                              # venv в .venv/ + зависимости
-PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 poetry run maturin develop --release   # ядро
+# development install (Poetry owns the environment, maturin builds the Rust core)
+poetry install --all-extras                              # venv in .venv/ + dependencies
+PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 poetry run maturin develop --release   # core, from the ROOT
 
-# всё сразу: линт → типы → докстринги → сборка ядра → тесты
+# everything at once: lint → types → docstrings → core build → tests
 ./scripts/check.sh
 
-# по отдельности (можно и .venv/bin/... — venv лежит внутри проекта)
-poetry run pytest tests/ -q                    # 468 тестов, ~4 с
-poetry run pytest tests/security -q            # security-набор + ASVS L1
-poetry run ruff check ferronit tests           # линт
-poetry run mypy ferronit                       # типы
-poetry run python scripts/agent_readiness.py   # покрытие докстрингами (сейчас 100%)
-poetry run python scripts/agent_readiness.py --missing   # что конкретно без докстринга
+# individually (`.venv/bin/...` works too — the venv lives inside the project)
+poetry run pytest tests/ -q                    # 545 tests, ~3 s
+poetry run pytest tests/security -q            # security suite + ASVS L1
+poetry run ruff check ferronit tests           # lint
+poetry run mypy ferronit                       # types
+poetry run python scripts/agent_readiness.py   # docstring coverage (currently 100%)
+poetry run python scripts/agent_readiness.py --missing   # which entities lack a docstring
 
-# только Rust-ядро (после правок в ferronit-rs/)
+# Rust core only (after changes in ferronit-rs/) — run from the repository root:
 PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 poetry run maturin develop --release
+# Do NOT run it from ferronit-rs/: maturin will miss the root [tool.maturin], install a stray
+# ferronit_core package and leave ferronit/_core.abi3.so stale.
 
-# wheel + sdist в dist/
+# wheel + sdist into dist/
 ./scripts/build_packages.sh
 
-# прод и dev
-poetry run ferronit dev --server granian   # dev-сервер с reload
-poetry run ferronit run --workers 4        # прод: Granian, fallback uvicorn
+# dev and prod
+poetry run ferronit dev --server granian   # dev server with reload
+poetry run ferronit run --workers 4        # prod: Granian, uvicorn fallback
 
 # docker
 docker build -t ferronit:0.24.0 . && ./scripts/docker_smoke.sh
 ```
 
-Тесты Postgres (`tests/test_postgres_real.py`, 4 шт.) требуют контейнер на :5432:
+The Postgres tests (`tests/test_postgres_real.py`, 4 tests) need a container on :5432:
 
 ```bash
-docker start ferronit-pg   # если контейнера нет:
+docker start ferronit-pg   # if the container does not exist yet:
 docker run -d --name ferronit-pg -e POSTGRES_PASSWORD=postgres -e POSTGRES_USER=postgres \
   -e POSTGRES_DB=postgres -p 5432:5432 postgres:18
 ```
 
-## Инварианты — НЕ ломать
+## Invariants — DO NOT break
 
-1. **Версии синхронизированы**: `ferronit/__init__.py::__version__` == `ferronit-rs/Cargo.toml::version`
-   == метаданные дистрибутива `ferronit`. Ловится `tests/test_packaging.py`; при выпуске править **два** файла.
-2. **`Cargo.lock` в репозитории** — фичи pyo3 менять только через `Cargo.toml` + пересборку.
-3. **`abi3-py312`, не понижать**: `PyString::to_str` требует `PyUnicode_AsUTF8AndSize`, которого
-   нет в limited API до 3.10; Python-слой и так требует ≥ 3.12. Один wheel покрывает 3.12+.
-4. **Python-ядро: stdlib + `ferronit._core` + `msgspec` — единственная обязательная зависимость**.
-   Драйверы БД — extras (`postgres` → asyncpg, `mysql` → aiomysql, `sqlite` → aiosqlite) и
-   импортируются лениво (в `create_pool`), поэтому `import ferronit.contrib.rawdb` работает без них;
-   остальное — optional extras (`server`, `pydantic`).
-5. **JSON в ядре выпилен**: сериализация ответа — только Python (`msgspec` C-энкодер, fallback
-   stdlib `json.dumps(default=str)`), парсинг тела — `msgspec.json.decode`. Rust `Response`
-   остаётся лишь для низкоуровневого `text`.
-6. **PyO3 `#[getter]` срезает префикс `get_`**: Rust `fn get_status()` → в Python `.status`.
-   Тесты на заголовки нормализуют регистр (`Content-Encoding` с большой буквы).
-7. **Python 3.14+**: сборка ядра только с `PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1`.
-8. **Хендлеры — только async**: `binding.plan()` бросает `TypeError` на синхронном
-   callable при регистрации, поэтому event loop не блокируется. Middleware может быть
-   sync или async — `Middleware.wrap` проверяет `hasattr(result, "__await__")`.
-9. **`X-Trace-Id` ставить в `Ferronit.__call__` ПОСЛЕ `_to_response`** — иначе заголовок теряется
-   на возвратах dict/pydantic.
-10. **Что понимает `_to_response`**: `msgspec.Struct` и непустой список из них (JSON
-    C-энкодером msgspec, fallback stdlib `json`), `dict` и `list` (JSON через msgspec),
-    кортеж `(payload, status)` — документированный способ задать статус
-    (`return {"error": "not found"}, 404`), `Response`, `str` (text/plain),
-    объект с `model_dump()` / dataclass (JSON), асинхронный итератор (стриминг).
-    Для нестандартных случаев собирай `Response` явно.
-11. **Публичное поведение меняется только вместе с тестом.** Сначала падающий тест, потом код.
-12. **Новые публичные сущности — с докстрингом** (проверяется `scripts/agent_readiness.py`,
-    порог 90% в `scripts/check.sh`).
-13. **Окружение ведёт Poetry, wheel собирает maturin**: `poetry install --all-extras` +
-    `poetry run maturin develop --release`. `poetry.lock` в репозитории — при правке
-    зависимостей обновляй `poetry lock`, не удаляй файл. Проект Poetry не ставит
-    (`package-mode = false`), потому что сборка нативная.
-14. **`Command` и `Query` — `msgspec.Struct`**: свои поля объявляются аннотациями, `__init__` и
-    `__slots__` msgspec запрещает (`Struct types cannot define __init__`). Сообщение сериализуемо
-    (`msgspec.json.encode/decode`) — команду можно отправить во внешнюю шину, а не только в
-    in-process `CommandBus`.
-15. **Ошибки не глушить.** `except Exception: pass`, `except: continue`, `contextlib.suppress`
-    без обоснования — дефект; ловится ruff `S110`/`S112` (включены в `select`). Ловить только
-    конкретный ожидаемый тип; если он ожидаем — либо обработать по смыслу, либо залогировать
-    (`logger.debug`/`warning`/`error`), либо `raise`. Широкий `except Exception` допустим только
-    на границе запроса (маппинг в 500 с логом) и в путях очистки, где падение не должно маскировать
-    исходную ошибку. Сознательный no-op — только с комментарием и `# noqa: S110` (единственный
-    такой случай сейчас — best-effort запись в `contrib/logging.py`). Глотать исключение ради
-    «чтобы не падало» нельзя: именно так прожил баг «на RSGI пустые заголовки» — `bytes(str)`
-    падал, а `except Exception: pass` скрывал это.
+1. **Versions are synchronised**: `ferronit/__init__.py::__version__` == `ferronit-rs/Cargo.toml::version`
+   == the `ferronit` distribution metadata. Enforced by `tests/test_packaging.py`; a release edits
+   **two** files.
+2. **`Cargo.lock` is committed** — change pyo3 features only via `Cargo.toml` + a rebuild.
+3. **`abi3-py312`, never downgrade**: `PyString::to_str` needs `PyUnicode_AsUTF8AndSize`, which is
+   absent from the limited API before 3.10; the Python layer already requires ≥ 3.12 anyway.
+   One wheel covers 3.12+.
+4. **Python core: stdlib + `ferronit._core` + `msgspec` — the only required dependency.**
+   Database drivers are extras (`postgres` → asyncpg, `mysql` → aiomysql, `sqlite` → aiosqlite) and
+   are imported lazily (inside `create_pool`), so `import ferronit.contrib.rawdb` works without them;
+   everything else is optional extras (`server`, `pydantic`).
+5. **JSON and response assembly stay in Python**: serialisation is the `msgspec` C encoder (stdlib
+   `json.dumps(default=str)` fallback), body parsing is `msgspec.json.decode`. There is no Rust
+   `Response` class at all (removed as dead code); the native core exposes `Request`, `Headers`,
+   `Router`, `FerronitApp` and the functions `build_set_cookie`/`parse_headers`/`first_header`.
+6. **PyO3 `#[getter]` strips the `get_` prefix**: Rust `fn get_status()` becomes `.status` in
+   Python. **Response headers go on the wire lowercased** (an ASGI requirement), so tests compare
+   names case-insensitively; `Headers[...]` lookup is case-insensitive.
+7. **Python 3.14+**: build the core only with `PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1`.
+8. **Handlers must be async**: `binding.plan()` raises `TypeError` for a synchronous callable at
+   registration time, so the event loop is never blocked. Middleware may be sync or async —
+   `Middleware.wrap` checks `hasattr(result, "__await__")`.
+9. **Set `X-Trace-Id` in `Ferronit.__call__` AFTER `_to_response`** — otherwise the header is lost
+   on dict/pydantic returns.
+10. **What `_to_response` understands**: `msgspec.Struct` and a non-empty list of them (JSON via
+    the msgspec C encoder, stdlib `json` fallback), `dict` and `list` (JSON via msgspec), a
+    `(payload, status)` tuple — the documented way to set a status
+    (`return {"error": "not found"}, 404`), `Response`, `str` (text/plain), an object with
+    `model_dump()` / a dataclass (JSON), an async iterator (streaming). For anything non-standard,
+    build a `Response` explicitly.
+11. **Public behaviour changes only together with a test.** Failing test first, then code.
+12. **New public entities need a docstring** (checked by `scripts/agent_readiness.py`, threshold
+    90% in `scripts/check.sh`).
+13. **Poetry owns the environment, maturin builds the wheel**: `poetry install --all-extras` +
+    `poetry run maturin develop --release`. `poetry.lock` is committed — when editing dependencies
+    run `poetry lock`; never delete the file. Poetry does not install the project itself
+    (`package-mode = false`) because the build is native.
+14. **`Command` and `Query` are `msgspec.Struct`**: declare fields through annotations; msgspec
+    forbids `__init__` and `__slots__` (`Struct types cannot define __init__`). Messages are
+    serialisable (`msgspec.json.encode/decode`), so a command can be sent to an external bus, not
+    only to the in-process `CommandBus`.
+15. **Never swallow errors.** `except Exception: pass`, `except: continue`, or `contextlib.suppress`
+    without justification is a defect; ruff `S110`/`S112` catch it (enabled in `select`). Catch only
+    the specific expected type; if it is expected, either handle it meaningfully, log it
+    (`logger.debug`/`warning`/`error`), or re-raise. A broad `except Exception` is allowed only at
+    the request boundary (mapping to 500 with a log) and in cleanup paths where a failure must not
+    mask the original error. A deliberate no-op needs a comment and `# noqa: S110` (the only such
+    case today is the best-effort write in `contrib/logging.py`). Never swallow an exception "so it
+    does not crash": that is exactly how the "empty headers on RSGI" bug survived — `bytes(str)`
+    raised and `except Exception: pass` hid it.
 
-## Стиль кода
+16. **The header container is a `#[pyclass] Headers` in the core.** `ferronit/core/headers.py`
+    only exposes the alias and the `HeaderInput` type. The RFC 9110 §5.5 rules (CR/LF/NUL → SP,
+    other CTLs → `ValueError`, latin-1, OWS) and RFC 6265 (`cookie-octet`, `set-cookie` is never
+    joined) live in Rust; do not duplicate them in Python.
+17. **`Response.headers` is a sequence of field lines, not a dict.** Order and duplicates are
+    preserved; repeated fields are appended with `headers.add(...)`, not `headers[...] = ...`
+    (assignment replaces every line); cookies go through `set_cookie()/delete_cookie()`.
+18. **`Request.headers` combines repeats** in wire order: `", "` for list-based fields, `"; "` for
+    `cookie` (RFC 9113 §8.2.3), and `set-cookie` keeps its first line. Raw values are available via
+    `get_header()` (first) and `get_all()` (all). Names are compared as raw bytes; values are
+    decoded only for pairs whose name matched.
+19. **Before a `Request` exists, look a header up only through `_core.first_header(raw, name)`**
+    (it accepts a list of pairs and `rsgi.Headers`). Do not add your own `scope["headers"]` scans.
+20. **Changing the public `_core` surface requires updating `ferronit/_core.pyi`**, otherwise mypy
+    fails on import (by design).
 
-- **Типы обязательны** на публичных функциях и методах (аргументы + возврат). Пакет помечен
-  `py.typed`, аннотации достоверны — на них опираются mypy и инструменты агента.
-- **Докстринги — на английском, Google-style**, у каждой публичной сущности: первая строка —
-  краткое описание, дальше `Args:` / `Returns:` / `Raises:` при необходимости.
-  Комментарии внутри кода можно оставлять на русском, если так понятнее.
-- **Публичный API объявляется в `__all__`** каждого модуля.
-- Приватное — с префиксом `_`.
-- Форматирование: ruff (line-length 100, target py312), сортировка импортов включена.
-- **Никакого умалчивания ошибок** (инвариант 15): `except Exception: pass` запрещён и ловится
-  ruff `S110`/`S112`; ожидаемое исключение — конкретный тип + обработка/лог, неожидаемое —
-  `raise`. Если очень нужно проигнорировать (best-effort cleanup, `ProcessLookupError` при чтении
-  `/proc`), оставлять комментарий и `# noqa: S110`, почему это безопасно.
-- Тесты: pytest, `asyncio_mode = "auto"` (маркер `@pytest.mark.asyncio` не нужен),
-  файлы `tests/test_<тема>.py`, security — в `tests/security/`.
+## Code style
 
-## Куда идти с задачей
+- **Types are mandatory** on public functions and methods (arguments + return). The package is
+  marked `py.typed`, annotations are trustworthy — mypy and agent tools rely on them.
+- **Docstrings are English, Google-style**, on every public entity: the first line is a short
+  description, followed by `Args:` / `Returns:` / `Raises:` when relevant. Inline code comments may
+  stay in Russian if that is clearer.
+- **Public API is declared in `__all__`** of each module.
+- Private names start with `_`.
+- Formatting: ruff (line-length 100, target py312), import sorting enabled.
+- **No error swallowing** (invariant 15): `except Exception: pass` is forbidden and caught by ruff
+  `S110`/`S112`; an expected exception means a specific type plus handling/logging, an unexpected
+  one means `raise`. If ignoring is truly necessary (best-effort cleanup, `ProcessLookupError`
+  while reading `/proc`), leave a comment and `# noqa: S110` explaining why it is safe.
+- Tests: pytest, `asyncio_mode = "auto"` (no `@pytest.mark.asyncio` needed), files
+  `tests/test_<topic>.py`, security tests under `tests/security/`.
 
-| Задача | Файл |
+## Where to go for a task
+
+| Task | File |
 |---|---|
-| Роутинг, gzip, CORS на уровне ядра | `ferronit-rs/src/lib.rs` (Rust, нужна пересборка) |
-| ASGI-движок, регистрация маршрутов, ошибки | `ferronit/core/app.py` |
-| Заголовки/query/body запроса | `ferronit/core/request.py` |
-| Ответы, стриминг | `ferronit/core/response.py` |
-| Типы параметров в хендлерах | `ferronit/binding.py` |
+| Routing, gzip, CORS in the core | `ferronit-rs/src/lib.rs` (Rust, rebuild required) |
+| ASGI engine, route registration, errors | `ferronit/core/app.py` |
+| Request headers, cookies, query | `ferronit-rs/src/lib.rs` (`Request`), facade — `ferronit/core/request.py` |
+| Response headers, cookies, validation | `ferronit-rs/src/lib.rs` (`Headers`, `build_set_cookie`), facade — `response.py` |
+| Responses, streaming | `ferronit/core/response.py` |
+| Handler parameter types | `ferronit/binding.py` |
 | DDD / CQRS | `ferronit/ddd.py` |
-| Порты и адаптеры | `ferronit/hexagonal.py`, `ferronit/contrib/*` |
-| Доступ к БД | `ferronit/contrib/rawdb.py` + `rawmodel.py` — единый слой без ORM для трёх движков: PostgreSQL (asyncpg), MySQL (aiomysql), SQLite (aiosqlite); драйверы необязательные (extras) |
-| LLM / векторный поиск | `ferronit/contrib/llm.py`, `ferronit/contrib/vectordb.py` |
-| Безопасность (заголовки, лимиты, rate limit) | `ferronit/contrib/security.py`, `ratelimit.py`, `docs/security/ASVS.md` |
-| Логирование (JSON/текст, access/error-log) | `ferronit/contrib/logging.py`, `docs/logging.md` |
-| Scaffold новых проектов | `ferronit/cli.py` (шаблоны в начале файла) |
+| Ports and adapters | `ferronit/hexagonal.py`, `ferronit/contrib/*` |
+| Database access | `ferronit/contrib/rawdb.py` + `rawmodel.py` — one ORM-free layer for three engines: PostgreSQL (asyncpg), MySQL (aiomysql), SQLite (aiosqlite); drivers are optional (extras) |
+| LLM / vector search | `ferronit/contrib/llm.py`, `ferronit/contrib/vectordb.py` |
+| Security (headers, limits, rate limit) | `ferronit/contrib/security.py`, `ratelimit.py`, `docs/security/ASVS.md` |
+| Logging (JSON/text, access/error log) | `ferronit/contrib/logging.py`, `docs/logging.md` |
+| Scaffolding new projects | `ferronit/cli.py` (templates at the top of the file) |
 
-## Экономия контекста
+## Saving context
 
-- Вопросы «где что лежит / как связано» → сначала `graphify query "<вопрос>"` (готовый граф
-  в `graphify-out/`), затем `graphify explain "<понятие>"`, и только потом grep.
-- После правок кода: `graphify update .` (AST-only, без обращений к API).
-- Карта архитектуры: `docs/architecture.html`. Требования безопасности: `docs/security/ASVS.md`.
+- "Where does X live / how is it wired" questions → run `graphify query "<question>"` first (the
+  graph in `graphify-out/` is ready), then `graphify explain "<concept>"`, and only then grep.
+- After code changes: `graphify update .` (AST-only, no API calls).
+- Architecture map: `docs/architecture.html`. Security requirements: `docs/security/ASVS.md`.
 
-## Границы работ
+## Work boundaries
 
-- **Коммитить только по явной просьбе пользователя.** Выполненная работа ≠ разрешение на коммит.
-  По умолчанию: сделать правки, показать `git status` / `git diff --stat`, написать «изменения
-  не закоммичены» и ждать. Нельзя «заодно» коммитить, амендить, пушить, переключать ветку
-  или откатывать коммиты. Технический предохранитель — `.githooks/pre-commit` (коммит падает
-  без `FERRONIT_COMMIT_OK=1`); обходить его можно только когда разрешение действительно есть.
-- Не добавлять новые внешние зависимости в `ferronit/` без необходимости (msgspec — единственная
-  обязательная; драйверы БД и прочее — только optional extras в `pyproject.toml`, импорт внутри
-  фабрики, чтобы модуль импортировался без extra).
-- Стенд замеров — отдельный репозиторий `ferronit-bench`; бенч-скрипты в этот репозиторий не добавлять.
-- Не коммитить: `.venv/`, `dist/`, `ferronit-rs/target/`, `*.session`, `.env`.
-- Не переписывать числа в README без реального замера (`ab -n 30000 -c 50 -k`, Granian/uvicorn
-  1 воркер, медиана прогонов).
-- Не понижать abi3 и не менять фичи pyo3 «на месте» — только через `Cargo.toml` и пересборку.
+- **Commit only on an explicit user request.** Finished work ≠ permission to commit. By default:
+  make the changes, show `git status` / `git diff --stat`, say "changes are not committed", and
+  wait. Never "also" commit, amend, push, switch branches, or revert commits. The technical guard is
+  `.githooks/pre-commit` (a commit fails without `FERRONIT_COMMIT_OK=1`); bypass it only when
+  permission genuinely exists.
+- Do not add new external dependencies to `ferronit/` without need (msgspec is the only required
+  one; database drivers and the rest are optional extras in `pyproject.toml`, imported inside the
+  factory so the module imports without the extra).
+- The benchmark stand is a separate repository, `ferronit-bench`; do not add bench scripts here.
+- Never commit: `.venv/`, `dist/`, `ferronit-rs/target/`, `*.session`, `.env`.
+- Do not rewrite numbers in the README without a real measurement (`ab -n 30000 -c 50 -k`,
+  Granian/uvicorn with 1 worker, median of runs).
+- Never downgrade abi3 or change pyo3 features "in place" — only via `Cargo.toml` and a rebuild.
 
-## Известные ограничения
+## Known limitations
 
-- **Жизненный цикл — одна функция `@app.lifespan`** (async-генератор: setup → `yield` → teardown),
-  ресурсы кладутся в `app.container.singleton(...)` на старте. Отдельных `on_startup`/`on_shutdown` нет.
-- **Логирование опционально** (`ferronit.contrib.logging`): неблокирующий пайплайн
-  (JSON или человекочитаемый) с гарантией доставки (`flush()`/`shutdown()` + `atexit`),
-  access-log (`event="access"`, `method/path/status/duration_ms`) и error-log
-  (`event="error"` + трейсбек). Логгер инъектируется:
-  `Ferronit(logger=Logger(LogConfig(...)), access_log=True)` из `ferronit.contrib.logging`.
-- Rate limiter in-memory: при `--workers > 1` лимиты умножаются на число воркеров (для
-  мультипроцессной работы нужен Redis-бэкенд).
-- `EnvConfig.int/float/bool` при ошибке парсинга молча возвращают дефолт — «fail-fast» нет.
-- CI нет (репозиторий без remote); перед коммитом запускай `./scripts/check.sh` локально.
+- **Lifecycle is a single `@app.lifespan` function** (async generator: setup → `yield` →
+  teardown); resources are registered in `app.container.singleton(...)` at startup. There are no
+  separate `on_startup`/`on_shutdown` hooks.
+- **Logging is optional** (`ferronit.contrib.logging`): a non-blocking pipeline (JSON or
+  human-readable) with delivery guarantees (`flush()`/`shutdown()` + `atexit`), an access log
+  (`event="access"`, `method/path/status/duration_ms`) and an error log (`event="error"` + traceback).
+  Inject the logger as `Ferronit(logger=Logger(LogConfig(...)), access_log=True)` from
+  `ferronit.contrib.logging`.
+- The in-memory rate limiter multiplies limits by the number of workers when `--workers > 1`
+  (multi-process deployments need a Redis backend).
+- `EnvConfig.int/float/bool` silently return the default on a parse error — there is no "fail-fast".
+- There is no CI (the repository has no remote); run `./scripts/check.sh` locally before committing.

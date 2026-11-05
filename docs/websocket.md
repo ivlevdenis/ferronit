@@ -27,7 +27,7 @@ async def ws(conn: WebSocket):
 |---|---|
 | `conn.state` | `WebSocketState` (CONNECTING / CONNECTED / DISCONNECTED) |
 | `conn.path` | путь рукопожатия |
-| `conn.headers` | заголовки рукопожатия (в нижнем регистре) |
+| `conn.headers` | заголовки рукопожатия (нижний регистр, повторы склеены по RFC, разбор в Rust) |
 | `await conn.accept(headers=None)` | принять рукопожатие; `headers` — mapping или пары, проходят общий контракт заголовков |
 | `await conn.receive()` | следующее текстовое/бинарное сообщение; бросает исключение при разрыве |
 | `await conn.send(data)` | отправить текст или bytes |

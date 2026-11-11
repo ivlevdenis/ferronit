@@ -1,7 +1,7 @@
-"""Паттерн `return payload, status` — часть публичного контракта хендлеров.
+"""The `return payload, status` pattern is part of the public handler contract.
 
-Регрессия: до исправления `_to_response` кортеж не понимался, тело ответа превращалось
-в repr кортежа, а статус всегда оставался 200 (это и ломало /health, и примеры в docs).
+Regression: before the `_to_response` fix the tuple was not understood, the response body
+became the tuple's repr, and the status always stayed 200 (this broke /health and docs examples).
 """
 
 import pytest
@@ -75,7 +75,7 @@ async def test_plain_dict_still_returns_200(client):
 
 @pytest.mark.asyncio
 async def test_bare_list_is_serialised_as_json_array(client):
-    """Регрессия: список в ответе превращался в Python-repr вместо JSON."""
+    """Regression: a list in the response became a Python repr instead of JSON."""
     async with client as c:
         response = await c.get("/items")
 

@@ -1,4 +1,4 @@
-"""`Request.cookies` / `get_cookie`: разбор Cookie-заголовка (lazy, cached)."""
+"""`Request.cookies` / `get_cookie`: parsing the Cookie header (lazy, cached)."""
 
 from __future__ import annotations
 

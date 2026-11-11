@@ -6,10 +6,10 @@ readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 requires-python = ">=3.12"
-# Единый пакет: нативное ядро (ferronit._core) собирается в этот же wheel.
-# Обязательная runtime-зависимость одна — msgspec (быстрый JSON/валидация).
-# Драйверы СУБД — extras: слой данных (rawdb/rawmodel/drivers) импортирует драйвер
-# лениво, при создании пула, поэтому `import ferronit.contrib.rawdb` работает и без них.
+# Single package: the native core (ferronit._core) is built into this wheel.
+# Exactly one required runtime dependency — msgspec (fast JSON/validation).
+# DB drivers are extras: the data layer (rawdb/rawmodel/drivers) imports the driver
+# lazily, on pool creation, so `import ferronit.contrib.rawdb` works without them.
 dependencies = ["msgspec>=0.19"]
 classifiers = [
     "Framework :: AsyncIO",
@@ -31,22 +31,22 @@ ferronit = "ferronit.cli:main"
 [project.optional-dependencies]
 server = ["granian[reload]>=2.8", "uvicorn[standard]>=0.30"]
 pydantic = ["pydantic>=2.0"]
-# Драйверы СУБД — extras. Слой данных (rawdb/rawmodel) работает на трёх движках и
-# импортирует драйвер только при создании пула: без extra модули импортируются,
-# а `create_pool` скажет, что поставить. Тесты бэкендов:
-# tests/test_backends_repository.py (+ test_sql_backends.py); SQLite — библиотека
-# в процессе, MySQL — контейнер ferronit-mysql (scripts/dbs_up.sh).
+# DB drivers are extras. The data layer (rawdb/rawmodel) works on three engines and
+# imports the driver only on pool creation: without the extra the modules still import,
+# while `create_pool` reports what to install. Backend tests:
+# tests/test_backends_repository.py (+ test_sql_backends.py); SQLite is an in-process
+# library, MySQL is the ferronit-mysql container (scripts/dbs_up.sh).
 postgres = ["asyncpg>=0.29"]
 sqlite = ["aiosqlite>=0.20"]
 mysql = ["aiomysql>=0.2"]
-# Зеркалит группу Poetry ниже — для установки без Poetry: pip install "ferronit[dev]".
-# asyncpg здесь, чтобы сюита не пропускала тесты rawdb/rawmodel.
+# Mirrors the Poetry group below — for installing without Poetry: pip install "ferronit[dev]".
+# asyncpg is here so the suite does not skip rawdb/rawmodel tests.
 dev = ["pytest>=8", "pytest-asyncio", "pytest-benchmark", "httpx", "maturin>=1.14,<2",
        "ruff>=0.6", "mypy>=1.11", "asyncpg>=0.29"]
 
 # ── Poetry ────────────────────────────────────────────────────────────
-# Poetry ведёт окружение и зависимости. Сам проект Poetry не устанавливает
-# (package-mode = false), потому что wheel с Rust-ядром собирает maturin:
+# Poetry manages the environment and dependencies. Poetry does not install the
+# project itself (package-mode = false), because maturin builds the wheel with the Rust core:
 #   poetry install --all-extras && poetry run maturin develop --release
 [tool.poetry]
 package-mode = false
@@ -65,8 +65,8 @@ requires = ["maturin>=1.14,<2"]
 build-backend = "maturin"
 
 [tool.maturin]
-# Единый пакет: Python `ferronit/` и нативное ядро собираются в один wheel. Rust-крейт лежит
-# в ferronit-rs/ и строится как `ferronit._core`. Версия — из ferronit-rs/Cargo.toml.
+# Single package: Python `ferronit/` and the native core are built into one wheel. The Rust crate lives
+# in ferronit-rs/ and is built as `ferronit._core`. Version comes from ferronit-rs/Cargo.toml.
 manifest-path = "ferronit-rs/Cargo.toml"
 module-name = "ferronit._core"
 bindings = "pyo3"
@@ -79,7 +79,7 @@ strip = true
 asyncio_mode = "auto"
 testpaths = ["tests"]
 
-# ── Линтер ────────────────────────────────────────────────────────────
+# ── Linter ────────────────────────────────────────────────────────────
 [tool.ruff]
 line-length = 100
 target-version = "py312"
@@ -91,20 +91,20 @@ extend-exclude = [
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM", "PERF", "RUF", "S110", "S112"]
 ignore = [
-    "E501",   # длину строк держим под контролем при чтении, а не линтером
-    "B008",   # app.use(cors()) — вызов в дефолтном аргументе осознан
-    "RUF012", # ClassVar для mutable-атрибутов: в этом коде такого паттерна нет
-    "RUF002", "RUF003",  # типографские «—» и русские пояснения в докстрингах/комментариях
-    "B024",   # Port/Adapter — маркерные интерфейсы без методов (осознанно)
+    "E501",   # line length is kept in check while reading, not by the linter
+    "B008",   # app.use(cors()) — a call in a default argument is intentional
+    "RUF012", # ClassVar for mutable attributes: this code has no such pattern
+    "RUF002", "RUF003",  # typographic em dashes and Russian notes in docstrings/comments
+    "B024",   # Port/Adapter — marker interfaces without methods (intentional)
 ]
 
 [tool.ruff.lint.per-file-ignores]
-# Security-набор намеренно проверяет «плохие» конструкции (инъекции, битые входы)
+# The security set deliberately exercises "bad" constructs (injections, malformed input)
 "tests/security/*.py" = ["S", "E501"]
-# Распаковка кортежей в тестах ради наглядности (часть значений не используется)
+# Tuple unpacking in tests for readability (some values are unused)
 "tests/**/*.py" = ["RUF059"]
 
-# ── Типы ──────────────────────────────────────────────────────────────
+# ── Types ─────────────────────────────────────────────────────────────
 [tool.mypy]
 python_version = "3.12"
 files = ["ferronit"]
@@ -117,7 +117,7 @@ no_implicit_optional = true
 strict_equality = true
 pretty = true
 
-# Опциональные зависимости: стабов нет в природе — импорты не считаем ошибкой
+# Optional dependencies: stubs do not exist — imports are not treated as errors
 [[tool.mypy.overrides]]
 module = ["aiokafka.*", "aiokafka", "asyncpg.*", "qdrant_client.*", "chromadb.*",
           "aiomysql.*", "aiomysql", "aiosqlite.*", "aiosqlite"]

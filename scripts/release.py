@@ -1,12 +1,12 @@
-"""Релиз Ferronit: бамп версии во всех местах → check.sh → commit → tag → push.
+"""Ferronit release: bump the version everywhere → check.sh → commit → tag → push.
 
 Usage:
-    python scripts/release.py <версия> [--notes "…"] [--skip-check] [--no-push]
+    python scripts/release.py <version> [--notes "…"] [--skip-check] [--no-push]
 
-Перед запуском допиши записи в CHANGELOG.md (заголовок ``## <версия>``) — тогда
-скрипт их не тронет. Иначе он вставит заголовок с датой (тело — из ``--notes``).
-Версия живёт в 15 местах (см. ``TARGETS``); ``docs/vs-*.md`` не трогаем.
-Push тега ``v<версия>`` запускает CI-релиз (сборка колёс + PyPI + GitHub Release).
+Before running, add entries to CHANGELOG.md (heading ``## <version>``) — then the
+script leaves them alone. Otherwise it inserts a dated heading (body from ``--notes``).
+The version lives in 15 places (see ``TARGETS``); ``docs/vs-*.md`` is left untouched.
+Pushing the ``v<version>`` tag triggers the CI release (wheel build + PyPI + GitHub Release).
 """
 
 from __future__ import annotations
@@ -37,9 +37,9 @@ TARGETS = [
     "scripts/docker_smoke.sh",
 ]
 
-# Здесь старая версия может остаться (исторические записи и сторонние крейты).
-# poetry.lock — не наш номер: там constraints и хэши колес, которые могут содержать
-# те же цифры (нижняя граница зависимости, sha256 колеса).
+# The old version may stay here (historical records and third-party crates).
+# poetry.lock is not our number: it holds constraints and wheel hashes that may
+# contain the same digits (a dependency lower bound, a wheel sha256).
 WHITELIST = ("CHANGELOG.md", "docs/vs-", "poetry.lock")
 
 SEMVER = re.compile(r"^\d+\.\d+\.\d+$")
@@ -61,7 +61,7 @@ def current_version() -> str:
     text = (ROOT / "ferronit/__init__.py").read_text(encoding="utf-8")
     match = re.search(r'__version__\s*=\s*"([^"]+)"', text)
     if not match:
-        print("не нашёл __version__ в ferronit/__init__.py", file=sys.stderr)
+        print("no __version__ found in ferronit/__init__.py", file=sys.stderr)
         sys.exit(1)
     return match.group(1)
 
@@ -69,63 +69,65 @@ def current_version() -> str:
 def bump_kind(old: str, new: str) -> str:
     o, n = tuple(map(int, old.split("."))), tuple(map(int, new.split(".")))
     if n[0] > o[0]:
-        return "мажор"
+        return "major"
     if n[1] > o[1]:
-        return "минор"
-    return "патч"
+        return "minor"
+    return "patch"
 
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("new", help="новая версия в формате x.y.z")
-    ap.add_argument("--notes", default=None, help="тело записи CHANGELOG (если заголовка ещё нет)")
-    ap.add_argument("--skip-check", action="store_true", help="пропустить ./scripts/check.sh")
-    ap.add_argument("--no-push", action="store_true", help="не пушить main и тег")
+    ap.add_argument("new", help="the new version in x.y.z format")
+    ap.add_argument(
+        "--notes", default=None, help="CHANGELOG entry body (if there is no heading yet)"
+    )
+    ap.add_argument("--skip-check", action="store_true", help="skip ./scripts/check.sh")
+    ap.add_argument("--no-push", action="store_true", help="do not push main and the tag")
     args = ap.parse_args()
 
     new: str = args.new
     if not SEMVER.match(new):
-        print(f"версия '{new}' не в формате x.y.z", file=sys.stderr)
+        print(f"version '{new}' is not in x.y.z format", file=sys.stderr)
         sys.exit(1)
 
-    # рабочее дерево чистое, кроме CHANGELOG (туда пользователь пишет записи).
+    # the working tree is clean except CHANGELOG (the user writes entries there).
     dirty = git("status", "--porcelain").splitlines()
     unexpected = [d for d in dirty if d.split(None, 1)[1] != "CHANGELOG.md"]
     if unexpected:
-        print("рабочее дерево не чистое (кроме CHANGELOG.md):", file=sys.stderr)
+        print("the working tree is not clean (except CHANGELOG.md):", file=sys.stderr)
         for d in unexpected:
             print(" ", d, file=sys.stderr)
         sys.exit(1)
 
     old = current_version()
     if old == new:
-        print(f"версия уже {new} — нечего делать")
+        print(f"version is already {new} — nothing to do")
         sys.exit(1)
 
-    # 1) бамп версии по списку файлов.
-    print(f"==> бамп {old} -> {new}")
+    # 1) bump the version across the file list.
+    print(f"==> bump {old} -> {new}")
     for rel in TARGETS:
         path = ROOT / rel
         text = path.read_text(encoding="utf-8")
         count = text.count(old)
         if count == 0:
-            print(f"    [warn] {rel}: '{old}' не найдена — пропуск")
+            print(f"    [warn] {rel}: '{old}' not found — skipping")
             continue
         path.write_text(text.replace(old, new), encoding="utf-8")
         print(f"    [ok] {rel}: {count}")
 
-    # 2) старая версия не должна остаться вне whitelist.
-    # -F: номер ищем как строку. Без этого точка в номере версии работает как
-    # «любой символ» и совпадает с hex-хэшами в lock-файлах — ложный остаток.
+    # 2) the old version must not be left outside the whitelist.
+    # -F: search for the number as a literal. Otherwise the dot in a version
+    # number acts as "any character" and matches hex hashes in lock files — a false leftover.
     leftover = git("grep", "-n", "-F", old, "--", ".").splitlines()
     bad = [ln for ln in leftover if not any(ln.split(":", 1)[0].startswith(w) for w in WHITELIST)]
     if bad:
-        print("старая версия осталась в неожиданных местах:", file=sys.stderr)
+        print("the old version is still in unexpected places:", file=sys.stderr)
         for ln in bad:
             print(" ", ln, file=sys.stderr)
         sys.exit(1)
 
-    # 3) CHANGELOG: вставить заголовок, если его нет.
+    # 3) CHANGELOG: insert the heading if it is not there yet.
     changelog = ROOT / "CHANGELOG.md"
     text = changelog.read_text(encoding="utf-8")
     if f"## {new}" not in text:
@@ -135,11 +137,14 @@ def main() -> None:
         marker = "`ferronit-rs/Cargo.toml`."
         idx = text.index(marker) + len(marker)
         changelog.write_text(text[:idx] + "\n" + block + text[idx:], encoding="utf-8")
-        print(f"==> CHANGELOG: вставлен заголовок {new} (не забудь записи, если --notes пуст)")
+        print(
+            f"==> CHANGELOG: inserted the {new} heading "
+            "(do not forget the entries if --notes is empty)"
+        )
     else:
-        print(f"==> CHANGELOG: заголовок {new} уже есть")
+        print(f"==> CHANGELOG: the {new} heading is already there")
 
-    # 4) штатная проверка.
+    # 4) the regular check.
     if not args.skip_check:
         print("==> ./scripts/check.sh")
         result = run(["./scripts/check.sh"])
@@ -151,15 +156,15 @@ def main() -> None:
     # 5) commit + tag.
     kind = bump_kind(old, new)
     git("add", "-A")
-    git("commit", "-m", f"chore: версия {new} ({kind}) во всех местах")
+    git("commit", "-m", f"chore: version {new} ({kind}) everywhere")
     git("tag", "-a", f"v{new}", "-m", f"Ferronit {new}")
-    print(f"==> коммит и тег v{new} готовы")
+    print(f"==> commit and tag v{new} are ready")
 
-    # 6) push (main + тег) — тег запускает CI-релиз.
+    # 6) push (main + tag) — the tag triggers the CI release.
     if not args.no_push:
         git("push", "origin", "main")
         git("push", "origin", f"v{new}")
-        print(f"==> запушено: main + v{new} (CI-релиз запущен)")
+        print(f"==> pushed: main + v{new} (CI release triggered)")
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-"""Генерация OpenAPI-схемы из сигнатур и типов."""
+"""Generate the OpenAPI schema from signatures and types."""
 
 import json
 from dataclasses import dataclass
@@ -35,7 +35,7 @@ def test_add_route_records_summary_and_tags():
     assert operation["summary"] == "Get user"
     assert operation["tags"] == ["users"]
     assert operation["responses"]["200"]["description"] == "OK"
-    assert "content" not in operation["responses"]["200"]  # модель ответа не объявлена
+    assert "content" not in operation["responses"]["200"]  # no response model declared
 
 
 def test_dataclass_return_type_becomes_component_schema():

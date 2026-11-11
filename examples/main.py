@@ -1,7 +1,7 @@
-"""Точка сборки (composition root) — здесь входные адаптеры подключаются к приложению.
+"""Composition root — incoming adapters are attached to the application here.
 
-Прикладной слой (``examples/app.py``) собирается без HTTP; входной адаптер
-монтируется отсюда. Запуск сервера:
+The application layer (``examples/app.py``) is assembled without HTTP; the
+incoming adapter is mounted from here. Starting the server:
 
     uvicorn examples.main:app
 """

@@ -267,7 +267,7 @@ class _WriterThread(threading.Thread):
             try:
                 self._stream.write(self._formatter.format(item) + "\n")
                 self._stream.flush()
-            except Exception:  # noqa: S110 - сообщить некуда: сломан сам поток логов
+            except Exception:  # noqa: S110 - nowhere to report: the log stream itself is broken
                 # Best effort: a failed write drops one record, not the thread.
                 pass
 

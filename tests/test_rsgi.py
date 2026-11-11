@@ -1,8 +1,8 @@
-"""RSGI-транспорт (granian): запрос должен видеть заголовки и query.
+"""RSGI transport (granian): a request must see headers and query.
 
-Регрессия: ``_rsgi_request`` передавал заголовки строками, а ``Request`` ждал
-байты — конвертация падала и глушилась, поэтому ``request.headers`` был пуст и
-любая аутентификация/куки на RSGI не работали.
+Regression: ``_rsgi_request`` passed headers as strings while ``Request`` expected
+bytes — the conversion failed and was swallowed, so ``request.headers`` was empty and
+any authentication/cookies did not work on RSGI.
 """
 
 from __future__ import annotations
@@ -11,7 +11,7 @@ from ferronit import Ferronit
 
 
 class _Headers:
-    """Минимальный аналог ``rsgi.Headers``: ``items()`` отдаёт str-пары."""
+    """Minimal analogue of ``rsgi.Headers``: ``items()`` returns str pairs."""
 
     def __init__(self, items: list[tuple[str, str]]) -> None:
         self._items = items
@@ -36,7 +36,7 @@ class _Scope:
 
 
 class _Proto:
-    """Минимальный аналог RSGI-протокола: собранный ответ + тело запроса."""
+    """Minimal analogue of the RSGI protocol: collected response + request body."""
 
     def __init__(self, body: bytes = b"") -> None:
         self.status: int | None = None
@@ -106,7 +106,7 @@ async def test_get_header_is_case_insensitive() -> None:
 
 
 async def test_duplicate_headers_combine_in_dict() -> None:
-    """get_header — первое значение, headers — склейка в порядке провода."""
+    """get_header returns the first value; headers join them in wire order."""
     app = Ferronit()
     seen: dict[str, object] = {}
 

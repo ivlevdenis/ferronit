@@ -30,10 +30,10 @@ _FALSE = frozenset({"false", "0", "no", "off"})
 
 
 class Header:
-    """Маркер: параметр читается из HTTP-заголовка, а не из query/path.
+    """Marker: the parameter is read from an HTTP header, not from query/path.
 
-    ``Header()`` — имя заголовка совпадает с именем параметра;
-    ``Header("x-api-key")`` — явное имя заголовка. Используется через
+    ``Header()`` makes the header name match the parameter name;
+    ``Header("x-api-key")`` sets an explicit header name. Used via
     ``typing.Annotated``: ``api_key: Annotated[str, Header("x-api-key")] = ""``.
     """
 
@@ -44,10 +44,10 @@ class Header:
 
 
 class Query:
-    """Маркер: параметр — query-модель (``msgspec.Struct``), поля маппятся на query-параметры.
+    """Marker: the parameter is a query model (``msgspec.Struct``) mapped to query params.
 
-    Невалидное значение (тип или констрейнт ``msgspec.Meta``) откатывается к
-    default поля; если default нет — ``RequestError`` (400). Используется через
+    An invalid value (type or ``msgspec.Meta`` constraint) falls back to the
+    field default; without a default it raises ``RequestError`` (400). Used via
     ``typing.Annotated``: ``filters: Annotated[SearchQuery, Query()]``.
     """
 
@@ -55,7 +55,7 @@ class Query:
 
 
 class Body:
-    """Маркер: параметр — body-модель (явное указание; модель без маркера и так body)."""
+    """Marker: the parameter is a body model (explicit; an unmarked model is a body anyway)."""
 
     __slots__ = ()
 
@@ -69,7 +69,7 @@ def _is_async_callable(handler: object) -> bool:
     """True for ``async def`` functions and objects with an async ``__call__``."""
     if inspect.iscoroutinefunction(handler):
         return True
-    # B004: нужен именно bind'нутый __call__, а не callable() — проверяем async-ность.
+    # B004: we need the bound __call__ itself, not callable() — check its async-ness.
     return inspect.iscoroutinefunction(getattr(handler, "__call__", None))  # noqa: B004
 
 
@@ -141,11 +141,11 @@ def plan(handler, container=None) -> _Plan:
     ):
         return _Plan([], [], True, [])
 
-    # Резолвер — (kind, name, coercer, default, is_list, element_coercer, extra):
-    #   kind="req"    → сам Request;
-    #   kind="header" → extra = имя заголовка;
-    #   kind="body"   → extra = класс модели (await req.model);
-    #   kind="di"     → extra = ключ контейнера;
+    # Resolver — (kind, name, coercer, default, is_list, element_coercer, extra):
+    #   kind="req"    → the Request itself;
+    #   kind="header" → extra = header name;
+    #   kind="body"   → extra = model class (await req.model);
+    #   kind="di"     → extra = container key;
     #   kind="auto"   → path/query.
     resolvers: list[tuple[str, str, Any, Any, bool, Any, Any]] = []
     body_resolvers: list[tuple[str, type]] = []
@@ -173,7 +173,7 @@ def plan(handler, container=None) -> _Plan:
             resolvers.append(("body", name, None, default, False, None, base))
             body_resolvers.append((name, base))
             continue
-        # DI-зависимость: тип/Annotated-ключ зарегистрирован в контейнере
+        # DI dependency: the type/Annotated key is registered in the container
         if container is not None and hint is not None and container.has(hint):
             resolvers.append(("di", name, None, default, False, None, hint))
             di_keys.append((name, hint))
@@ -223,7 +223,7 @@ def build(handler, plan: _Plan, container=None, resolved: dict | None = None):
             for r in plan.resolvers
         ]
 
-    # Все параметры — заранее подставленные константы → прямой вызов без резолвера.
+    # All parameters are pre-bound constants → direct call without a resolver.
     if resolvers and all(r[0] == "value" for r in resolvers):
         values = tuple(r[6] for r in resolvers)
 
@@ -245,9 +245,9 @@ def bind(handler, container=None):
 
 
 def _unwrap_annotated(hint: Any) -> tuple[Any, Any]:
-    """Развернуть ``Annotated[T, Маркер(...)]`` → ``(T, маркер)`` либо ``(hint, None)``.
+    """Unwrap ``Annotated[T, Marker(...)]`` → ``(T, marker)`` or ``(hint, None)``.
 
-    Маркер — ``Header`` / ``Query`` / ``Body``.
+    The marker is ``Header`` / ``Query`` / ``Body``.
     """
     if get_origin(hint) is Annotated:
         base = get_args(hint)[0]
@@ -259,7 +259,7 @@ def _unwrap_annotated(hint: Any) -> tuple[Any, Any]:
 
 
 def _is_body_model(hint: Any) -> bool:
-    """True, если hint — модель тела запроса (msgspec.Struct/dataclass/pydantic)."""
+    """True if hint is a request body model (msgspec.Struct/dataclass/pydantic)."""
     return isinstance(hint, type) and (
         hasattr(hint, "__struct_fields__")
         or hasattr(hint, "__dataclass_fields__")
@@ -319,7 +319,7 @@ def _make_coercer(hint: Any):
             for coercer in coercers:
                 try:
                     if coercer is None:
-                        return value  # str / неизвестный тип — как есть
+                        return value  # str / unknown type — pass through as is
                     return coercer(value, name, source)
                 except RequestError:
                     continue
@@ -361,7 +361,7 @@ def _bind_values(req: Request, resolvers: list, body_values: dict, container=Non
                 value = coercer(value, name, "header")
             values.append(value)
             continue
-        # auto: path params имеют приоритет над query
+        # auto: path params take precedence over query
         if is_list:
             if name in req.params and req.params[name] != "":
                 raw, source = [req.params[name]], "path"
@@ -406,11 +406,11 @@ def _invalid(name: str, value: Any, source: str):
     return ValidationError([error])
 
 
-# ── Query-модель (msgspec.Struct → query-параметры) ────────────────────
+# ── Query model (msgspec.Struct → query parameters) ────────────────────
 
 
 def _split_constraint(t: Any) -> tuple[Any, Any]:
-    """Развернуть ``Annotated[T, msgspec.Meta(...)]`` → ``(T, Meta)`` либо ``(t, None)``."""
+    """Unwrap ``Annotated[T, msgspec.Meta(...)]`` → ``(T, Meta)`` or ``(t, None)``."""
     if get_origin(t) is Annotated:
         args = get_args(t)
         base = args[0]
@@ -457,7 +457,7 @@ def _constraint_error(name: str, value: Any, meta: Any) -> FieldError | None:
 
 
 def _coerce_field(raw: list[str], base: Any) -> Any:
-    """Привести список query-значений к базовому типу (скаляр или ``list[T]``)."""
+    """Coerce a list of query values to the base type (scalar or ``list[T]``)."""
     element = _element_type(base)
     if element is not None:
         coercer = _make_coercer(element)

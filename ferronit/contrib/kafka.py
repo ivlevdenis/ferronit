@@ -24,7 +24,7 @@ class KafkaMessageBus(MessageBus):
         self._client_id = client_id
         self._producer = None
         self._consumer = None
-        # держим ссылку на фоновую задачу потребителя: без неё GC может её снять
+        # keep a reference to the consumer background task: without it GC may collect it
         self._poll_task: Any | None = None
 
     async def start(self) -> None:
@@ -104,5 +104,5 @@ class KafkaMessageBus(MessageBus):
 
         import asyncio
 
-        # держим ссылку: без неё фоновую задачу потребителя может снять сборщик мусора
+        # keep a reference: otherwise the garbage collector may reap the consumer task
         self._poll_task = asyncio.create_task(_poll())

@@ -1,8 +1,8 @@
 # syntax=docker/dockerfile:1
 #
-# Ferronit — единый пакет: Python (ferronit/) и нативное ядро (ferronit_core)
-# собираются maturin-ом в один wheel (abi3-py312) прямо в билд-стейдже. Наружу нужна только
-# сеть до PyPI/crates.io. Итоговый образ содержит один wheel и прод-сервер Granian.
+# Ferronit is a single package: Python (ferronit/) and the native core (ferronit_core)
+# are built by maturin into one wheel (abi3-py312) right in the build stage. Only
+# network access to PyPI/crates.io is required. The final image ships one wheel and Granian.
 #
 #   docker build -t ferronit:0.24.0 .
 #   docker run --rm -p 8000:8000 ferronit:0.24.0
@@ -12,7 +12,7 @@ FROM python:3.12-slim-bookworm AS builder
 
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PIP_NO_CACHE_DIR=1
-# pyo3 0.24 не знает про новые интерпретаторы; для abi3-сборки флаг безопасен
+# pyo3 0.24 does not know about newer interpreters; the flag is safe for an abi3 build
 ENV PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1
 
 RUN apt-get update \
@@ -24,8 +24,8 @@ ENV PATH="/root/.cargo/bin:${PATH}"
 
 WORKDIR /src
 
-# maturin mixed-проект: корневой pyproject указывает manifest-path = ferronit-rs/Cargo.toml.
-# ferronit-rs/target/ исключён .dockerignore; crates скачиваем отдельным слоем.
+# maturin mixed project: the root pyproject sets manifest-path = ferronit-rs/Cargo.toml.
+# ferronit-rs/target/ is excluded by .dockerignore; crates are downloaded in a separate layer.
 COPY ferronit-rs/ ./ferronit-rs/
 COPY ferronit/ ./ferronit/
 COPY pyproject.toml README.md ./
@@ -47,18 +47,18 @@ ENV PYTHONUNBUFFERED=1 \
     HEALTH_PATH=/
 
 COPY --from=builder /wheels /wheels
-# Один wheel: pip install ferronit ставит и Python-слой, и нативное ядро.
+# One wheel: pip install ferronit brings both the Python layer and the native core.
 RUN pip install --no-cache-dir "/wheels/$(cd /wheels && ls ferronit-[0-9]*.whl)[server,pydantic]" \
  && pip install --no-cache-dir uvloop \
  && rm -rf /wheels
 
-# Прод-образ работает не от root
+# The production image does not run as root
 RUN useradd --create-home --uid 10001 ferronit
 
 WORKDIR /app
 COPY --chown=ferronit:ferronit docker/demo_app.py /app/demo_app.py
 COPY --chown=ferronit:ferronit docker/entrypoint.sh /usr/local/bin/ferronit-entrypoint
-# Бандл-примеры: demo_app (без зависимостей) и полный DDD e-commerce из examples/app.py
+# Bundled examples: demo_app (dependency-free) and the full DDD e-commerce from examples/app.py
 COPY --chown=ferronit:ferronit examples/app.py /app/examples/app.py
 COPY --chown=ferronit:ferronit public/ /app/public/
 RUN chmod +x /usr/local/bin/ferronit-entrypoint
@@ -66,8 +66,8 @@ RUN chmod +x /usr/local/bin/ferronit-entrypoint
 USER ferronit
 EXPOSE 8000
 
-# Проверяем живое приложение end-to-end, а не только открытый порт.
-# HEALTH_PATH — маршрут, который у вашего приложения отдаёт 200 (по умолчанию /).
+# Probe the live application end-to-end, not just an open port.
+# HEALTH_PATH — the route your application answers with 200 (default: /).
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD python -c "import os,sys,urllib.request; \
 u='http://127.0.0.1:'+os.environ.get('PORT','8000')+os.environ.get('HEALTH_PATH','/'); \

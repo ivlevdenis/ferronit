@@ -1,6 +1,6 @@
 """Structured request errors: a code per error, ``errors`` holds fields and non-fields.
 
-Контракт ответа (одинаковый для 4xx и 5xx)::
+The response contract (identical for 4xx and 5xx)::
 
     {"code": "validation_error", "message": "...",
      "errors": [{"code": "missing", "field": "name", "message": "..."}]}
@@ -66,7 +66,7 @@ def app():
 
     @v.route("/signup", methods=["POST"])
     async def signup(payload: Annotated[Item, Body()]):
-        # бизнес-ошибка: не «поле не того типа», а правило предметной области
+        # business error: not a wrong field type, but a domain rule
         raise ValidationError([FieldError("email_taken", "Email already registered", "name")])
 
     @v.route("/boom")
@@ -87,7 +87,7 @@ def _codes(body: dict) -> list[str]:
 
 
 async def test_missing_and_wrong_type_are_separate_errors(client) -> None:
-    """Оба поля попадают в один ответ, у каждого свой код и путь."""
+    """Both fields land in one response, each with its own code and path."""
     r = await client.post("/items", content=b'{"age": "x"}')
     assert r.status_code == 400
     body = r.json()
@@ -100,7 +100,7 @@ async def test_missing_and_wrong_type_are_separate_errors(client) -> None:
 
 
 async def test_all_field_errors_collected_at_once(client) -> None:
-    """msgspec падает на первой ошибке — фреймворк отдаёт все четыре."""
+    """msgspec fails on the first error — the framework returns all four."""
     r = await client.post(
         "/items", content=b'{"name": 5, "age": 0, "kind": "c", "tags": [1]}'
     )
@@ -110,7 +110,7 @@ async def test_all_field_errors_collected_at_once(client) -> None:
 
 
 async def test_constraint_bounds_have_codes(client) -> None:
-    """Нарушение границ — свой код, а не общий invalid_value."""
+    """A bound violation gets its own code, not the generic invalid_value."""
     too_big = await client.post("/items", content=b'{"name": "x", "age": 999}')
     assert too_big.json()["errors"] == [
         {"code": "too_large", "message": "Expected `int` <= 150", "field": "age"}
@@ -118,7 +118,7 @@ async def test_constraint_bounds_have_codes(client) -> None:
 
 
 async def test_nested_struct_paths_are_dotted(client) -> None:
-    """Вложенная модель: путь addr.zip и обязательные поля внутри неё."""
+    """Nested model: the addr.zip path and required fields inside it."""
     r = await client.post("/items", content=b'{"name": "x", "addr": {"zip": 5}}')
     assert r.status_code == 400
     assert _codes(r.json()) == ["missing", "too_small"]
@@ -126,7 +126,7 @@ async def test_nested_struct_paths_are_dotted(client) -> None:
 
 
 async def test_nested_struct_wrong_type(client) -> None:
-    """Вместо объекта пришла строка — ошибка на самом поле addr."""
+    """A string arrived instead of an object — the error is on addr itself."""
     r = await client.post("/items", content='{"name": "x", "addr": "Москва"}'.encode())
     assert r.json()["errors"] == [
         {"code": "invalid_type", "message": "Expected `object`, got `string`", "field": "addr"}
@@ -134,7 +134,7 @@ async def test_nested_struct_wrong_type(client) -> None:
 
 
 async def test_malformed_json_is_non_field_error(client) -> None:
-    """Битый JSON — ошибка не поля: field отсутствует, код invalid_json."""
+    """Malformed JSON is a non-field error: no field key, code invalid_json."""
     r = await client.post("/items", content=b'{"name":')
     assert r.status_code == 400
     body = r.json()
@@ -146,7 +146,7 @@ async def test_malformed_json_is_non_field_error(client) -> None:
 
 
 async def test_body_root_not_object(client) -> None:
-    """Корень — массив: ошибка без поля, код invalid_type."""
+    """The root is an array: a non-field error with code invalid_type."""
     r = await client.post("/items", content=b"[1, 2]")
     assert r.status_code == 400
     assert r.json()["errors"] == [
@@ -155,7 +155,7 @@ async def test_body_root_not_object(client) -> None:
 
 
 async def test_query_model_missing_fields_collected(client) -> None:
-    """Обязательные поля query-модели — все сразу, каждое со своим путём."""
+    """Required query-model fields are reported at once, each with its own path."""
     r = await client.get("/required")
     assert r.status_code == 400
     assert _codes(r.json()) == ["missing", "missing"]
@@ -163,21 +163,21 @@ async def test_query_model_missing_fields_collected(client) -> None:
 
 
 async def test_query_model_constraint_error(client) -> None:
-    """Обязательное поле с нарушенным констрейнтом — код границы, не типа."""
+    """A required field with a violated constraint gets the bound code, not the type code."""
     r = await client.get("/required?page=0&size=11")
     assert r.status_code == 400
     assert _codes(r.json()) == ["too_small", "too_large"]
 
 
 async def test_query_model_invalid_value_with_default_falls_back(client) -> None:
-    """Невалидное значение с default — тихий откат, ответ 200 (решение по query)."""
+    """An invalid value with a default falls back silently; 200 (query-model decision)."""
     r = await client.get("/search?q=x&page=0")
     assert r.status_code == 200
     assert r.json() == {"q": "x", "page": 1}
 
 
 async def test_scalar_query_param_error(client) -> None:
-    """Скалярный параметр: код invalid_type и имя поля."""
+    """Scalar parameter: code invalid_type and the field name."""
     r = await client.get("/scalar?limit=abc")
     assert r.status_code == 400
     assert r.json()["errors"] == [
@@ -190,7 +190,7 @@ async def test_scalar_query_param_error(client) -> None:
 
 
 async def test_header_param_error(client) -> None:
-    """Заголовок валидируется так же, как query."""
+    """A header is validated exactly like a query parameter."""
     r = await client.get("/scalar", headers={"x-user-id": "nope"})
     assert r.status_code == 400
     assert r.json()["errors"][0]["field"] == "x_user_id"
@@ -198,7 +198,7 @@ async def test_header_param_error(client) -> None:
 
 
 async def test_path_param_error_is_404_with_code(client) -> None:
-    """Битый path-параметр: 404 (ASVS 2.1.1), но тело структурированное."""
+    """A malformed path parameter returns 404 (ASVS 2.1.1) with a structured body."""
     r = await client.get("/items/abc")
     assert r.status_code == 404
     body = r.json()
@@ -213,7 +213,7 @@ async def test_path_param_error_is_404_with_code(client) -> None:
 
 
 async def test_unknown_route_is_404_with_code(client) -> None:
-    """Нет маршрута — та же схема ответа, код not_found."""
+    """No route: the same response shape with code not_found."""
     r = await client.get("/nope")
     assert r.status_code == 404
     assert r.json() == {
@@ -224,7 +224,7 @@ async def test_unknown_route_is_404_with_code(client) -> None:
 
 
 async def test_business_validation_error_from_handler(client) -> None:
-    """Хендлер может поднять своё правило — код и поле доходят до клиента."""
+    """A handler may raise its own rule; code and field reach the client."""
     r = await client.post("/signup", content=b'{"name": "ada@example.com"}')
     assert r.status_code == 400
     body = r.json()
@@ -239,7 +239,7 @@ async def test_business_validation_error_from_handler(client) -> None:
 
 
 async def test_unsupported_media_type_is_415_with_code() -> None:
-    """415 отдаёт тот же конверт, а не пустое тело."""
+    """415 returns the same envelope, not an empty body."""
     v = Ferronit()
 
     @v.route("/form", methods=["POST"])
@@ -256,7 +256,7 @@ async def test_unsupported_media_type_is_415_with_code() -> None:
 
 
 async def test_body_too_large_is_413_with_code() -> None:
-    """413 — тот же конверт с кодом body_too_large."""
+    """413: the same envelope with code body_too_large."""
     v = Ferronit(max_body_size=4)
 
     @v.route("/upload", methods=["POST"])
@@ -272,7 +272,7 @@ async def test_body_too_large_is_413_with_code() -> None:
 
 
 async def test_unhandled_error_is_500_without_traceback() -> None:
-    """500 не светит текст исключения, но остаётся в общей схеме."""
+    """500 does not leak the exception text but keeps the shared shape."""
     v = Ferronit()
 
     @v.route("/boom")
@@ -290,7 +290,7 @@ async def test_unhandled_error_is_500_without_traceback() -> None:
 
 
 async def test_errors_never_empty_and_codes_are_stable(client) -> None:
-    """payload() всегда отдаёт непустой errors; коды — короткие строки."""
+    """payload() always returns a non-empty errors list; codes are short strings."""
     r = await client.get("/required")
     body = r.json()
     assert body["errors"]

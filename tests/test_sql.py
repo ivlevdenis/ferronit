@@ -1,8 +1,8 @@
 """SQL node tree and dialects — `ferronit/contrib/sql.py`.
 
-Проверяем две вещи: (1) паритет — PostgreSQL-рендер совпадает с прежним выводом
-строчного генератора (строки из tests/test_rawmodel.py повторены здесь как
-опорные), (2) переносимость — та же запись компилируется во второй диалект.
+Two things are checked: (1) parity — the PostgreSQL render matches the previous output
+of the string generator (rows from tests/test_rawmodel.py are repeated here as
+reference), (2) portability — the same statement compiles to a second dialect.
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ class User(Model):
     email: str = ""
 
 
-# ── выражения ────────────────────────────────────────────────────────────────
+# ── expressions ──────────────────────────────────────────────────────────────
 
 
 def test_compare_renders_per_dialect() -> None:
@@ -32,7 +32,7 @@ def test_compare_renders_per_dialect() -> None:
 
 
 def test_values_stay_bound() -> None:
-    """Значение не попадает в SQL — только в параметры."""
+    """The value never enters SQL — only the parameters."""
     node = sql.Compare("name", "=", "O'Brien; DROP TABLE users")
     sql_text, params = sql.compile_expr(node, sql.POSTGRES)
     assert sql_text == "name = $1"
@@ -69,7 +69,7 @@ def test_ilike_falls_back_to_like_without_ilike() -> None:
 
 
 def test_bool_ops_are_binary_and_parenthesised() -> None:
-    """`a & b & c` вкладывается влево — форма сохранена от строкового генератора."""
+    """`a & b & c` nests to the left — the shape is preserved from the string generator."""
     a = sql.Compare("a", ">", 1)
     b = sql.Compare("b", "=", 2)
     c = sql.Compare("c", "<", 3)
@@ -92,13 +92,13 @@ def test_paren_node_wraps() -> None:
 
 
 def test_raw_fragment_is_renumbered() -> None:
-    """Сырой фрагмент сдвигается на число уже связанных параметров."""
+    """A raw fragment is shifted by the number of already-bound parameters."""
     node = sql.And(sql.Compare("a", ">", 1), sql.Raw("b = $1 AND b < $2", [2, 9]))
     assert sql.compile_expr(node) == ("(a > $1) AND (b = $2 AND b < $3)", [1, 2, 9])
 
 
 def test_raw_fragment_keeps_two_digit_placeholders() -> None:
-    """`$1` не должен затирать начало `$10`."""
+    """`$1` must not overwrite the start of `$10`."""
     condition = Condition("a = $1", [1])
     node = sql.And(condition, sql.Raw("b = $10", list(range(10))))
     sql_text, params = sql.compile_expr(node)
@@ -107,14 +107,14 @@ def test_raw_fragment_keeps_two_digit_placeholders() -> None:
 
 
 def test_placeholder_reuse_duplicated_on_question_mark_dialects() -> None:
-    """Диалект без ссылок на параметр получает его копию на каждое вхождение."""
+    """A dialect without parameter references gets a copy per occurrence."""
     sql_text, params = sql.compile_expr(sql.Raw("a = $1 AND b = $1", [5]), sql.SQLITE)
     assert sql_text == "a = ? AND b = ?"
     assert params == [5, 5]
 
 
 def test_condition_object_is_accepted_as_raw_fragment() -> None:
-    """`Condition` (сырой SQL) — легальный лист дерева."""
+    """`Condition` (raw SQL) is a legal tree leaf."""
     sql_text, params = sql.compile_expr(Condition("age > $1", [18]))
     assert (sql_text, params) == ("age > $1", [18])
 
@@ -124,7 +124,7 @@ def test_unknown_node_is_rejected() -> None:
         sql.compile_expr(object())
 
 
-# ── IN: ANY против IN (...) ──────────────────────────────────────────────────
+# ── IN: ANY vs IN (...) ──────────────────────────────────────────────────────
 
 
 def test_in_list_uses_any_on_postgres() -> None:
@@ -141,7 +141,7 @@ def test_in_list_expands_where_any_is_unsupported() -> None:
     assert sql.compile_expr(node, sql.SQLITE) == ('"id" IN (?, ?, ?)', [1, 2, 3])
 
 
-# ── операторы (statement) ────────────────────────────────────────────────────
+# ── statements ───────────────────────────────────────────────────────────────
 
 
 def test_select_matches_legacy_shape() -> None:
@@ -215,7 +215,7 @@ def test_update_and_delete() -> None:
     )
 
 
-# ── диалекты и их ограничения ────────────────────────────────────────────────
+# ── dialects and their limits ────────────────────────────────────────────────
 
 
 def test_upsert_requires_dialect_support() -> None:
@@ -239,7 +239,7 @@ def test_dialects_declare_their_features() -> None:
 
 
 def test_upsert_syntax_differs_per_dialect() -> None:
-    """У каждой СУБД свой синтаксис конфликта — рендер живёт в диалекте."""
+    """Each DBMS has its own conflict syntax — rendering lives in the dialect."""
     statement = sql.Insert("users", ["id", "name"], conflict_key="id")
     assert sql.compile_statement(statement, sql.POSTGRES)[0].endswith(
         "ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name"
@@ -295,7 +295,7 @@ def test_query_can_be_compiled_for_mysql() -> None:
     assert params == [5, 2]
 
 
-# ── группировки, агрегаты, DISTINCT ──────────────────────────────────────────
+# ── groupings, aggregates, DISTINCT ──────────────────────────────────────────
 
 
 def test_func_renders_per_dialect() -> None:
@@ -364,12 +364,12 @@ def test_query_grouping_api_compiles() -> None:
 
 
 def test_parity_kept_when_grouping_unused() -> None:
-    """Без группировок компиляция не изменилась — паритет с прежним выводом."""
+    """Without groupings compilation is unchanged — parity with the previous output."""
     assert select(User).compile()[0] == "SELECT id, name, email FROM users"
     assert select(User).count().compile()[0] == "SELECT count(*) FROM users"
 
 
-# ── интеграция с Query ───────────────────────────────────────────────────────
+# ── integration with Query ───────────────────────────────────────────────────
 
 
 def test_query_can_be_compiled_for_another_dialect() -> None:
@@ -403,18 +403,18 @@ def test_dsl_filter_compiles_for_both_dialects() -> None:
     assert lite_params == [1, "%a%", "x", "y"]
 
 
-# ── Ref, Join и подзапрос ────────────────────────────────────────────────────
+# ── Ref, Join, and subquery ──────────────────────────────────────────────────
 
 
 def test_ref_qualifies_and_quotes_per_dialect() -> None:
-    """``Ref`` добавляет алиас; имя колонки квотится по диалекту."""
+    """``Ref`` adds an alias; the column name is quoted per dialect."""
     assert sql.compile_expr(sql.Ref("id", "t0")) == ("t0.id", [])
     assert sql.compile_expr(sql.Ref("id", "t0"), sql.SQLITE) == ('t0."id"', [])
     assert sql.compile_expr(sql.Ref("id"), sql.MYSQL) == ("`id`", [])
 
 
 def test_compare_of_two_refs_binds_nothing() -> None:
-    """Колонка против колонки — это SQL в тексте, а не bound-параметр."""
+    """Column against column is SQL in the text, not a bound parameter."""
     node = sql.Compare(sql.Ref("parent_id", "t1"), "=", sql.Ref("id", "t0"))
     assert sql.compile_expr(node) == ("t1.parent_id = t0.id", [])
 
@@ -434,7 +434,7 @@ def test_join_renders_every_kind() -> None:
 
 
 def test_full_join_is_refused_by_mysql() -> None:
-    """MySQL не умеет FULL OUTER JOIN — диалект отказывает, а не врёт SQL-ом."""
+    """MySQL cannot do FULL OUTER JOIN — the dialect refuses instead of emitting misleading SQL."""
     statement = sql.Select(
         "parents",
         ["id"],
@@ -458,7 +458,7 @@ def test_join_without_condition_is_rejected() -> None:
 
 
 def test_join_alias_must_be_given_once() -> None:
-    """Алиас — либо у таблицы, либо у подзапроса: два сразу дали бы `t1 t1`."""
+    """An alias belongs either to the table or to the subquery: both would give `t1 t1`."""
     on = sql.Compare(sql.Ref("user_id", "t1"), "=", sql.Ref("id", "t0"))
     with pytest.raises(ValueError):
         sql.Join("posts", on)
@@ -468,7 +468,7 @@ def test_join_alias_must_be_given_once() -> None:
 
 
 def test_join_to_a_derived_table() -> None:
-    """Джойн к подзапросу: обе стороны — ``Subquery`` со своими параметрами."""
+    """Join to a subquery: both sides are ``Subquery`` with their own parameters."""
     recent = sql.Subquery(
         sql.Select("posts", ["id", "user_id"], where=[sql.Compare("views", ">", 10)]), "t1"
     )
@@ -493,7 +493,7 @@ def test_join_to_a_derived_table() -> None:
 
 
 def test_subquery_keeps_placeholders_continuous() -> None:
-    """Параметры подзапроса идут в общий список — $N не сбивается."""
+    """Subquery parameters go into the shared list — $N does not shift."""
     inner = sql.Select("users", ["id"], where=[sql.Compare("age", ">", 30)], limit=5)
     statement = sql.Select(
         sql.Subquery(inner, "t0"),
@@ -519,11 +519,11 @@ def test_subquery_keeps_placeholders_continuous() -> None:
     )
 
 
-# ── подзапрос в предикате ────────────────────────────────────────────────────
+# ── subquery in a predicate ──────────────────────────────────────────────────
 
 
 def test_in_subquery_keeps_placeholders_continuous() -> None:
-    """`IN (SELECT …)`: значения подзапроса и наружного WHERE — один список."""
+    """`IN (SELECT …)`: subquery and outer WHERE values share one list."""
     inner = sql.Subquery(
         sql.Select("orders", ["user_id"], where=[sql.Compare("total", ">", 100)])
     )
@@ -548,7 +548,7 @@ def test_not_in_subquery() -> None:
 
 
 def test_scalar_subquery_in_comparison() -> None:
-    """Скалярный подзапрос справа от сравнения — это SQL, а не параметр."""
+    """A scalar subquery on the right of a comparison is SQL, not a parameter."""
     average = sql.Subquery(sql.Select("users", [sql.Func("avg", "age")]))
     assert sql.compile_expr(sql.Compare("age", ">", average)) == (
         "age > (SELECT avg(age) FROM users)",
@@ -557,7 +557,7 @@ def test_scalar_subquery_in_comparison() -> None:
 
 
 def test_exists_with_correlation() -> None:
-    """`EXISTS` со ссылкой на наружную таблицу (коррелированный подзапрос)."""
+    """`EXISTS` referencing the outer table (a correlated subquery)."""
     inner = sql.Subquery(
         sql.Select(
             "orders",
@@ -576,7 +576,7 @@ def test_exists_with_correlation() -> None:
 
 
 def test_predicate_subquery_per_dialect() -> None:
-    """Переносимость: `$N`/`?`/`%s`; `ANY` под подзапрос не подставляется."""
+    """Portability: `$N`/`?`/`%s`; `ANY` is not substituted for a subquery."""
     inner = sql.Subquery(
         sql.Select("orders", ["user_id"], where=[sql.Compare("total", ">", 100)])
     )
@@ -596,7 +596,7 @@ def test_predicate_subquery_per_dialect() -> None:
 
 
 def test_column_in_accepts_a_subquery() -> None:
-    """Публичный путь: `User.c.id.in_(подзапрос)` внутри Query."""
+    """Public path: `User.c.id.in_(subquery)` inside Query."""
     inner = sql.Subquery(
         sql.Select("orders", ["user_id"], where=[sql.Compare("total", ">", 10)])
     )
@@ -609,7 +609,7 @@ def test_column_in_accepts_a_subquery() -> None:
 
 
 def test_derived_table_requires_an_alias() -> None:
-    """`FROM (SELECT …)` без алиаса — ValueError; в предикате алиас не печатается."""
+    """`FROM (SELECT …)` without an alias raises ValueError; predicates do not print the alias."""
     inner = sql.Select("posts", ["id"])
     with pytest.raises(ValueError):
         sql.compile_statement(sql.Select(sql.Subquery(inner), ["id"]))
@@ -619,11 +619,11 @@ def test_derived_table_requires_an_alias() -> None:
     )
 
 
-# ── множественные операции (UNION/EXCEPT/INTERSECT) ──────────────────────────
+# ── set operations (UNION/EXCEPT/INTERSECT) ──────────────────────────────────
 
 
 def test_union_all_keeps_placeholders_continuous() -> None:
-    """Значения обеих ветвей — один список параметров."""
+    """Both branches' values share one parameter list."""
     left = sql.Select("users", ["id"], where=[sql.Compare("age", ">", 30)])
     right = sql.Select("admins", ["id"], where=[sql.Compare("level", ">", 5)])
     statement = sql.SetOp(left, right, all=True)
@@ -661,7 +661,7 @@ def test_intersect_and_except() -> None:
 
 
 def test_all_variant_is_dialect_dependent() -> None:
-    """`UNION ALL` — везде, `EXCEPT ALL`/`INTERSECT ALL` — только PG и MySQL."""
+    """`UNION ALL` everywhere; `EXCEPT ALL`/`INTERSECT ALL` only on PG and MySQL."""
     a = sql.Select("users", ["id"])
     b = sql.Select("bans", ["id"])
     assert sql.compile_statement(sql.SetOp(a, b, all=True), sql.SQLITE) == (
@@ -680,7 +680,7 @@ def test_all_variant_is_dialect_dependent() -> None:
 
 
 def test_operand_with_its_own_limit_is_parenthesised() -> None:
-    """Свой LIMIT у ветви — скобки; SQLite скобок не принимает (замерено)."""
+    """A branch's own LIMIT needs parentheses; SQLite rejects parentheses (measured)."""
     branch = sql.Select("users", ["id"], limit=5)
     statement = sql.SetOp(branch, sql.Select("admins", ["id"]))
     assert sql.compile_statement(statement, sql.POSTGRES) == (
@@ -706,7 +706,7 @@ def test_nested_set_op_is_parenthesised() -> None:
 
 
 def test_set_op_as_derived_table_and_in_predicate() -> None:
-    """Результат — множество строк: годится и в FROM, и в предикат."""
+    """The result is a set of rows: usable in FROM and in predicates."""
     both = sql.SetOp(sql.Select("users", ["id"]), sql.Select("admins", ["id"]))
     derived = sql.Select(sql.Subquery(both, "t0"), [sql.Ref("id", "t0")])
     assert sql.compile_statement(derived) == (
@@ -729,7 +729,7 @@ def test_set_op_rejects_an_unknown_kind() -> None:
 
 
 def test_with_keeps_placeholders_continuous() -> None:
-    """Значения CTE идут в общий список перед значениями основного запроса."""
+    """CTE values go into the shared list before the main query's values."""
     recent = sql.Cte(
         "recent", sql.Select("orders", ["user_id"], where=[sql.Compare("total", ">", 100)])
     )
@@ -745,7 +745,7 @@ def test_with_keeps_placeholders_continuous() -> None:
 
 
 def test_with_two_ctes_and_a_join_by_name() -> None:
-    """На CTE потом ссылаются как на таблицу — отдельного узла не нужно."""
+    """The CTE is then referenced as a table — no separate node is needed."""
     first = sql.Cte("a", sql.Select("users", ["id"]))
     second = sql.Cte("b", sql.Select("orders", ["user_id"]))
     statement = sql.With(
@@ -814,11 +814,11 @@ def test_with_validates_its_ctes() -> None:
         sql.Cte("", body)
 
 
-# ── оконные функции ──────────────────────────────────────────────────────────
+# ── window functions ─────────────────────────────────────────────────────────
 
 
 def test_window_over_partition_and_order() -> None:
-    """`Func(...).over(...)` и узел `Over(...)` дают одно дерево."""
+    """`Func(...).over(...)` and the `Over(...)` node produce the same tree."""
     expected = ("row_number() OVER (PARTITION BY user_id ORDER BY placed_at DESC)", [])
     assert sql.compile_expr(
         sql.Over(sql.Func("row_number"), partition_by=["user_id"], order=["placed_at DESC"])
@@ -844,7 +844,7 @@ def test_window_in_a_select_list_keeps_params_continuous() -> None:
 
 
 def test_window_without_partition_or_order() -> None:
-    """Пустое окно — весь результат целиком, но это валидный SQL."""
+    """An empty window means the whole result, but it is valid SQL."""
     assert sql.compile_expr(sql.Func("avg", "total").over()) == ("avg(total) OVER ()", [])
 
 
@@ -860,7 +860,7 @@ def test_window_per_dialect() -> None:
     assert sql.compile_expr(node, sql.MYSQL) == ("count(*) OVER (PARTITION BY `user_id`)", [])
 
 
-# ── алиасы: источник FROM и выражение ───────────────────────────────────────
+# ── aliases: FROM source and expression ──────────────────────────────────────
 
 
 def test_from_source_can_be_aliased() -> None:
@@ -869,7 +869,7 @@ def test_from_source_can_be_aliased() -> None:
 
 
 def test_self_join_with_source_and_join_aliases() -> None:
-    """Само-джойн таблицы: `FROM users t0 LEFT JOIN users t1`."""
+    """Self-join of a table: `FROM users t0 LEFT JOIN users t1`."""
     statement = sql.Select(
         "users",
         [sql.Ref("id", "t0")],
@@ -891,7 +891,7 @@ def test_self_join_with_source_and_join_aliases() -> None:
 
 
 def test_source_alias_for_a_derived_table_is_rejected() -> None:
-    """Алиас задаётся один раз: у производной таблицы он внутри Subquery."""
+    """The alias is set once: for a derived table it lives inside Subquery."""
     inner = sql.Select("posts", ["id"])
     with pytest.raises(ValueError):
         sql.Select(sql.Subquery(inner, "t0"), ["id"], alias="t0")
@@ -911,7 +911,7 @@ def test_as_is_quoted_per_dialect() -> None:
 
 
 def test_top_n_per_group_with_nodes_only() -> None:
-    """Тот же top-N, что раньше требовал строки с `AS rn`, — теперь узлами."""
+    """The same top-N that used to require rows with `AS rn` — now via nodes."""
     ranked = sql.Select(
         "orders",
         [
@@ -941,11 +941,11 @@ def test_as_requires_an_alias() -> None:
         sql.As(sql.Func("sum", "total"), "")
 
 
-# ── приведения типов (CAST) ──────────────────────────────────────────────────
+# ── type casts (CAST) ────────────────────────────────────────────────────────
 
 
 def test_cast_uses_the_dialect_type_map() -> None:
-    """Одно каноническое имя — три разных SQL-типа."""
+    """One canonical name — three different SQL types."""
     node = sql.Func("sum", "total").cast(sql.NUMERIC)
     assert sql.compile_expr(node, sql.POSTGRES) == ("CAST(sum(total) AS numeric)", [])
     assert sql.compile_expr(node, sql.MYSQL) == ("CAST(sum(`total`) AS DECIMAL)", [])
@@ -964,7 +964,7 @@ def test_cast_type_map_covers_the_common_targets() -> None:
 
 
 def test_cast_to_date_is_refused_where_there_is_no_date_type() -> None:
-    """PG/MySQL дату умеют, SQLite — нет (там это молчаливая пустышка)."""
+    """PG/MySQL support dates, SQLite does not (there it is a silent no-op)."""
     assert sql.compile_expr(sql.Cast(sql.Ref("placed_at"), sql.DATE), sql.POSTGRES) == (
         "CAST(placed_at AS date)",
         [],
@@ -980,7 +980,7 @@ def test_cast_to_date_is_refused_where_there_is_no_date_type() -> None:
 
 
 def test_cast_rejects_an_unknown_type_name() -> None:
-    """Только канонические имена: движковый SQL-тип здесь не примут."""
+    """Canonical names only: an engine SQL type is not accepted here."""
     with pytest.raises(ValueError):
         sql.Cast(sql.Ref("x"), "varchar")
 
@@ -1003,7 +1003,7 @@ def test_cast_participates_in_a_comparison() -> None:
 
 
 def test_numeric_with_precision_and_scale_is_money() -> None:
-    """Главный практический случай: деньги без float."""
+    """The main practical case: money without float."""
     node = sql.Func("sum", "total").cast(sql.NUMERIC, precision=10, scale=2)
     assert sql.compile_expr(node, sql.POSTGRES) == ("CAST(sum(total) AS numeric(10, 2))", [])
     assert sql.compile_expr(node, sql.MYSQL) == ("CAST(sum(`total`) AS DECIMAL(10, 2))", [])
@@ -1049,17 +1049,17 @@ def test_engine_specific_types_where_they_exist() -> None:
 
 
 def test_no_cast_type_is_silently_dropped() -> None:
-    """Каждый канонический тип либо получает SQL-имя, либо отказ — третьего нет."""
+    """Each canonical type either gets an SQL name or is refused — there is no third option."""
     for dialect in (sql.POSTGRES, sql.MYSQL, sql.SQLITE):
         for type_name in sql.CAST_TYPES:
             try:
                 spelled = dialect.cast_type(type_name)
             except sql.DialectError:
                 continue
-            assert spelled, f"{dialect.name}: {type_name} отрендерился пустым"
+            assert spelled, f"{dialect.name}: {type_name} rendered empty"
 
 
-# ── RETURNING у DELETE ───────────────────────────────────────────────────────
+# ── RETURNING on DELETE ──────────────────────────────────────────────────────
 
 
 def test_delete_without_returning_is_unchanged() -> None:
@@ -1069,7 +1069,7 @@ def test_delete_without_returning_is_unchanged() -> None:
 
 
 def test_multi_row_insert_renders_one_group_per_row() -> None:
-    """Многострочный INSERT — то, на чём стоит батч: один статьмент на чанк."""
+    """Multi-row INSERT — what the batch relies on: one statement per chunk."""
     statement = sql.Insert("users", ("name", "age"), rows=3)
     assert sql.compile_statement(statement) == (
         "INSERT INTO users (name, age) VALUES ($1, $2), ($3, $4), ($5, $6)",
@@ -1081,14 +1081,14 @@ def test_multi_row_insert_renders_one_group_per_row() -> None:
 
 
 def test_parameter_limit_is_per_dialect() -> None:
-    """Из лимита плейсхолдеров считается размер чанка батча."""
+    """The batch chunk size is derived from the placeholder limit."""
     assert sql.POSTGRES.max_parameters == 32_767
     assert sql.MYSQL.max_parameters == 65_535
     assert sql.SQLITE.max_parameters == 32_766
 
 
 def test_delete_returning_per_dialect() -> None:
-    """`DELETE … RETURNING` есть у PG и SQLite, у MySQL — отказ."""
+    """`DELETE … RETURNING` exists on PG and SQLite; MySQL refuses."""
     statement = sql.Delete("users", "id", returning=("id", "name"))
     assert sql.compile_statement(statement, sql.POSTGRES) == (
         "DELETE FROM users WHERE id = $1 RETURNING id, name",
@@ -1101,11 +1101,11 @@ def test_delete_returning_per_dialect() -> None:
         sql.compile_statement(statement, sql.MYSQL)
 
 
-# ── DDL (миграции) ───────────────────────────────────────────────────────────
+# ── DDL (migrations) ─────────────────────────────────────────────────────────
 
 
 def test_create_table_renders_per_dialect() -> None:
-    """Один и тот же `CreateTable` — три разных CREATE TABLE."""
+    """The same `CreateTable` — three different CREATE TABLE statements."""
     statement = sql.CreateTable(
         "orders",
         [
@@ -1132,7 +1132,7 @@ def test_create_table_renders_per_dialect() -> None:
 
 
 def test_column_default_is_escaped_and_raw_goes_as_written() -> None:
-    """В DDL нет bound-значений: строка экранируется, Raw уходит как написан."""
+    """DDL has no bound values: strings are escaped, Raw goes through as written."""
     quoted = sql.CreateTable("people", [sql.Column("name", sql.TEXT, default="O'Brien")])
     assert "DEFAULT 'O''Brien'" in sql.compile_statement(quoted)[0]
 
@@ -1153,7 +1153,7 @@ def test_add_column_and_drop_table() -> None:
 
 
 def test_index_if_not_exists_is_dialect_dependent() -> None:
-    """`IF NOT EXISTS` у индекса — только там, где движок это умеет."""
+    """`IF NOT EXISTS` on an index — only where the engine supports it."""
     plain = sql.CreateIndex("ix", "orders", ["user_id"])
     assert sql.compile_statement(plain, sql.MYSQL)[0] == (
         "CREATE INDEX `ix` ON `orders` (`user_id`)"
@@ -1167,7 +1167,7 @@ def test_index_if_not_exists_is_dialect_dependent() -> None:
 
 
 def test_column_types_differ_from_cast_types() -> None:
-    """Роли разные: `CAST(x AS SIGNED)` — не объявление колонки `int`."""
+    """Different roles: `CAST(x AS SIGNED)` is not an `int` column declaration."""
     assert sql.MYSQL.cast_types[sql.INT] == "SIGNED"
     assert sql.MYSQL.column_type(sql.INT) == "int"
     assert sql.MYSQL.column_type(sql.TEXT) == "varchar(255)"
@@ -1190,7 +1190,7 @@ def test_ddl_validates_its_input() -> None:
 
 
 def test_the_example_migration_compiles_for_every_dialect() -> None:
-    """Файл-пример из examples/migrations собирается под все три движка без значений."""
+    """The example file from examples/migrations builds for all three engines without values."""
     import importlib.util
     from pathlib import Path
 

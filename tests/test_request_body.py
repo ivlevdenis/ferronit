@@ -1,4 +1,4 @@
-"""`Request.model()`: декод JSON в msgspec.Struct (быстрый путь) и fallback."""
+"""`Request.model()`: decode JSON into msgspec.Struct (fast path) and fallback."""
 
 from __future__ import annotations
 
@@ -51,6 +51,6 @@ async def test_model_msgspec_malformed_json_is_400(client) -> None:
 
 
 async def test_model_msgspec_array_body_is_400(client) -> None:
-    """Struct требует объект — массив/скаляр отклоняются с 400."""
+    """Struct requires an object — arrays/scalars are rejected with 400."""
     response = await client.post("/item", json=[1, 2, 3])
     assert response.status_code == 400

@@ -100,9 +100,9 @@ class DialectError(Exception):
     """Raised when a statement needs a feature the dialect cannot express."""
 
 
-# Канонические цели приведения типов: имя не зависит от движка (в дереве пишется
-# `Cast(x, NUMERIC)`), а SQL-тип подбирает диалект — Dialect.cast_type. Движковые
-# типы (JSON, UUID, TIME, BYTES) есть не везде: где движок их не знает — DialectError.
+# Canonical cast targets: the name is engine-independent (the tree uses
+# `Cast(x, NUMERIC)`), and the dialect picks the SQL type — Dialect.cast_type. Engine
+# types (JSON, UUID, TIME, BYTES) are not everywhere: where unknown → DialectError.
 INT = "int"
 TEXT = "text"
 NUMERIC = "numeric"
@@ -117,7 +117,7 @@ UUID = "uuid"
 
 CAST_TYPES = (INT, TEXT, NUMERIC, REAL, BOOLEAN, DATE, TIMESTAMP, TIME, BYTES, JSON, UUID)
 
-# Типы, у которых есть параметры точности (`numeric(10, 2)`); остальное — ValueError.
+# Types that take precision parameters (`numeric(10, 2)`); anything else → ValueError.
 CAST_PARAMETERISED = (NUMERIC,)
 
 
@@ -332,7 +332,7 @@ class PostgresDialect(Dialect):
         JSON: "jsonb",
         UUID: "uuid",
     }
-    # У PostgreSQL роль совпадает: чем приводим — тем и объявляем.
+    # In PostgreSQL the roles coincide: what we cast to is what we declare.
     column_types = cast_types
 
     def placeholder(self, index: int) -> str:
@@ -387,8 +387,8 @@ class MySQLDialect(Dialect):
     supports_set_op_parens = True
     max_parameters = 65_535
     cast_types = {
-        # MySQL не умеет CAST(x AS INTEGER)/AS BOOLEAN: целые — SIGNED, признак — тоже SIGNED.
-        # Типа uuid в MySQL нет (его роль играют CHAR(36)/BINARY(16)) — поэтому его здесь нет.
+        # MySQL cannot CAST(x AS INTEGER)/AS BOOLEAN: integers are SIGNED, booleans SIGNED too.
+        # MySQL has no uuid type (CHAR(36)/BINARY(16) play that role) — hence absent here.
         INT: "SIGNED",
         TEXT: "CHAR",
         NUMERIC: "DECIMAL",
@@ -401,10 +401,10 @@ class MySQLDialect(Dialect):
         JSON: "JSON",
     }
     column_types = {
-        # Здесь роль другая, чем у cast_types: объявляем колонки, а не приводим
-        # значения (MySQL приводит к SIGNED, но колонку объявляет int).
-        # TEXT → varchar(255), а не text: у MySQL TEXT нельзя ни DEFAULT, ни
-        # в индекс без префикса длины. Длиннее 255 — своим Raw("text").
+        # Here the role differs from cast_types: we declare columns, not cast
+        # values (MySQL casts to SIGNED but declares the column as int).
+        # TEXT → varchar(255), not text: MySQL TEXT allows neither DEFAULT nor an
+        # index without a length prefix. Longer than 255 — use your own Raw("text").
         INT: "int",
         TEXT: "varchar(255)",
         NUMERIC: "decimal",
@@ -415,7 +415,7 @@ class MySQLDialect(Dialect):
         TIME: "time",
         BYTES: "blob",
         JSON: "json",
-        UUID: "char(36)",  # отдельного типа uuid в MySQL нет — его роль играет char(36)
+        UUID: "char(36)",  # MySQL has no separate uuid type — char(36) plays that role
     }
 
     def primary_key_clause(self, column: Column) -> str:
@@ -485,13 +485,13 @@ class SQLiteDialect(Dialect):
     supports_upsert = True
     supports_full_join = True
     supports_index_if_not_exists = True
-    # SQLITE_MAX_VARIABLE_NUMBER зависит от сборки: пол 32 766, в этой — 250 000
-    # (замерено 16.10.2026). Берём пол, чтобы чанки были безопасны на любой сборке.
+    # SQLITE_MAX_VARIABLE_NUMBER depends on the build: floor 32_766, this one 250_000
+    # (measured 2026-10-16). We take the floor so chunks are safe on any build.
     max_parameters = 32_766
     cast_types = {
-        # У SQLite типы — это «affinity», и незнакомое имя он молча принимает
-        # (CAST('…' AS UUID) даёт 0, AS TIME — 12), поэтому в карте только те типы,
-        # у которых поведение честное: текст, числа, BLOB.
+        # In SQLite types are "affinity", and an unknown name is silently accepted
+        # (CAST('…' AS UUID) yields 0, AS TIME — 12), so only types with honest
+        # behaviour are mapped: text, numbers, BLOB.
         INT: "INTEGER",
         TEXT: "TEXT",
         NUMERIC: "NUMERIC",
@@ -500,9 +500,9 @@ class SQLiteDialect(Dialect):
         BYTES: "BLOB",
     }
     column_types = {
-        # У SQLite нет дат/uuid/json как типов: их роль играют TEXT/BLOB по
-        # соглашению (ISO-8601 для времени) — это осознанный выбор, в отличие от
-        # CAST, где такое имя молча ничего не делает и потому отвергается.
+        # SQLite has no date/uuid/json types: TEXT/BLOB play that role by
+        # convention (ISO-8601 for time) — a deliberate choice, unlike
+        # CAST, where such a name silently does nothing and is therefore rejected.
         INT: "INTEGER",
         TEXT: "TEXT",
         NUMERIC: "NUMERIC",
@@ -1043,9 +1043,9 @@ def _render_raw(
         return _PLACEHOLDER_RE.sub(
             lambda match: dialect.placeholder(int(match.group(1)) + base), sql
         )
-    # Диалекты без повторного использования плейсхолдеров ($1 дважды): каждая
-    # позиция — отдельный параметр, значение дублируется на вхождение. Иначе
-    # параметры съезжают относительно SQL.
+    # Dialects without placeholder reuse ($1 twice): every position is a separate
+    # parameter and the value is duplicated per occurrence. Otherwise
+    # parameters would drift relative to the SQL.
     pieces: list[str] = []
     last = 0
     for match in _PLACEHOLDER_RE.finditer(sql):
@@ -1085,14 +1085,14 @@ def _render(
     if isinstance(node, Raw):
         return _render_raw(node.sql, node.params, dialect, params, offset)
     if isinstance(node, Subquery):
-        # Подзапрос в позиции предиката: `(SELECT …)`; алиас печатает только
-        # FROM-источник (_render_source).
+        # A subquery in predicate position: `(SELECT …)`; only the FROM source
+        # prints the alias (_render_source).
         return f"({_compile_statement(node.statement, dialect, params)})"
     if isinstance(node, SetOp):
-        # Множественная операция в выражении — в скобках (IN (SELECT … UNION …)).
+        # A set operation in an expression goes in parentheses (IN (SELECT … UNION …)).
         return f"({_render_set_op(node, dialect, params)})"
     if isinstance(node, With):
-        # CTE в выражении — тоже в скобках: IN (WITH … SELECT …).
+        # A CTE in an expression also goes in parentheses: IN (WITH … SELECT …).
         return f"({_render_with(node, dialect, params)})"
     if not isinstance(node, Expr):
         sql = getattr(node, "sql", None)
@@ -1116,8 +1116,8 @@ def _render(
                 return f"{left} IS NOT NULL"
             return f"{left} IS NULL"
         op = "<>" if node.op == "!=" else node.op
-        # Значение-узел (Ref) — это SQL, а не bound-параметр: так пишется
-        # сравнение колонки с колонкой в ON.
+        # A node value (Ref) is SQL, not a bound parameter: that is how a
+        # column-to-column comparison in ON is written.
         right = (
             _render(node.value, dialect, params, offset)
             if isinstance(node.value, Expr)
@@ -1140,7 +1140,7 @@ def _render(
     if isinstance(node, InList):
         column = dialect.quote(node.column)
         if isinstance(node.values, Subquery):
-            # `IN (SELECT …)`: подзапрос — не значение, ANY не применим нигде.
+            # `IN (SELECT …)`: a subquery is not a value, ANY does not apply anywhere.
             inner = f"{column} IN {_render(node.values, dialect, params, offset)}"
         elif dialect.supports_any:
             inner = f"{column} = ANY({_bind(params, dialect, node.values, offset)})"
@@ -1427,7 +1427,7 @@ class Select:
         alias: str | None = None,
     ) -> None:
         if alias is not None and isinstance(table, Subquery):
-            # Как и у Join: алиас задаётся ровно один раз (иначе «t0 t0»).
+            # As with Join: the alias is set exactly once (otherwise "t0 t0").
             raise ValueError("derived table: alias belongs to Subquery")
         self.table = table
         self.alias = alias

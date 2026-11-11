@@ -104,9 +104,9 @@ class Request:
             qs = qs.decode("latin-1")
 
         self._rust = RustRequest(method, path, qs)
-        # Пары уходят в ядро один раз (только incref): поиск по имени, разбор
-        # cookie и построение dict — целиком в Rust, при первом обращении.
-        # ASGI даёт bytes, адаптер RSGI строки — конверсии нет.
+        # The pairs cross into the core once (incref only): lookup by name, cookie
+        # parsing and dict building all happen in Rust on first access.
+        # ASGI yields bytes, the RSGI adapter yields strings — no conversion.
         self._rust.set_headers(scope.get("headers") or ())
 
     @property
@@ -268,9 +268,9 @@ class Request:
             RequestError: If the body is malformed JSON, fails validation, or is
                 not a JSON object/array — mapped to HTTP 400.
         """
-        # Fast path: msgspec.Struct — декод из байт одним C-проходом. Он падает на
-        # первой ошибке, поэтому при отказе тело разбирается заново и ошибки
-        # собираются все сразу (с путями полей и кодами).
+        # Fast path: msgspec.Struct decodes from bytes in a single C pass. It stops
+        # at the first error, so on failure the body is parsed again and all
+        # errors are collected at once (with field paths and codes).
         if isinstance(target, type) and hasattr(target, "__struct_fields__"):
             body = await self.body()
             try:
@@ -330,15 +330,15 @@ class Request:
         return files
 
     async def _multipart(self) -> tuple[dict[str, list[str]], dict[str, list[UploadedFile]]]:
-        """Parse and cache the multipart body once per request (разбор — в Rust)."""
+        """Parse and cache the multipart body once per request (parsing happens in Rust)."""
         if self._multipart_cache is None:
             content_type = (self.get_header("content-type") or "").lower()
             if not content_type.startswith("multipart/form-data"):
                 raise UnsupportedMediaType("multipart/form-data expected")
             boundary = _boundary_from(content_type)
             if boundary is None:
-                raise RequestError("multipart/form-data без boundary")
-            await self.body()  # кладёт байты тела в Rust-ядро
+                raise RequestError("multipart/form-data without boundary")
+            await self.body()  # puts the body bytes into the Rust core
             raw_fields, raw_files = self._rust.parse_multipart(boundary.decode("latin-1"))
             files = {
                 name: [

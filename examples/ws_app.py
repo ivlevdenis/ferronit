@@ -1,11 +1,11 @@
-"""WebSocket: эхо-сервер с проверкой Origin (защита от CSRF поверх WebSocket).
+"""WebSocket: echo server with an Origin check (CSRF protection over WebSocket).
 
-Origin-guard задаётся прямо в декораторе: соединение с чужого сайта закрывается
-кодом 1008 до того, как хендлер начнёт работу.
+The origin guard is set right in the decorator: a connection from a foreign site
+is closed with code 1008 before the handler starts running.
 
-Запуск:
+Run:
     .venv/bin/python -m granian --interface asgi examples.ws_app:app
-Проверка из браузера (консоль на странице того же origin):
+Check from a browser (console on a page of the same origin):
     const ws = new WebSocket("ws://localhost:8000/ws/echo");
     ws.onmessage = e => console.log(e.data);
     ws.onopen = () => ws.send('{"hello": "ferronit"}');
@@ -17,7 +17,7 @@ from ferronit import Ferronit, WebSocket, WebSocketState
 
 app = Ferronit()
 
-# В проде перечисли свои origin: origins=["https://app.example"]
+# In production list your own origins: origins=["https://app.example"]
 ALLOWED_ORIGINS = ["http://localhost:8000"]
 
 
@@ -29,10 +29,10 @@ async def echo(conn: WebSocket) -> None:
         try:
             message = await conn.receive_json()
         except Exception:
-            # клиент отключился: receive() бросает внутреннее исключение разрыва
+            # the client disconnected: receive() raises an internal disconnect exception
             break
         await conn.send_json({"echo": message, "path": conn.path})
-    await conn.close()  # no-op, если соединение уже разорвано клиентом
+    await conn.close()  # no-op if the client has already torn the connection down
 
 
 if __name__ == "__main__":

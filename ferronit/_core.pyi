@@ -1,7 +1,7 @@
 """Type stubs for the Ferronit Rust core (``ferronit._core``).
 
-Собирается maturin-ом вместе с расширением: файл попадает в wheel, поэтому mypy
-и IDE видят типы нативного ядра, а не только расширение без аннотаций.
+Built by maturin alongside the extension: the file lands in the wheel, so mypy
+and IDEs see the native core's types, not just the unannotated extension.
 """
 
 from collections.abc import Iterator

@@ -110,14 +110,15 @@ def _resolve_table(model: type[Model]) -> str:
 
 
 class Relation:
-    """Декларация связи модели чтения — поле грузится отдельным запросом.
+    """Relation declaration for a read model — the field is loaded by a separate query.
 
-    Объявляется через ``Annotated``: ``items: Annotated[list[OrderItem], Relation("order_id")]``.
-    Связь всегда грузится при чтении модели (без lazy/eager — поле есть, значит нужно).
+    Declared via ``Annotated``: ``items: Annotated[list[OrderItem], Relation("order_id")]``.
+    A relation is always loaded when the model is read (no lazy/eager — the field
+    exists, therefore it is needed).
 
     Args:
-        fk: Колонка в дочерней таблице, ссылающаяся на ``pk`` родителя.
-        pk: Колонка в родительской таблице (по умолчанию ``"id"``).
+        fk: Column in the child table that references the parent's ``pk``.
+        pk: Column in the parent table (``"id"`` by default).
     """
 
     __slots__ = ("fk", "pk")
@@ -128,7 +129,7 @@ class Relation:
 
 
 def _unwrap_relation(t: Any) -> tuple[Any, Relation | None]:
-    """Развернуть ``Annotated[T, Relation(...)]`` → ``(T, Relation)`` либо ``(t, None)``."""
+    """Unwrap ``Annotated[T, Relation(...)]`` → ``(T, Relation)`` or ``(t, None)``."""
     if get_origin(t) is Annotated:
         base = get_args(t)[0]
         for meta in get_args(t)[1:]:
@@ -139,14 +140,14 @@ def _unwrap_relation(t: Any) -> tuple[Any, Relation | None]:
 
 
 def _relation_target(base: Any) -> tuple[type[Model], bool]:
-    """Из ``list[Child]``/``Child`` → ``(Child, many)``."""
+    """From ``list[Child]``/``Child`` → ``(Child, many)``."""
     if get_origin(base) is list:
         return get_args(base)[0], True
     return base, False
 
 
 class ModelMeta(StructMeta):
-    """Metaclass: каждый подкласс ``Model`` — ``msgspec.Struct`` + колонки по порядку."""
+    """Metaclass: every ``Model`` subclass is a ``msgspec.Struct`` plus ordered columns."""
 
     def __new__(mcs, name, bases, ns, **kw: Any):
         cls = super().__new__(mcs, name, bases, ns, **kw)
@@ -230,22 +231,22 @@ class Column:
         return sql.Compare(self.name, "!=", other)
 
     def in_(self, values: Sequence[Any] | sql.Subquery) -> sql.InList:
-        """``IN``: поле входит в набор значений (на PostgreSQL ``col = ANY($1)``).
+        """``IN``: the field is in the value set (on PostgreSQL ``col = ANY($1)``).
 
-        Вместо значений можно передать подзапрос — ``col IN (SELECT …)``.
+        A subquery may be passed instead of values — ``col IN (SELECT …)``.
         """
         return sql.InList(self.name, values)
 
     def not_in(self, values: Sequence[Any] | sql.Subquery) -> sql.InList:
-        """``NOT IN``: поле не входит в набор значений (или в подзапрос)."""
+        """``NOT IN``: the field is not in the value set (or in the subquery)."""
         return sql.InList(self.name, values, negated=True)
 
     def like(self, pattern: str) -> sql.Like:
-        """``LIKE`` с wildcard-паттерном (``%``/``_``)."""
+        """``LIKE`` with a wildcard pattern (``%``/``_``)."""
         return sql.Like(self.name, pattern)
 
     def ilike(self, pattern: str) -> sql.Like:
-        """``ILIKE`` — LIKE без учёта регистра (диалект без ILIKE даёт ``LIKE``)."""
+        """``ILIKE`` — case-insensitive LIKE (a dialect without ILIKE falls back to ``LIKE``)."""
         return sql.Like(self.name, pattern, insensitive=True)
 
     def is_null(self) -> sql.IsNull:
@@ -335,7 +336,7 @@ class Query:
         self._model = model
         self._table = table or _resolve_table(model)
         self._dialect = dialect or sql.POSTGRES
-        # Предкомпиляция статики: колонки известны на уровне класса.
+        # Precompile the static part: columns are known at class level.
         self._select: list[Any] = list(model.__columns__)
         self._where: list[Any] = []
         self._distinct = False
@@ -349,14 +350,14 @@ class Query:
     def where(self, *conditions: Any) -> Query:
         """Add ``AND``-combined filter conditions.
 
-        Условие может быть узлом (сравнения через ``User.c.*``, ``|``/``&``/``~``),
-        готовым :class:`~ferronit.contrib.rawdb.Condition` с сырым SQL или строкой
-        мини-DSL — она парсится и параметры биндятся:
+        A condition can be a node (comparisons via ``User.c.*``, ``|``/``&``/``~``),
+        a ready :class:`~ferronit.contrib.rawdb.Condition` with raw SQL, or a
+        mini-DSL string — it is parsed and the parameters are bound:
 
             select(User).where("age > 18 and (name ilike '%a%' or status in ('x','y'))")
 
-        Имена колонок проверяются по модели; значения уходят как bound-параметры
-        (не вставляются в SQL).
+        Column names are validated against the model; values are sent as bound
+        parameters (never spliced into the SQL).
         """
         for condition in conditions:
             if isinstance(condition, str):
@@ -440,27 +441,27 @@ class Query:
         return self
 
     def first(self) -> Query:
-        """Ограничить одной строкой (``LIMIT 1``)."""
+        """Limit to a single row (``LIMIT 1``)."""
         return self.limit(1)
 
-    one = first  # алиас: `select(...).one()` читается естественнее
+    one = first  # alias: `select(...).one()` reads more naturally
 
     def columns(self, *names: str | sql.Expr) -> Query:
-        """Выбрать конкретные колонки вместо всех полей модели.
+        """Select specific columns instead of all model fields.
 
-        Принимает и имена, и узлы (``sql.Func("count")``) — для проекций и
-        агрегатов результат забирается через ``repo.fetch_rows()``.
+        Accepts both names and nodes (``sql.Func("count")``) — for projections and
+        aggregates the result is fetched via ``repo.fetch_rows()``.
         """
         self._select = list(names)
         return self
 
     def count(self) -> Query:
-        """Агрегат ``count(*)``; результат забирается через ``repo.fetch_value()``."""
+        """``count(*)`` aggregate; the result is fetched via ``repo.fetch_value()``."""
         self._select = ["count(*)"]
         return self
 
     def aggregate(self, expression: str) -> Query:
-        """Произвольный агрегат (``sum(col)``, ``avg(col)``, ...); через ``fetch_value()``."""
+        """Arbitrary aggregate (``sum(col)``, ``avg(col)``, ...); via ``fetch_value()``."""
         self._select = [expression]
         return self
 
@@ -518,14 +519,14 @@ def select(
 def _resolve_on_pair(
     on: OnPair, parent_model: type[Model], child_model: type[Model], alias: str
 ) -> sql.Compare:
-    """Развернуть ``OnPair`` в узел ``t{i}.child_col = t0.parent_col`` (или наоборот)."""
+    """Expand ``OnPair`` into a ``t{i}.child_col = t0.parent_col`` node (or the reverse)."""
     left, right = on.left, on.right
     if left._model is parent_model and right._model is child_model:
         return sql.Compare(sql.Ref(right.name, alias), "=", sql.Ref(left.name, "t0"))
     if right._model is parent_model and left._model is child_model:
         return sql.Compare(sql.Ref(left.name, alias), "=", sql.Ref(right.name, "t0"))
     raise ValueError(
-        "join on: колонки должны принадлежать родителю и джойн-модели соответственно"
+        "join on: columns must belong to the parent and the joined model respectively"
     )
 
 
@@ -534,13 +535,13 @@ def _wrap_joins(
     parent_model: type[Model],
     joins: list[tuple[type[Model], OnPair | None, str | None, str, str]],
 ) -> sql.Select:
-    """Обернуть SELECT по родителю в явные JOIN-ы из ``Query.join``.
+    """Wrap the parent SELECT with the explicit JOINs from ``Query.join``.
 
-    Родительский SELECT (с WHERE/ORDER/LIMIT/OFFSET) уходит в подзапрос ``t0``,
-    каждая джойн-модель получает алиас ``t1``/``t2``/… с условием ``ON``. Обёртка
-    строится узлами (:class:`sql.Subquery`, :class:`sql.Join`), а не строками:
-    SQL целиком рендерит компилятор, поэтому подзапрос и диалект-квотинг
-    собираются в одном месте.
+    The parent SELECT (with WHERE/ORDER/LIMIT/OFFSET) becomes the subquery ``t0``,
+    and each joined model gets an alias ``t1``/``t2``/… with its ``ON`` condition.
+    The wrapper is built from nodes (:class:`sql.Subquery`, :class:`sql.Join`), not
+    strings: the compiler renders all SQL, so the subquery and dialect quoting
+    are assembled in one place.
     """
     cols: list[sql.Expr] = [sql.Ref(c, "t0") for c in parent_model.__columns__]
     clauses: list[sql.Join] = []
@@ -635,7 +636,7 @@ class _Parser:
         self._next()
 
     def parse(self) -> sql.Expr:
-        """Разобрать всё выражение и убедиться, что токены кончились."""
+        """Parse the whole expression and ensure the tokens are exhausted."""
         condition = self._parse_or()
         if self._i != len(self._tokens):
             raise ValueError(f"Unexpected token: {self._peek()!r}")
@@ -745,10 +746,10 @@ class _Parser:
 def parse_where(expression: str, columns: Sequence[str]) -> sql.Expr:
     """Parse a ``WHERE`` mini-DSL string into an expression node.
 
-    Поддерживает: ``and``/``or``/``not``, скобки, ``= != < <= > >=``,
+    Supports: ``and``/``or``/``not``, parentheses, ``= != < <= > >=``,
     ``in (...)/not in (...)``, ``like``/``ilike``, ``is [not] null``,
-    ``between ... and ...``. Имена колонок сверяются с ``columns``, значения
-    становятся bound-параметрами; рендер в SQL — на стороне диалекта
+    ``between ... and ...``. Column names are validated against ``columns`` and
+    values become bound parameters; the dialect renders them into SQL
     (:func:`ferronit.contrib.sql.compile_expr`).
     """
     return _Parser(_tokenize(expression), columns).parse()
@@ -835,7 +836,7 @@ def _repo_sql(
 
 
 def _pk_statement(table: str, columns: Sequence[str], pk: str) -> sql.Select:
-    """SELECT одной строки по pk — узлом (значение подставляет вызов)."""
+    """SELECT of a single row by pk as a node (the caller supplies the value)."""
     return sql.Select(table, columns, where=[sql.Raw(f"{pk} = $1")])
 
 
@@ -868,13 +869,13 @@ def _repo_state(
 
 
 def _wrap_relations(statement: sql.Select, model: type[Model]) -> sql.Select:
-    """Обернуть SELECT по родителю в LEFT JOIN всех объявленных связей.
+    """Wrap the parent SELECT with a LEFT JOIN for every declared relation.
 
-    Родительский SELECT (с фильтрами, сортировкой и пагинацией) уходит в
-    подзапрос ``t0``, чтобы его голые имена колонок оставались однозначными;
-    снаружи колонки квалифицируются алиасами ``t0``/``t1``/…, и связи
-    джойнятся по FK дочерней таблицы к PK родителя. Параметры родительского
-    запроса не меняются — JOIN добавляет только имена колонок.
+    The parent SELECT (with filters, sorting and pagination) becomes the
+    subquery ``t0`` so its bare column names stay unambiguous; outside, columns
+    are qualified with the ``t0``/``t1``/… aliases, and relations are joined via
+    the child table's FK to the parent's PK. The parent query's parameters do not
+    change — the JOIN only adds column names.
     """
     relations = model.__relations__
     if not relations:
@@ -946,10 +947,10 @@ class RawModelRepository[M: Model](Adapter):
         self._model = model_cls
         self._pk = pk
         self._identity_map = identity_map
-        # Диалект берём у соединения; у asyncpg атрибута нет — значит PostgreSQL.
+        # The dialect comes from the connection; asyncpg has no such attribute → PostgreSQL.
         self._dialect = getattr(connection, "dialect", sql.POSTGRES)
-        # SQL-текст целиком собран заранее (кэш по модели): репозиторий создаётся
-        # на каждый юнит работы, а компиляция — раз на модель.
+        # The whole SQL text is built ahead of time (cached per model): a repository is
+        # created per unit of work, whereas compilation happens once per model.
         state, self._join_pk_sql = _repo_state(
             model_cls, table or _resolve_table(model_cls), pk, self._dialect
         )
@@ -960,13 +961,13 @@ class RawModelRepository[M: Model](Adapter):
         ) = state
 
     async def _materialize(self, rows) -> list[M]:
-        """Построить модели из строк, подтянув связи отдельным запросом.
+        """Build models from rows, loading relations with a separate query.
 
-        Каждая связь грузится одним ``SELECT … WHERE fk = ANY($1)`` на всех
-        родителей сразу, поэтому N+1 не возникает. Это путь массового чтения
-        (``list``/``fetch``): отдельный запрос не дублирует родительские
-        колонки и на больших наборах быстрее ``LEFT JOIN``
-        (см. :meth:`_materialize_joined`).
+        Each relation is loaded with a single ``SELECT … WHERE fk = ANY($1)`` for
+        all parents at once, so N+1 never occurs. This is the bulk-read path
+        (``list``/``fetch``): the separate query does not duplicate parent columns
+        and is faster than ``LEFT JOIN`` on large sets
+        (see :meth:`_materialize_joined`).
         """
         if not rows:
             return []
@@ -978,7 +979,7 @@ class RawModelRepository[M: Model](Adapter):
         rel_data: dict[str, tuple[dict[Any, list], bool]] = {}
         for field, (child, fk, _pk, many) in relations.items():
             if self._dialect.supports_any:
-                # PostgreSQL: весь набор ключей уходит одним параметром-списком.
+                # PostgreSQL: the whole key set goes as a single list parameter.
                 child_rows = await self._conn.fetch(
                     sql.compile_statement(
                         sql.Select(
@@ -991,7 +992,7 @@ class RawModelRepository[M: Model](Adapter):
                     pks,
                 )
             else:
-                # MySQL/SQLite: ANY нет — набор разворачивается в IN (%s, %s, …).
+                # MySQL/SQLite: no ANY — the set is unrolled into IN (%s, %s, …).
                 child_sql, child_params = sql.compile_statement(
                     sql.Select(
                         _resolve_table(child),
@@ -1020,13 +1021,13 @@ class RawModelRepository[M: Model](Adapter):
         return models
 
     async def _materialize_joined(self, rows) -> list[M]:
-        """Построить модели из плоских JOIN-строк (точечное чтение связей).
+        """Build models from flat JOIN rows (point reads of relations).
 
-        Связи грузятся одним ``LEFT JOIN`` (см. ``_wrap_relations``), поэтому
-        строка содержит колонки родителя, затем колонки каждой связи в порядке
-        объявления. Повторяющиеся дочерние строки (перекрёстное произведение
-        нескольких коллекций) отсеиваются по кортежу значений; строка без
-        детей приходит с ``NULL``-ами в дочерних колонках.
+        Relations are loaded with a single ``LEFT JOIN`` (see ``_wrap_relations``),
+        so a row contains the parent columns followed by each relation's columns in
+        declaration order. Duplicate child rows (the cross product of several
+        collections) are filtered out by value tuple; a row without children
+        arrives with ``NULL``s in the child columns.
         """
         if not rows:
             return []
@@ -1063,7 +1064,7 @@ class RawModelRepository[M: Model](Adapter):
             for i, (child, _fk, _pk, many) in enumerate(rel_specs):
                 vals = tuple(row[offsets[i]:offsets[i] + child_widths[i]])
                 if all(value is None for value in vals):
-                    continue  # LEFT JOIN без детей — пропускаем
+                    continue  # LEFT JOIN without children — skip
                 seen, acc = accs[i]
                 if many:
                     if vals not in seen:
@@ -1085,12 +1086,12 @@ class RawModelRepository[M: Model](Adapter):
     def _materialize_joined_pairs(
         self, rows, joins: list[tuple[type[Model], Any, Any, Any, Any]]
     ) -> builtins.list[builtins.tuple[Any, ...]]:
-        """Разобрать плоские JOIN-строки в кортежи ``(родитель, [дети]…)``.
+        """Parse flat JOIN rows into ``(parent, [children]…)`` tuples.
 
-        Строки приходят из явного ``Query.join`` (см. ``_wrap_joins``): колонки
-        родителя, затем колонки каждой джойн-модели по порядку объявления.
-        Повторяющиеся дочерние строки (перекрёстное произведение нескольких
-        джойнов) отсеиваются по кортежу значений.
+        Rows come from an explicit ``Query.join`` (see ``_wrap_joins``): parent
+        columns followed by each joined model's columns in declaration order.
+        Duplicate child rows (the cross product of several joins) are filtered out
+        by value tuple.
         """
         if not rows:
             return []
@@ -1197,10 +1198,10 @@ class RawModelRepository[M: Model](Adapter):
             rows = await self._conn.fetch(sql_text, *params)
         else:
             rows = await self._conn.fetch(self._list_sql, limit, offset)
-        # Identity-map наполняется только из get(): на list() карта почти никогда
-        # не пригождается, а класть каждую строку в неё — лишние ~50 µs на 1000 строк.
+        # The identity map is filled only from get(): list() almost never needs it,
+        # and storing every row costs an extra ~50 µs per 1000 rows.
         if not self._model.__relations__:
-            # hot path без связей: без лишней корутины на каждый запрос
+            # hot path without relations: no extra coroutine per request
             return [self._model(*row) for row in rows]
         return await self._materialize(rows)
 
@@ -1424,26 +1425,26 @@ class RawModelRepository[M: Model](Adapter):
 
 
 class Mapper[A, M]:
-    """Перевод «агрегат ↔ модель строки» (адаптерный слой гексагона).
+    """Translation "aggregate ↔ row model" (the hexagonal adapter layer).
 
-    Модель строки остаётся тупой схемой таблицы; весь маппинг домена
-    сосредоточен в одном маппере. Переопредели оба метода.
+    The row model stays a dumb table schema; all domain mapping is concentrated
+    in a single mapper. Override both methods.
     """
 
     def to_aggregate(self, model: M) -> A:
-        """Собрать доменный агрегат из модели строки (со всеми связями)."""
+        """Assemble a domain aggregate from a row model (with all relations)."""
         raise NotImplementedError
 
     def from_aggregate(self, aggregate: A) -> M:
-        """Разложить агрегат в модель строки (+ дочерние модели)."""
+        """Flatten an aggregate into a row model (+ child models)."""
         raise NotImplementedError
 
 
 class Repository[A, M: Model, MAP: Mapper[Any, Any], P: Pool]:
-    """Агрегатный репозиторий — порт над агрегатом, а не над таблицей.
+    """Aggregate repository — a port over the aggregate, not over the table.
 
-    ``Repository[Order, OrderModel, OrderMapper, ShopPool]``: агрегат, модель
-    строки, маппер и тип пула — всё из generic (``__init_subclass__``).
+    ``Repository[Order, OrderModel, OrderMapper, ShopPool]``: aggregate, row
+    model, mapper and pool type — all from the generic (``__init_subclass__``).
 
     Example:
         class OrderMapper(Mapper[Order, OrderModel]):
@@ -1454,8 +1455,8 @@ class Repository[A, M: Model, MAP: Mapper[Any, Any], P: Pool]:
             async def by_user(self, user_id):
                 return await self.list(OrderModel.c.user_id == user_id)
 
-    ``save`` кладёт агрегат целиком (header + дочерние таблицы) в одну
-    транзакцию; ``get``/``list`` возвращают агрегаты со всеми связями.
+    ``save`` writes the whole aggregate (header + child tables) in one
+    transaction; ``get``/``list`` return aggregates with all relations.
     """
 
     aggregate: type[A]
@@ -1471,8 +1472,8 @@ class Repository[A, M: Model, MAP: Mapper[Any, Any], P: Pool]:
                 args = get_args(base)
                 if len(args) != 4:
                     raise TypeError(
-                        f"{cls.__name__}: Repository[A, M, MAP, P] — укажи все 4 "
-                        f"параметра (агрегат, модель, маппер, пул), получено {len(args)}"
+                        f"{cls.__name__}: Repository[A, M, MAP, P] — specify all 4 "
+                        f"parameters (aggregate, model, mapper, pool), got {len(args)}"
                     )
                 cls.aggregate = args[0]
                 cls.model = args[1]
@@ -1484,11 +1485,11 @@ class Repository[A, M: Model, MAP: Mapper[Any, Any], P: Pool]:
         self._mapper = self.mapper_cls()
 
     def uow(self, *, readonly: bool = False) -> RawUnitOfWork:
-        """Открыть UoW для сценария из нескольких операций."""
+        """Open a UoW for a scenario spanning several operations."""
         return self._pool.uow(readonly=readonly)
 
     async def get(self, id: Any) -> A | None:
-        """Загрузить агрегат по id (со всеми объявленными связями)."""
+        """Load an aggregate by id (with every declared relation)."""
         async with self._pool.uow(readonly=True) as uow:
             model = await uow.model(self.model).get(id)
         return self._mapper.to_aggregate(model) if model is not None else None
@@ -1496,7 +1497,7 @@ class Repository[A, M: Model, MAP: Mapper[Any, Any], P: Pool]:
     async def list(
         self, *filters: Condition, limit: int = 100, offset: int = 0
     ) -> builtins.list[A]:
-        """Список агрегатов, опционально с фильтром и пагинацией."""
+        """List aggregates, optionally filtered and paginated."""
         async with self._pool.uow(readonly=True) as uow:
             rows = await uow.model(self.model).list(*filters, limit=limit, offset=offset)
         return [self._mapper.to_aggregate(m) for m in rows]
@@ -1504,17 +1505,17 @@ class Repository[A, M: Model, MAP: Mapper[Any, Any], P: Pool]:
     async def list_models(
         self, *filters: Condition, limit: int = 100, offset: int = 0
     ) -> builtins.list[M]:
-        """Read side без агрегата: модели строк напрямую, без ``to_aggregate``.
+        """Read side without an aggregate: row models directly, no ``to_aggregate``.
 
-        Для CQRS-запросов, где агрегат не нужен: ответ собирается из моделей
-        чтения как есть, без проекции «модель → агрегат → модель». Явная
-        альтернатива агрегатному ``list()``.
+        For CQRS queries that do not need the aggregate: the response is assembled
+        from read models as is, without the "model → aggregate → model" projection.
+        An explicit alternative to the aggregate ``list()``.
         """
         async with self._pool.uow(readonly=True) as uow:
             return await uow.model(self.model).list(*filters, limit=limit, offset=offset)
 
     async def save(self, aggregate: A) -> A:
-        """Сохранить агрегат целиком: header (upsert) + дочерние в одной UoW."""
+        """Save the whole aggregate: header (upsert) + children in one UoW."""
         model = self._mapper.from_aggregate(aggregate)
         async with self._pool.uow() as uow:
             repo = uow.model(self.model)
@@ -1531,7 +1532,7 @@ class Repository[A, M: Model, MAP: Mapper[Any, Any], P: Pool]:
         return aggregate
 
     async def delete(self, id: Any) -> None:
-        """Удалить агрегат: дочерние таблицы по FK, затем header."""
+        """Delete an aggregate: child tables by FK first, then the header."""
         async with self._pool.uow() as uow:
             for child, fk, _pk, _many in self.model.__relations__.values():
                 await uow.model(child).delete_by(fk, id)

@@ -1,7 +1,7 @@
-"""Тесты тонкого адаптера на asyncpg (``ferronit.contrib.rawdb``).
+"""Tests for the thin asyncpg adapter (``ferronit.contrib.rawdb``).
 
-Юнит-часть (переиндексация плейсхолдеров) работает без базы. Интеграционная часть
-требует контейнер PostgreSQL на :5432 и пропускается, если его нет:
+The unit part (placeholder reindexing) works without a database. The integration part
+requires a PostgreSQL container on :5432 and is skipped if it is absent:
 
     docker run -d --name ferronit-pg -e POSTGRES_PASSWORD=postgres \\
         -e POSTGRES_USER=postgres -e POSTGRES_DB=postgres -p 5432:5432 postgres:18
@@ -14,9 +14,9 @@ import pytest
 from ferronit.contrib import sql
 from ferronit.contrib.rawdb import Condition, RawRepository, RawUnitOfWork, create_raw_pool
 
-try:  # asyncpg живёт в extra "postgres"
+try:  # asyncpg lives in the "postgres" extra
     import asyncpg
-except ModuleNotFoundError:  # pragma: no cover - окружение без extra
+except ModuleNotFoundError:  # pragma: no cover - environment without the extra
     asyncpg = None  # type: ignore[assignment]
 
 DSN = "postgresql://postgres:postgres@localhost:5432/postgres"
@@ -31,10 +31,10 @@ CREATE TABLE IF NOT EXISTS {TABLE} (
 )
 """
 
-pytestmark = pytest.mark.skipif(asyncpg is None, reason="asyncpg не установлен (extra postgres)")
+pytestmark = pytest.mark.skipif(asyncpg is None, reason="asyncpg is not installed (postgres extra)")
 
 
-# ── юнит-часть: склейка условий не требует базы ───────────────────────────────
+# ── unit part: merging conditions needs no database ──────────────────────────
 
 
 def test_condition_without_params() -> None:
@@ -54,7 +54,7 @@ def test_merge_filters_renumbers_placeholders() -> None:
 
 
 def test_merge_filters_keeps_two_digit_placeholders() -> None:
-    """$1 не должен затирать начало $10 — иначе параметры уезжают."""
+    """$1 must not overwrite the start of $10 — otherwise parameters shift."""
     from ferronit.contrib.rawdb import _merge_filters
 
     where, params = _merge_filters(
@@ -70,16 +70,16 @@ def test_merge_filters_empty() -> None:
     assert _merge_filters([]) == ("", [])
 
 
-# ── интеграционная часть ─────────────────────────────────────────────────────
+# ── integration part ─────────────────────────────────────────────────────────
 
 
 @pytest.fixture
 async def pool():
-    """Пул к реальному PostgreSQL; без контейнера тесты пропускаются."""
+    """Pool to a real PostgreSQL; tests are skipped without a container."""
     try:
         created = await create_raw_pool(DSN, min_size=1, max_size=4)
-    except Exception as exc:  # pragma: no cover - зависит от окружения
-        pytest.skip(f"PostgreSQL недоступен: {type(exc).__name__}")
+    except Exception as exc:  # pragma: no cover - depends on the environment
+        pytest.skip(f"PostgreSQL is unavailable: {type(exc).__name__}")
 
     async with created.acquire() as conn:
         await conn.execute(DDL)
@@ -100,13 +100,13 @@ async def repo(pool):
 
 
 async def test_create_pool_wrapper_roundtrip():
-    """Pool — обёртка: create_pool → uow() (write/read) → close()."""
+    """Pool is a wrapper: create_pool → uow() (write/read) → close()."""
     from ferronit.contrib.rawdb import Pool, create_pool
 
     try:
         wrapped = await create_pool(DSN, min_size=1, max_size=2)
-    except Exception as exc:  # pragma: no cover - зависит от окружения
-        pytest.skip(f"PostgreSQL недоступен: {type(exc).__name__}")
+    except Exception as exc:  # pragma: no cover - depends on the environment
+        pytest.skip(f"PostgreSQL is unavailable: {type(exc).__name__}")
 
     assert isinstance(wrapped, Pool)
     async with wrapped.uow() as uow:
@@ -130,15 +130,15 @@ async def test_save_returns_generated_pk(repo) -> None:
 async def test_save_returning_reads_server_row(repo) -> None:
     row = await repo.save({"name": "B", "email": "b@example.com"}, returning=True)
     assert row["id"] == 1
-    assert row["age"] == 0  # server default виден только через RETURNING
+    assert row["age"] == 0  # server default is visible only through RETURNING
 
 
 async def test_get_and_missing(repo) -> None:
     saved = await repo.save({"name": "C", "email": "c@example.com"})
     fetched = await repo.get(saved["id"])
     assert fetched is not None
-    # быстрый путь save() не читает строку с сервера, поэтому в ответе нет
-    # колонок с server default — они появятся при чтении из базы
+    # the fast save() path does not read the row from the server, so the response has no
+    # columns with a server default — they appear when reading from the database
     assert {key: fetched[key] for key in saved} == saved
     assert fetched["age"] == 0
     assert await repo.get(9999) is None
@@ -200,7 +200,7 @@ async def test_unit_of_work_requires_context(pool) -> None:
 
 
 async def test_unit_of_work_readonly_skips_transaction(pool) -> None:
-    """readonly=True не открывает BEGIN/COMMIT — для чтения транзакция не нужна."""
+    """readonly=True does not open BEGIN/COMMIT — reads need no transaction."""
     async with RawUnitOfWork(pool, readonly=True) as uow:
         assert not uow.connection.is_in_transaction()
         await uow[TABLE].list()
@@ -209,7 +209,7 @@ async def test_unit_of_work_readonly_skips_transaction(pool) -> None:
 
 
 async def test_same_rows_as_core_repository(pool) -> None:
-    """Репозиторий rawdb отдаёт ровно то, что сохранил (dict-контракт)."""
+    """The rawdb repository returns exactly what was saved (dict contract)."""
     reference = {"name": "same", "email": "same@example.com", "age": 33}
     async with RawUnitOfWork(pool) as uow:
         saved = await uow[TABLE].save(dict(reference))
@@ -218,15 +218,15 @@ async def test_same_rows_as_core_repository(pool) -> None:
     assert fetched == saved
 
 
-# ── настраиваемый RETURNING (фейковое соединение, база не нужна) ─────────────
+# ── configurable RETURNING (fake connection, no database) ────────────────────
 #
-# Диалект у заглушки задаётся атрибутом, SQL записывается, строки отдаются
-# заготовленные — так проверяются оба пути: с RETURNING (PostgreSQL/SQLite) и
-# через дочитывание (MySQL, где RETURNING нет).
+# The stub's dialect is set by an attribute, SQL is recorded, and rows are returned
+# pre-made — this covers both paths: with RETURNING (PostgreSQL/SQLite) and
+# via a follow-up read (MySQL, which has no RETURNING).
 
 
 class FakeConnection:
-    """Заглушка соединения: помнит SQL, отдаёт заготовленную строку."""
+    """Connection stub: remembers SQL and returns a pre-made row."""
 
     def __init__(self, dialect, *, row=None, rows=None, key=7) -> None:
         self.dialect = dialect
@@ -310,7 +310,7 @@ async def test_delete_without_returning_stays_a_plain_delete() -> None:
 
 
 async def test_mysql_save_reads_the_row_back_and_projects_it() -> None:
-    """У MySQL нет RETURNING: строка дочитывается вторым запросом."""
+    """MySQL has no RETURNING: the row is read back by a second query."""
     conn = FakeConnection(sql.MYSQL, row={"id": 7, "name": "A", "age": 0})
     repo = RawRepository(conn, TABLE)
     row = await repo.save({"name": "A"}, returning=("name",))
@@ -330,11 +330,11 @@ async def test_mysql_update_and_delete_read_back_without_returning() -> None:
     conn = FakeConnection(sql.MYSQL, row={"id": 1, "name": "old"})
     repo = RawRepository(conn, TABLE)
     assert await repo.delete(1, returning=True) == {"id": 1, "name": "old"}
-    # пред-образ читается ДО удаления, иначе возвращать нечего
+    # the pre-image is read BEFORE deletion, otherwise there is nothing to return
     assert [call[0] for call in conn.calls] == ["fetchrow", "execute"]
 
 
-# ── батч-INSERT (save_many) ──────────────────────────────────────────────────
+# ── batch INSERT (save_many) ─────────────────────────────────────────────────
 
 
 async def test_save_many_splits_into_chunks() -> None:
@@ -343,7 +343,7 @@ async def test_save_many_splits_into_chunks() -> None:
     rows = [{"name": f"N{i}", "age": i} for i in range(4)]
     saved = await repo.save_many(rows, chunk_size=2)
 
-    assert len(conn.calls) == 2  # 4 строки по 2 — два запроса, а не четыре
+    assert len(conn.calls) == 2  # 4 rows with 2 per chunk — two queries, not four
     assert all(call[0] == "fetch" for call in conn.calls)
     assert conn.calls[0][1] == (
         f"INSERT INTO {TABLE} (name, age) VALUES ($1, $2), ($3, $4) RETURNING id"
@@ -357,13 +357,13 @@ async def test_save_many_splits_into_chunks() -> None:
 
 
 async def test_save_many_chunk_default_follows_the_parameter_limit() -> None:
-    """Размер чанка = лимит плейсхолдеров / число колонок (SQLite: 32 766 / 3)."""
+    """Chunk size = placeholder limit / number of columns (SQLite: 32 766 / 3)."""
     conn = FakeConnection(sql.SQLITE, row=None)
     repo = RawRepository(conn, TABLE)
     rows = [{"id": i, "a": 1, "b": 2} for i in range(16_384)]
     await repo.save_many(rows)
 
-    first, second = conn.calls  # id в данных → никакого RETURNING, только execute
+    first, second = conn.calls  # id in the data → no RETURNING, only execute
     expected = sql.SQLITE.max_parameters // 3
     assert first[0] == "execute" and first[1].count("(?, ?, ?)") == expected
     assert second[1].count("(?, ?, ?)") == 16_384 - expected
@@ -399,7 +399,7 @@ async def test_save_many_on_mysql_without_returning_is_one_statement() -> None:
     assert conn.calls == [
         ("execute", f"INSERT INTO `{TABLE}` (name) VALUES (%s), (%s)")
     ]
-    # у MySQL нет RETURNING — ключи не выдумываем
+    # MySQL has no RETURNING — do not invent keys
     assert saved == [{"name": "A"}, {"name": "B"}]
 
 
@@ -409,11 +409,11 @@ async def test_save_many_on_mysql_with_returning_falls_back_per_row() -> None:
     saved = await repo.save_many([{"name": "A"}, {"name": "B"}], returning=("name",))
 
     assert saved == [{"name": "A"}, {"name": "A"}]
-    # на каждую строку: INSERT + дочитывание
+    # for each row: INSERT + follow-up read
     assert [call[0] for call in conn.calls] == ["execute", "fetchrow", "execute", "fetchrow"]
 
 
-# ── политика возврата соединения в пул ──────────────────────────────────────
+# ── connection return-to-pool policy ─────────────────────────────────────────
 
 
 class _FakeAsyncpg:
@@ -458,7 +458,7 @@ def test_pool_kwargs_keeps_driver_defaults_when_reset_requested() -> None:
 
 
 def test_pool_kwargs_does_not_pass_unknown_reset_keyword() -> None:
-    """asyncpg < 0.30: ``reset`` неизвестен — он утёк бы в ``connect(**kwargs)``."""
+    """asyncpg < 0.30: ``reset`` is unknown — it would leak into ``connect(**kwargs)``."""
     from ferronit.contrib.rawdb import _asyncpg_pool_kwargs
 
     fake = _FakeAsyncpg(max_inactive_connection_lifetime=300)
@@ -470,17 +470,17 @@ def test_pool_kwargs_does_not_pass_unknown_reset_keyword() -> None:
 
 @pytest.fixture
 async def single_conn_pool():
-    """Пул из одного соединения: следующий uow берёт ту же сессию."""
+    """Single-connection pool: the next uow takes the same session."""
     try:
         created = await create_raw_pool(DSN, min_size=1, max_size=1)
-    except Exception as exc:  # pragma: no cover - зависит от окружения
-        pytest.skip(f"PostgreSQL недоступен: {type(exc).__name__}")
+    except Exception as exc:  # pragma: no cover - depends on the environment
+        pytest.skip(f"PostgreSQL is unavailable: {type(exc).__name__}")
     yield created
     await created.close()
 
 
 async def test_release_keeps_session_state_by_default(single_conn_pool) -> None:
-    """Быстрый путь: SET в одной единице работы виден следующей на том же соединении."""
+    """Fast path: a SET in one unit of work is visible to the next on the same connection."""
     async with RawUnitOfWork(single_conn_pool, readonly=True) as uow:
         await uow.connection.execute("SET statement_timeout = '1234ms'")
 
@@ -491,11 +491,11 @@ async def test_release_keeps_session_state_by_default(single_conn_pool) -> None:
 
 
 async def test_release_with_full_reset_clears_session_state() -> None:
-    """reset_on_release=True возвращает прежнюю гигиену asyncpg (RESET ALL)."""
+    """reset_on_release=True restores asyncpg's previous hygiene (RESET ALL)."""
     try:
         created = await create_raw_pool(DSN, min_size=1, max_size=1, reset_on_release=True)
-    except Exception as exc:  # pragma: no cover - зависит от окружения
-        pytest.skip(f"PostgreSQL недоступен: {type(exc).__name__}")
+    except Exception as exc:  # pragma: no cover - depends on the environment
+        pytest.skip(f"PostgreSQL is unavailable: {type(exc).__name__}")
 
     try:
         async with RawUnitOfWork(created, readonly=True) as uow:

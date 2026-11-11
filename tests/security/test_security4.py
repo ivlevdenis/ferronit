@@ -47,7 +47,7 @@ async def call_app(app, method: str, path: str, headers: list | None = None,
 
 @pytest.mark.asyncio
 async def test_gzip_q0_disables_compression():
-    """accept-encoding: gzip;q=0 — клиент не хочет gzip, не сжимаем."""
+    """accept-encoding: gzip;q=0 — the client does not want gzip, so we do not compress."""
     app = Ferronit()
 
     @app.route("/data")
@@ -60,13 +60,13 @@ async def test_gzip_q0_disables_compression():
     assert status == 200
     assert "content-encoding" not in hdrs
 
-    # gzip;q=1 — сжимаем
+    # gzip;q=1 — we compress
     status, hdrs, body = await call_app(
         app, "GET", "/data", headers=[(b"accept-encoding", b"gzip;q=1")],
     )
     assert hdrs.get("content-encoding") == "gzip"
 
-    # сложный список: br;q=1, gzip;q=0.5 — сжимаем (q > 0)
+    # a complex list: br;q=1, gzip;q=0.5 — we compress (q > 0)
     status, hdrs, body = await call_app(
         app, "GET", "/data", headers=[(b"accept-encoding", b"br;q=1, gzip;q=0.5")],
     )
@@ -77,7 +77,7 @@ async def test_gzip_q0_disables_compression():
 
 @pytest.mark.asyncio
 async def test_trace_id_not_reflected_without_middleware():
-    """Пользовательский X-Trace-Id не попадает в ответ без trace middleware."""
+    """A user-supplied X-Trace-Id does not reach the response without trace middleware."""
     app = Ferronit()
 
     @app.route("/api")
@@ -178,11 +178,11 @@ async def test_broken_query_pairs_no_crash():
         assert status == 200, f"{raw!r} -> {status}"
 
 
-# ── 38. UTF-8 query decoding (%D0%BF%D1%80...) ────────────────────────
+# ── 38. UTF-8 query decoding (%C3%BC%C3%9F...) ─────────────────────────
 
 @pytest.mark.asyncio
 async def test_utf8_query_decoding():
-    """Percent-encoded UTF-8 декодируется в нормальную строку, не в кракозябры."""
+    """Percent-encoded UTF-8 decodes into a normal string, not mojibake."""
     app = Ferronit()
 
     @app.route("/search")
@@ -196,7 +196,7 @@ async def test_utf8_query_decoding():
     assert status == 200
     assert json.loads(body)["q"] == "привет"
 
-    # '+' — пробел
+    # '+' — a space
     status, _, body = await call_app(app, "GET", "/search", query=b"q=hello+world")
     assert json.loads(body)["q"] == "hello world"
 
@@ -221,7 +221,7 @@ async def test_very_long_path_no_crash():
 
 @pytest.mark.asyncio
 async def test_auth_middleware_short_circuit():
-    """Middleware-паттерн авторизации: без токена — 401, хендлер не вызывается."""
+    """Auth middleware pattern: without a token — 401, the handler is not called."""
     app = Ferronit()
 
     async def auth(req, next_handler):
@@ -243,7 +243,7 @@ async def test_auth_middleware_short_circuit():
 
     status, _, body = await call_app(app, "GET", "/private")
     assert status == 401
-    assert called == []  # хендлер не выполнялся
+    assert called == []  # the handler did not run
 
     status, _, body = await call_app(
         app, "GET", "/private", headers=[(b"authorization", b"Bearer valid")],

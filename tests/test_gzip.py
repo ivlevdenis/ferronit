@@ -1,7 +1,7 @@
-"""gzip: мелкие тела не сжимаются, крупные — сжимаются (оба транспорта).
+"""gzip: small bodies are not compressed, large ones are (both transports).
 
-Фиксированная цена zlib — ~40 мкс на вызов, поэтому сжатие 11-байтного JSON
-делало ответ и медленнее, и больше. Порог — ``Ferronit(gzip_min_size=500)``.
+The fixed zlib cost is ~40 µs per call, so compressing an 11-byte JSON
+made the response both slower and bigger. The threshold is ``Ferronit(gzip_min_size=500)``.
 """
 
 from __future__ import annotations
@@ -45,7 +45,7 @@ async def _asgi(app: Ferronit, path: str):
     async def send(message):
         if message["type"] == "http.response.start":
             out["status"] = message["status"]
-            # заголовки сравниваем в нижнем регистре: Content-Encoding приходит с большой
+            # compare headers lowercase: Content-Encoding arrives capitalized
             out["headers"] = {k.decode().lower(): v for k, v in message["headers"]}
         else:
             out["body"] = message["body"]

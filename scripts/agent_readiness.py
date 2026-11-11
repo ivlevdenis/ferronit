@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Замер «читаемости пакета для код-агентов» и список недостающих докстрингов.
+"""Measure how readable the package is for code agents and list missing docstrings.
 
-Зачем: агенту нужны докстринги (что делает) и типы (что принимает), а не догадки.
-Скрипт считает покрытие публичного API докстрингами и аннотациями.
+Why: an agent needs docstrings (what it does) and types (what it accepts), not guesses.
+The script measures public API coverage by docstrings and annotations.
 
-    python3 scripts/agent_readiness.py                 # сводка по файлам
-    python3 scripts/agent_readiness.py --missing       # что именно без докстринга
-    python3 scripts/agent_readiness.py --min-coverage 90   # ненулевой код, если ниже
-    python3 scripts/agent_readiness.py --json          # машинный формат
+    python3 scripts/agent_readiness.py                 # per-file summary
+    python3 scripts/agent_readiness.py --missing       # exactly what lacks a docstring
+    python3 scripts/agent_readiness.py --min-coverage 90   # non-zero exit code if below
+    python3 scripts/agent_readiness.py --json          # machine-readable format
 """
 
 from __future__ import annotations
@@ -81,7 +81,7 @@ def scan(path: pathlib.Path) -> dict:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--missing", action="store_true", help="показать сущности без докстринга")
+    ap.add_argument("--missing", action="store_true", help="list entities without a docstring")
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--min-coverage", type=float, default=0.0)
     a = ap.parse_args()
@@ -99,22 +99,22 @@ def main() -> int:
         for r in rows:
             if not r["missing"]:
                 continue
-            print(f"\n{r['path']}  ({len(r['missing'])} без докстринга)")
+            print(f"\n{r['path']}  ({len(r['missing'])} without a docstring)")
             for kind, name, line in r["missing"]:
                 print(f"  {line:>4}: {kind} {name}")
     else:
-        print(f"{'файл':<42}{'loc':>5}{'публичных':>11}{'с докстр.':>11}{'%':>7}  типы")
+        print(f"{'file':<42}{'loc':>5}{'public':>11}{'docstr':>11}{'%':>7}  types")
         for r in rows:
             pct = (r["documented"] / r["public"] * 100) if r["public"] else 100.0
             t = f"{r['typed']}/{r['fn']}" if r["fn"] else "—"
             flag = "" if pct >= 90 or not r["public"] else "  ←"
             print(f"{r['path']:<42}{r['loc']:>5}{r['public']:>11}{r['documented']:>11}{pct:>6.0f}%  {t}{flag}")
-        print(f"\nИТОГО: докстринги {doc}/{pub} ({coverage:.0f}%), "
-              f"полные типы {typed}/{fn} ({(typed / fn * 100) if fn else 100:.0f}%), "
-              f"модулей без __all__: {sum(1 for r in rows if not r['all'])}")
+        print(f"\nTOTAL: docstrings {doc}/{pub} ({coverage:.0f}%), "
+              f"full types {typed}/{fn} ({(typed / fn * 100) if fn else 100:.0f}%), "
+              f"modules without __all__: {sum(1 for r in rows if not r['all'])}")
 
     if coverage < a.min_coverage:
-        print(f"\nНИЖЕ ПОРОГА: {coverage:.0f}% < {a.min_coverage:.0f}%", file=sys.stderr)
+        print(f"\nBELOW THRESHOLD: {coverage:.0f}% < {a.min_coverage:.0f}%", file=sys.stderr)
         return 1
     return 0
 

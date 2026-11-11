@@ -1,19 +1,20 @@
-"""Ferronit — гексагональный пример с CQRS: агрегат Order + Mapper + Repository.
+"""Ferronit — hexagonal CQRS example: Order aggregate + Mapper + Repository.
 
-Это **прикладной** слой: домен, порты, сервис, шины и DI. Про HTTP здесь ничего
-нет — входящий адаптер ``HttpOrdersAdapter`` лежит в ``examples/http.py`` и
-монтируется из точки сборки ``examples/main.py``:
+This is the **application** layer: domain, ports, service, buses and DI. There is
+nothing HTTP-related here — the incoming adapter ``HttpOrdersAdapter`` lives in
+``examples/http.py`` and is mounted from the composition root
+``examples/main.py``:
 
     app.mount("/", HttpOrdersAdapter())
 
-Заказ — агрегат (header + позиции), хранится в двух таблицах, но сервис работает
-только с доменным ``Order``. ``OrderRepository`` — порт над агрегатом; вход описан
-входящим портом ``OrderApiPort``, его реализует ``OrderService`` (диспатчит
-команды/запросы в шины).
+An order is an aggregate (header + items) stored in two tables, yet the service
+works only with the domain ``Order``. ``OrderRepository`` is a port over the
+aggregate; the entry point is described by the incoming port ``OrderApiPort``,
+implemented by ``OrderService`` (it dispatches commands/queries into the buses).
 
-CQRS: запись — командами через ``CommandBus`` (``PlaceOrder``/``CancelOrder``),
-чтение — запросами через ``QueryBus`` (``GetOrder``/``ListUserOrders``); события
-``OrderPlaced``/``OrderCancelled`` публикуются в ``InMemoryEventBus``.
+CQRS: writes go as commands through ``CommandBus`` (``PlaceOrder``/``CancelOrder``),
+reads as queries through ``QueryBus`` (``GetOrder``/``ListUserOrders``); the
+``OrderPlaced``/``OrderCancelled`` events are published to ``InMemoryEventBus``.
 """
 
 import asyncio
@@ -50,7 +51,7 @@ container = Container()
 app = Ferronit(debug=True, container=container)
 
 
-# ── Домен (без SQL) ────────────────────────────────────────────────────
+# ── Domain (no SQL) ────────────────────────────────────────────────────
 
 class CartItem(msgspec.Struct):
     product_id: str
@@ -83,12 +84,12 @@ class Order(AggregateRoot):
         self.items = items
         self.total = sum(i.price * i.qty for i in items)
         self.status = "created"
-        # События здесь не пишутся: восстановление агрегата из БД (to_aggregate)
-        # идёт тем же конструктором и не должно порождать доменные события.
+        # No events are recorded here: rebuilding the aggregate from the DB
+        # (to_aggregate) uses the same constructor and must not emit domain events.
 
     @classmethod
     def place(cls, order_id: str, user_id: str, items: list[CartItem]) -> "Order":
-        """Создать заказ и записать событие ``OrderPlaced``."""
+        """Create an order and record the ``OrderPlaced`` event."""
         order = cls(order_id, user_id, items)
         order.record(OrderPlaced(order_id, user_id, order.total))
         return order
@@ -102,7 +103,7 @@ class Order(AggregateRoot):
         self.record(OrderCancelled(self.id))
 
 
-# ── Персистентность (rawmodel) — чистые модели строк ───────────────────
+# ── Persistence (rawmodel) — pure row models ──────────────────────────
 
 class OrderItemModel(Model):
     __table__ = "order_items"
@@ -123,7 +124,7 @@ class OrderModel(Model):
     items: Annotated[list[OrderItemModel], Relation("order_id")] = []
 
 
-# ── Адаптер: маппер (единственное место, где домен встречается с БД) ───
+# ── Adapter: mapper (the only place where the domain meets the DB) ────
 
 class OrderMapper(Mapper[Order, OrderModel]):
     def to_aggregate(self, m: OrderModel) -> Order:
@@ -141,14 +142,14 @@ class OrderMapper(Mapper[Order, OrderModel]):
         )
 
 
-# ── Репозиторий (порт над агрегатом, не над таблицей) ─────────────────
+# ── Repository (a port over the aggregate, not over the table) ────────
 
 class OrderRepository(Repository[Order, OrderModel, OrderMapper, ShopPool]):
     async def by_user(self, user_id: str) -> list[Order]:
         return await self.list(OrderModel.c.user_id == user_id)
 
 
-# ── CQRS: команды (запись) ────────────────────────────────────────────
+# ── CQRS: commands (writes) ───────────────────────────────────────────
 
 class PlaceOrder(Command):
     user_id: str
@@ -168,7 +169,7 @@ class PlaceOrderHandler:
         if not cmd.items:
             return None
         order = Order.place(f"ord-{cmd.user_id}-{len(cmd.items)}", cmd.user_id, cmd.items)
-        await self._orders.save(order)          # агрегат + позиции в одной UoW
+        await self._orders.save(order)          # aggregate + items in a single UoW
         for event in order.pull_events():
             await self._events.publish(event)
         return order
@@ -184,13 +185,13 @@ class CancelOrderHandler:
         if order is None:
             return None
         order.cancel()
-        await self._orders.save(order)          # замена агрегата целиком
+        await self._orders.save(order)          # replace the whole aggregate
         for event in order.pull_events():
             await self._events.publish(event)
         return order
 
 
-# ── CQRS: запросы (чтение) ────────────────────────────────────────────
+# ── CQRS: queries (reads) ─────────────────────────────────────────────
 
 class GetOrder(Query):
     order_id: str
@@ -216,9 +217,10 @@ class ListOrdersHandler:
         return await self._orders.by_user(q.user_id)
 
 
-# ── Контракт входа/выхода: DTO прикладного слоя ──────────────────────
-# Порт и HTTP-адаптер общаются этими структурами. Домен (Order, CartItem) из
-# прикладного слоя наружу не выходит — перевод домен ↔ DTO делает сервис.
+# ── Input/output contract: application-layer DTOs ─────────────────────
+# The port and the HTTP adapter talk through these structures. The domain
+# (Order, CartItem) never leaves the application layer — the service translates
+# domain ↔ DTO.
 
 class OrderItemDTO(msgspec.Struct):
     product_id: str
@@ -250,13 +252,13 @@ def _order_to_dto(o: Order) -> OrderDTO:
     )
 
 
-# ── Входящий порт + прикладной сервис ─────────────────────────────────
+# ── Incoming port + application service ───────────────────────────────
 
 class OrderApiPort(Port):
-    """Входящий порт заказов — контракт прикладного слоя в терминах DTO.
+    """Order incoming port — the application-layer contract in DTO terms.
 
-    Ни доменных типов (``Order``/``CartItem``), ни HTTP здесь нет: адаптер
-    передаёт ``CreateOrderDTO`` и получает ``OrderDTO``; перевод делает сервис.
+    Neither domain types (``Order``/``CartItem``) nor HTTP appear here: the adapter
+    passes ``CreateOrderDTO`` and receives ``OrderDTO``; the service translates.
     """
 
     async def create(self, dto: CreateOrderDTO) -> OrderDTO | None: ...
@@ -266,7 +268,7 @@ class OrderApiPort(Port):
 
 
 class OrderService(ApplicationService, OrderApiPort):
-    """Прикладной слой: реализует ``OrderApiPort``, диспатчит команды/запросы в шины."""
+    """Application layer: implements ``OrderApiPort``, dispatches commands/queries."""
 
     def __init__(self, commands: CommandBus, queries: QueryBus):
         super().__init__()
@@ -291,23 +293,23 @@ class OrderService(ApplicationService, OrderApiPort):
         return _order_to_dto(order) if order is not None else None
 
 
-# ── Подписчик на доменные события (журнал) ────────────────────────────
+# ── Domain event subscriber (audit journal) ───────────────────────────
 
 AUDIT: list[str] = []
 
 
 async def audit(event: OrderPlaced | OrderCancelled) -> None:
-    """Записать доменное событие в журнал и напечатать строку."""
+    """Append the domain event to the audit journal and print the line."""
     line = f"{type(event).__name__}: {event.order_id}"
     AUDIT.append(line)
     print(f"[audit] {line}")
 
 
 # ── DI wiring ──────────────────────────────────────────────────────────
-# Ключи DI должны быть зарегистрированы ДО объявления маршрутов: способ
-# связывания параметров выбирается один раз при регистрации маршрута, и
-# незнакомая аннотация трактуется как path/query-параметр, а не как DI.
-# Поэтому шины и шина событий созданы здесь, а хендлеры наполняются в lifespan.
+# DI keys must be registered BEFORE the routes are declared: the parameter
+# binding mode is chosen once, when the route is registered, and an unknown
+# annotation is treated as a path/query parameter rather than DI. That is why
+# the buses and the event bus are created here, while handlers are filled in lifespan.
 
 EVENTS = InMemoryEventBus()
 EVENTS.subscribe(OrderPlaced, audit)
@@ -320,9 +322,9 @@ container.factory(OrderRepository)
 container.singleton(EventBus, EVENTS)
 container.singleton(CommandBus, COMMANDS)
 container.singleton(QueryBus, QUERIES)
-# Входящий порт → реализация. Регистрируется ДО объявления маршрутов: binding
-# распознаёт DI-параметр по факту наличия ключа в контейнере на момент
-# регистрации маршрута, поэтому ``OrderApiPort`` должен быть здесь заранее.
+# Incoming port → implementation. Registered BEFORE the routes are declared:
+# binding recognises a DI parameter by the key's presence in the container at
+# route registration time, so ``OrderApiPort`` must be here in advance.
 container.factory(OrderApiPort, OrderService)
 
 
@@ -345,8 +347,9 @@ async def lifespan():
             "price double precision NOT NULL, qty integer NOT NULL)"
         )
 
-    # Хендлеры собираются после пула: репозиторий резолвится лениво, а сами шины
-    # лежат в контейнере с импорта (иначе маршруты не увидят их как DI).
+    # Handlers are assembled after the pool: the repository resolves lazily, while
+    # the buses themselves sit in the container since import (otherwise the routes
+    # would not see them as DI).
     orders = container.get(OrderRepository)
 
     COMMANDS.register(PlaceOrder, PlaceOrderHandler(orders, EVENTS))
@@ -358,6 +361,6 @@ async def lifespan():
     await pool.close()
 
 
-# HTTP-адаптер (``HttpOrdersAdapter``) живёт в examples/http.py и монтируется
-# из точки сборки examples/main.py: `app.mount("/", HttpOrdersAdapter())`.
+# The HTTP adapter (``HttpOrdersAdapter``) lives in examples/http.py and is
+# mounted from the composition root examples/main.py: `app.mount("/", HttpOrdersAdapter())`.
 

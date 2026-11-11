@@ -148,7 +148,7 @@ def _get_return_type(handler) -> type | None:
     try:
         return get_type_hints(handler).get("return")
     except (NameError, TypeError, ValueError):
-        # неразрешимые forward-ref'ы и странные аннотации — это путь fallback'а
+        # unresolvable forward refs and odd annotations — this is the fallback path
         pass
     try:
         sig = inspect.signature(handler)

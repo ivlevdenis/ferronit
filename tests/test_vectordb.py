@@ -1,4 +1,4 @@
-"""Порт векторной БД и Mock-адаптер — поведение проверяется без внешних сервисов."""
+"""Vector DB port and Mock adapter — behavior is checked without external services."""
 
 import pytest
 
@@ -57,16 +57,16 @@ async def test_delete_removes_vectors_and_is_idempotent():
     await db.delete("docs", ["a"])
     assert await db.search("docs", [1.0, 0.0]) == []
 
-    await db.delete("docs", ["a"])  # повторное удаление не должно падать
+    await db.delete("docs", ["a"])  # a repeated delete must not fail
 
 
 def test_cosine_similarity_edges():
     assert _cosine([1.0, 0.0], [1.0, 0.0]) == pytest.approx(1.0)
     assert _cosine([1.0, 0.0], [0.0, 1.0]) == pytest.approx(0.0)
-    assert _cosine([0.0, 0.0], [1.0, 0.0]) == 0.0  # нулевой вектор — без ZeroDivisionError
+    assert _cosine([0.0, 0.0], [1.0, 0.0]) == 0.0  # zero vector — no ZeroDivisionError
 
 
 def test_remote_adapters_construct_without_running_services():
-    """Конструкторы адаптеров не ходят в сеть — соединение только в вызовах методов."""
+    """Adapter constructors do no network I/O — connection happens only in method calls."""
     assert QdrantAdapter("http://localhost:6333")._url == "http://localhost:6333"
     assert ChromaAdapter("http://localhost:8000")._url == "http://localhost:8000"

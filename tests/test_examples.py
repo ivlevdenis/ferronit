@@ -1,7 +1,7 @@
-"""Примеры из examples/ действительно запускаются — прогон через ASGI in-process.
+"""The examples in examples/ really run — executed through ASGI in-process.
 
-WebSocket проверяется прямым ASGI-диалогом (httpx не умеет WS), поэтому тест
-заодно фиксирует контракт handshake: accept → сообщения → close.
+WebSocket is checked by a direct ASGI dialogue (httpx cannot do WS), so the test
+also pins the handshake contract: accept → messages → close.
 """
 
 import importlib
@@ -50,7 +50,7 @@ async def test_di_app_wires_ports_by_annotation():
         second = await client.get("/greet/Денис")
 
     assert first.json()["greeting"] == "Привет, Денис!"
-    assert second.json()["greeting"] == first.json()["greeting"]  # кэш-порт вернул то же
+    assert second.json()["greeting"] == first.json()["greeting"]  # the cache port returned the same
     async with client_for(app) as client:
         assert (await client.get("/stats")).json()["served"] == 2
 
@@ -89,7 +89,7 @@ async def test_rag_app_retrieves_relevant_document():
         response = await client.post("/ask", json={"question": "rust роутинг"})
 
     body = response.json()
-    assert body["sources"][0]["id"] == "routing"  # локальный векторизатор реально ранжирует
+    assert body["sources"][0]["id"] == "routing"  # the local vectorizer actually ranks
     assert body["answer"]
 
 
@@ -128,7 +128,7 @@ async def test_ws_app_echoes_json_for_allowed_origin():
     assert sent[0]["type"] == "websocket.accept"
     echoed = json.loads(sent[1]["text"])
     assert echoed == {"echo": {"hello": "ferronit"}, "path": "/ws/echo"}
-    # клиент отключился сам — лишних кадров нет, close() после разрыва ничего не шлёт
+    # the client disconnected by itself — no extra frames, close() after a break sends nothing
     assert len(sent) == 2
 
 

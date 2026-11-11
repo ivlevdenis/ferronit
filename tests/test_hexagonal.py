@@ -73,7 +73,7 @@ class OrderService(ApplicationService):
         return order.id
 
 
-# ── Входящий порт (driving port) ──────────────────────────────────────
+# ── Input port (driving port) ─────────────────────────────────────────
 
 class OrderApiPort(Port):
     async def create(self, order_id: str, amount: int) -> str: ...
@@ -117,13 +117,13 @@ async def test_hexagonal_full():
 
 @pytest.mark.asyncio
 async def test_hexagonal_input_port_resolves_through_di():
-    """Входящий порт → реализация в контейнере; маршрут зависит только от порта."""
+    """Input port → implementation in the container; the route depends only on the port."""
     from ferronit.di import Container
 
     repo = InMemoryOrderRepo()
     c = Container()
     c.singleton(OrderRepository, repo)
-    # Интерфейс → реализация: DI строит PortBackedService по его конструктору.
+    # Interface → implementation: DI builds PortBackedService from its constructor.
     c.factory(OrderApiPort, PortBackedService)
 
     v = Ferronit(container=c)

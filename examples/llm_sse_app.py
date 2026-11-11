@@ -1,16 +1,16 @@
-"""LLM как порт: обычный ответ и SSE-стриминг токенов.
+"""LLM as a port: a plain answer and SSE token streaming.
 
-Смена вендора — одна строка композиции:
-    llm: LlmPort = OpenAiAdapter()      # или ClaudeAdapter()
-    llm: LlmPort = MockLlmAdapter(...)  # тесты и демо без ключей и сети
+Switching vendor is one line of composition:
+    llm: LlmPort = OpenAiAdapter()      # or ClaudeAdapter()
+    llm: LlmPort = MockLlmAdapter(...)  # tests and demos without keys or network
 
-Запуск:
+Run:
     .venv/bin/python -m granian --interface asgi --no-ws examples.llm_sse_app:app
-Проверка:
+Check:
     curl -X POST localhost:8000/chat -H 'content-type: application/json' \
-         -d '{"prompt": "что такое Ferronit"}'
+         -d '{"prompt": "what is Ferronit"}'
     curl -N -X POST localhost:8000/chat/stream -H 'content-type: application/json' \
-         -d '{"prompt": "стриминг"}'
+         -d '{"prompt": "streaming"}'
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ from ferronit.contrib.llm import ChatMessage, LlmPort, MockLlmAdapter
 
 app = Ferronit()
 
-# Порт. В проде здесь OpenAiAdapter()/ClaudeAdapter() — код ниже не меняется.
+# The port. In production this is OpenAiAdapter()/ClaudeAdapter() — the code below stays the same.
 llm: LlmPort = MockLlmAdapter(
     responses={"chat": "Ferronit отдаёт ответ модели по мере генерации, без буферизации."}
 )
@@ -48,7 +48,7 @@ async def _token_stream(text: str) -> AsyncIterator[str]:
     for word in text.split():
         payload = json.dumps({"token": word + " "}, ensure_ascii=False)
         yield f"data: {payload}\n\n"
-        await asyncio.sleep(0.01)  # имитация скорости генерации
+        await asyncio.sleep(0.01)  # simulate generation speed
     yield "data: [DONE]\n\n"
 
 

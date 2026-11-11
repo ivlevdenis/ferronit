@@ -1,14 +1,14 @@
-"""Минимальное приложение: маршруты, типизированные параметры, JSON и текст.
+"""Minimal application: routes, typed parameters, JSON and plain text.
 
-Запуск:
-    cd <корень репозитория>
+Run:
+    cd <repository root>
     .venv/bin/python -m granian --interface asgi --no-ws examples.minimal_app:app
-    # или: .venv/bin/python examples/minimal_app.py  (uvicorn, порт 8000)
+    # or: .venv/bin/python examples/minimal_app.py  (uvicorn, port 8000)
 
-Проверка:
-    curl "localhost:8000/hello?name=Денис"
+Check:
+    curl "localhost:8000/hello?name=Denis"
     curl localhost:8000/items/42
-    curl localhost:8000/items/abc            # 404: параметр пути типизирован как int
+    curl localhost:8000/items/abc            # 404: the path parameter is typed as int
     curl -X POST localhost:8000/echo -H 'content-type: application/json' -d '{"a": 1}'
 """
 

@@ -1,7 +1,7 @@
-"""Health checks — /health обязан отдавать 503, когда зависимость лежит.
+"""Health checks — /health must return 503 when a dependency is down.
 
-Для readiness-пробы в k8s «200 при мёртвой базе» — фатальное поведение, поэтому
-статус проверяется end-to-end через ASGI, а не только на уровне HealthCheck.
+For a k8s readiness probe "200 with a dead database" is fatal behavior, so the
+status is checked end-to-end through ASGI, not only at the HealthCheck level.
 """
 
 import pytest
@@ -61,7 +61,7 @@ async def test_exception_becomes_failed_check_with_detail():
 @pytest.mark.asyncio
 async def test_is_healthy_is_true_without_checks_and_after_success():
     hc = HealthCheck()
-    assert hc.is_healthy is True  # нечего проверять — нечего ломать
+    assert hc.is_healthy is True  # nothing to check — nothing to break
 
     hc.add("db", lambda: True)
     await hc.check_all()
@@ -85,7 +85,7 @@ async def test_health_endpoint_200_when_dependencies_alive(client_factory):
 
 @pytest.mark.asyncio
 async def test_health_endpoint_503_when_dependency_down(client_factory):
-    """Регрессия: кортеж (payload, status) раньше не понимался — /health всегда отдавал 200."""
+    """Regression: the (payload, status) tuple used to be ignored — /health always returned 200."""
     hc = HealthCheck()
     hc.add("db", lambda: False)
 

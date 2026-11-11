@@ -191,9 +191,8 @@ docker run -d --name ferronit-pg -e POSTGRES_PASSWORD=postgres -e POSTGRES_USER=
 
 - **Types are mandatory** on public functions and methods (arguments + return). The package is
   marked `py.typed`, annotations are trustworthy — mypy and agent tools rely on them.
-- **Docstrings are English, Google-style**, on every public entity: the first line is a short
-  description, followed by `Args:` / `Returns:` / `Raises:` when relevant. Inline code comments may
-  stay in Russian if that is clearer.
+- **All code text is English**: docstrings (Google-style, on every public entity: first line is a
+  short description, then `Args:` / `Returns:` / `Raises:`) **and** inline comments.
 - **Public API is declared in `__all__`** of each module.
 - Private names start with `_`.
 - Formatting: ruff (line-length 100, target py312), import sorting enabled.

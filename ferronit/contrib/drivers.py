@@ -170,7 +170,7 @@ def _require(module_name: str, extra: str) -> Any:
     """
     try:
         return __import__(module_name)
-    except ImportError as exc:  # pragma: no cover - зависит от окружения
+    except ImportError as exc:  # pragma: no cover - environment-dependent
         raise ModuleNotFoundError(
             MISSING_EXTRA_HINT.format(extra=extra)
         ) from exc
@@ -198,10 +198,10 @@ def parse_dsn(dsn: str) -> dict[str, Any]:
     parts = urlsplit(dsn)
     scheme = parts.scheme.lower()
     if not scheme:
-        raise ValueError(f"DSN без схемы: {dsn!r}")
+        raise ValueError(f"DSN has no scheme: {dsn!r}")
     if scheme.startswith("sqlite"):
-        # Путь берём дословно после «://»: sqlite://:memory: → «:memory:»,
-        # sqlite:///var/app.db → «/var/app.db». Так же читает open_pool.
+        # The path is taken verbatim after «://»: sqlite://:memory: → «:memory:»,
+        # sqlite:///var/app.db → «/var/app.db». open_pool reads it the same way.
         raw = dsn.split("://", 1)[1]
         return {"path": raw or ":memory:"}
     if scheme.startswith("mysql"):
@@ -209,7 +209,7 @@ def parse_dsn(dsn: str) -> dict[str, Any]:
     elif scheme.startswith("postgres"):
         default_port = 5432
     else:
-        raise ValueError(f"неизвестная схема DSN: {scheme!r} (mysql, postgresql, sqlite)")
+        raise ValueError(f"Unknown DSN scheme: {scheme!r} (mysql, postgresql, sqlite)")
     port = parts.port
     return {
         "host": parts.hostname or "127.0.0.1",
@@ -400,7 +400,7 @@ class SQLiteConnection:
         cursor = await self._raw.executemany(sql_text, rows)
         try:
             await cursor.close()
-        except AttributeError:  # pragma: no cover - зависит от версии aiosqlite
+        except AttributeError:  # pragma: no cover - depends on the aiosqlite version
             return
 
     def is_in_transaction(self) -> bool:
@@ -483,4 +483,4 @@ async def open_pool(dsn: str, *, min_size: int = 1, max_size: int = 10) -> Any:
         aiosqlite = _require("aiosqlite", "sqlite")
         connection = await aiosqlite.connect(parse_dsn(dsn)["path"], isolation_level=None)
         return SQLitePool(connection)
-    raise ValueError(f"неизвестная схема DSN: {scheme!r} (нужно mysql или sqlite)")
+    raise ValueError(f"Unknown DSN scheme: {scheme!r} (expected mysql or sqlite)")

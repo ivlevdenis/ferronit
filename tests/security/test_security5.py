@@ -68,13 +68,13 @@ async def test_security_headers_options_and_override():
     @app.route("/api")
     async def api(req):
         resp = Response(body=b"ok")
-        resp._headers["X-Frame-Options"] = "SAMEORIGIN"  # пользователь переопределяет
+        resp._headers["X-Frame-Options"] = "SAMEORIGIN"  # the user overrides it
         return resp
 
     status, hdrs, _ = await call_app(app, "GET", "/api")
     assert "strict-transport-security" not in hdrs
     assert hdrs["content-security-policy"] == "default-src 'self'"
-    assert hdrs["x-frame-options"] == "SAMEORIGIN"  # setdefault — не перезатирает
+    assert hdrs["x-frame-options"] == "SAMEORIGIN"  # setdefault — does not overwrite
 
 
 # ── 42. WS origin validation ──────────────────────────────────────────
@@ -88,7 +88,7 @@ async def test_ws_origin_allowed_and_denied():
         await conn.accept()
         await conn.send("hi")
 
-    # запрещённый origin → close 1008 (policy violation)
+    # a disallowed origin → close 1008 (policy violation)
     msg_type, code, _ = await call_app(
         app, "GET", "/ws", scope_type="websocket",
         headers=[(b"origin", b"https://evil.example")],
@@ -96,14 +96,14 @@ async def test_ws_origin_allowed_and_denied():
     assert msg_type == "websocket.close"
     assert code == 1008
 
-    # разрешённый origin → accept
+    # an allowed origin → accept
     msg_type, code, sent = await call_app(
         app, "GET", "/ws", scope_type="websocket",
         headers=[(b"origin", b"https://good.example")],
     )
     assert any(m.get("type") == "websocket.accept" for m in sent)
 
-    # без origins — без ограничений
+    # without origins — without restrictions
     app2 = Ferronit()
 
     @app2.websocket("/open")
@@ -135,7 +135,7 @@ async def test_max_body_size_413():
 
 @pytest.mark.asyncio
 async def test_max_body_size_chunked():
-    """Лимит срабатывает во время чанкованной загрузки, не после."""
+    """The limit triggers during a chunked upload, not after."""
     app = Ferronit(max_body_size=100)
 
     @app.route("/upload", methods=["POST"])
@@ -171,7 +171,7 @@ async def test_rate_limit_429():
 
     for i in range(3):
         status, _, _ = await call_app(app, "GET", "/api")
-        assert status == 200, f"запрос {i+1} -> {status}"
+        assert status == 200, f"request {i+1} -> {status}"
 
     status, hdrs, _ = await call_app(app, "GET", "/api")
     assert status == 429
@@ -187,7 +187,7 @@ async def test_rate_limit_per_ip():
     async def api(req):
         return {"ok": True}
 
-    # разные IP не мешают друг другу
+    # different IPs do not interfere with each other
     for ip in ("10.0.0.1", "10.0.0.2"):
         for i in range(2):
             status, _, _ = await call_app(app, "GET", "/api", client=(ip, 1000 + i))
@@ -209,7 +209,7 @@ async def test_rate_limit_custom_key():
     assert (await call_app(app, "GET", "/api", headers=hdr))[0] == 200
     assert (await call_app(app, "GET", "/api", headers=hdr))[0] == 200
     assert (await call_app(app, "GET", "/api", headers=hdr))[0] == 429
-    # другой ключ — свой лимит
+    # a different key — its own limit
     assert (await call_app(app, "GET", "/api", headers=[(b"x-api-key", b"key2")]))[0] == 200
 
 
@@ -231,7 +231,7 @@ async def test_no_server_fingerprint_headers():
 
 @pytest.mark.asyncio
 async def test_trace_method_not_allowed():
-    """TRACE/TRACK — 404, не эхо (защита от TRACE-атак)."""
+    """TRACE/TRACK — 404, not echo (protection against TRACE attacks)."""
     app = Ferronit()
 
     @app.route("/api")

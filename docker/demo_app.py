@@ -1,9 +1,9 @@
-"""Минимальное приложение для проверки образа Ferronit.
+"""Minimal application for testing the Ferronit image.
 
-Запускается в контейнере по умолчанию (APP=demo_app:app): без БД и внешних
-зависимостей, поэтому годится и для smoke-теста образа, и как отправная точка.
+Runs in the container by default (APP=demo_app:app): no DB and no external
+dependencies, so it suits both an image smoke test and a starting point.
 
-Свой проект подключается через монтирование и APP:
+Your own project is plugged in via a mount and APP:
     docker run --rm -p 8000:8000 -v "$PWD:/app" -e APP=app:app ferronit:0.24.0
 """
 
@@ -33,7 +33,7 @@ def health() -> dict:
 
 @app.route("/json")
 def payload(n: int = 10) -> dict:
-    """JSON-эндпоинт: сериализация идёт через msgspec (C fast-path)."""
+    """JSON endpoint: serialisation goes through msgspec (C fast path)."""
     return {"count": n, "items": [{"id": i, "name": f"item-{i}"} for i in range(n)]}
 
 

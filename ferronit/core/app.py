@@ -193,7 +193,7 @@ class Ferronit:
         _methods = [m.upper() for m in (methods or ["GET"])]
 
         def decorator(handler):
-            # Auto-bind: request-параметры резолвим сразу, DI — на старте (pre-bind)
+            # Auto-bind: request params resolve right away, DI at startup (pre-bind)
             p = plan(handler, container=self._container)
             if p.di_keys:
                 self._deferred_routes.append((_methods, path, handler, p))
@@ -305,7 +305,7 @@ class Ferronit:
             return
         if scope["type"] == "websocket":
             path = scope.get("path", "/")
-            # WS CSRF guard: проверка Origin для защищённых эндпоинтов
+            # WS CSRF guard: Origin check for protected endpoints
             allowed_origins = self._ws_origins.get(path)
             if allowed_origins is not None:
                 origin = _scope_header(scope, "origin") or ""
@@ -331,7 +331,7 @@ class Ferronit:
         path = scope.get("path", "/")
         start_ns = time.perf_counter_ns()
 
-        # Rust CORS preflight — только для разрешённого Origin
+        # Rust CORS preflight — only for an allowed Origin
         if method == "OPTIONS" and self._app.has_cors():
             origin = _scope_header(scope, "origin") or ""
             preflight = self._app.cors_preflight_headers(origin)
@@ -345,7 +345,7 @@ class Ferronit:
                 self._log_access(method, path, 204, start_ns)
                 return
 
-        # тело не читается здесь — только прокидываем лимит в Request
+        # the body is not read here — only the limit is passed into Request
         if self._max_body_size is not None:
             scope["ferronit.max_body_size"] = self._max_body_size
 
@@ -378,7 +378,7 @@ class Ferronit:
 
         resp = _to_response(py_result)
         self._log_access(method, path, resp._status, start_ns)
-        # Rust CORS origin header — только для разрешённого Origin
+        # Rust CORS origin header — only for an allowed Origin
         if self._app.has_cors():
             origin = _scope_header(scope, "origin") or ""
             allowed = self._app.cors_origin(origin)
@@ -390,9 +390,9 @@ class Ferronit:
         if tid:
             resp._headers["X-Trace-Id"] = tid
 
-        # Rust GZip — уважаем q-факторы: gzip;q=0 означает "не сжимать".
-        # Мелкие тела не сжимаем: фиксированная цена zlib (~40 мкс) больше выгоды,
-        # а заголовок accept-encoding в этом случае даже не читаем.
+        # Rust GZip — honour q-factors: gzip;q=0 means "do not compress".
+        # Small bodies are not compressed: the fixed zlib cost (~40 µs) outweighs
+        # the gain, and in that case we do not even read accept-encoding.
         if resp._body and len(resp._body) >= self._gzip_min_size:
             accept_enc = req.get_header("accept-encoding") or ""
             if _wants_gzip(accept_enc):
@@ -423,7 +423,7 @@ class Ferronit:
         path = scope.path
         start_ns = time.perf_counter_ns()
 
-        # Rust CORS preflight — только для разрешённого Origin
+        # Rust CORS preflight — only for an allowed Origin
         if method == "OPTIONS" and self._app.has_cors():
             origin = _rsgi_header(scope, "origin") or ""
             preflight = self._app.cors_preflight_headers(origin)
@@ -462,7 +462,7 @@ class Ferronit:
         resp = _to_response(py_result)
         self._log_access(method, path, resp._status, start_ns)
 
-        # Rust CORS origin header — только для разрешённого Origin
+        # Rust CORS origin header — only for an allowed Origin
         if self._app.has_cors():
             origin = _rsgi_header(scope, "origin") or ""
             allowed = self._app.cors_origin(origin)
@@ -474,7 +474,7 @@ class Ferronit:
         if tid:
             resp._headers["X-Trace-Id"] = tid
 
-        # Rust GZip — уважаем q-факторы; мелкие тела не сжимаем (см. __call__)
+        # Rust GZip — honour q-factors; small bodies are not compressed (see __call__)
         if resp._body and len(resp._body) >= self._gzip_min_size:
             accept_enc = req.get_header("accept-encoding") or ""
             if _wants_gzip(accept_enc):
@@ -591,7 +591,7 @@ def _to_response(result) -> Response:
             status=200,
             content_type="application/json; charset=utf-8",
         )
-    # (payload, status) — документированный паттерн: `return {"error": "..."}, 404`
+    # (payload, status) — documented pattern: `return {"error": "..."}, 404`
     if isinstance(result, tuple) and len(result) == 2 and isinstance(result[1], int):
         payload, tuple_status = result
         if _struct_payload(payload) or isinstance(payload, (dict, list)):
@@ -664,10 +664,10 @@ def _rsgi_request(scope, proto, params, max_body_size):
         Request: The request, ready for the middleware chain.
     """
     try:
-        # RSGI отдаёт заголовки строками; Request нормализует их лениво — при первом
-        # обращении к headers/get_header, а не на каждом запросе.
+        # RSGI exposes headers as strings; Request normalizes them lazily — on the
+        # first access to headers/get_header, not on every request.
         raw_headers = list(scope.headers.items())
-    except AttributeError:  # скудный/фейковый scope без headers — это не ошибка запроса
+    except AttributeError:  # sparse/fake scope without headers — not a request error
         raw_headers = []
 
     qs = getattr(scope, "query_string", "") or ""

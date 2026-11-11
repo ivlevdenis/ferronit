@@ -1,8 +1,8 @@
-"""Модели ``rawmodel`` как ответ JSON: Rust-энкодер пишет их без промежуточного dict.
+"""``rawmodel`` models as a JSON response: the Rust encoder writes them without an interim dict.
 
-Проверяет нативный путь ``ferronit._core`` — поля берутся из ``__columns__`` (модель) или
-``__dataclass_fields__`` (обычный dataclass) и пишутся прямо в JSON. Отдельно фиксируется
-порядок полей и то, что скаляры/строки не сломались после смены диспетчеризации типов.
+Exercises the native ``ferronit._core`` path — fields are taken from ``__columns__`` (model) or
+``__dataclass_fields__`` (a plain dataclass) and written straight to JSON. Also pins field
+order and verifies scalars/rows did not break after the type-dispatch change.
 """
 
 from __future__ import annotations

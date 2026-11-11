@@ -9,11 +9,11 @@ name = "ferronit_core"
 crate-type = ["cdylib"]
 
 [dependencies]
-# abi3-py312: стабильный ABI CPython — один wheel работает на 3.12+ (включая 3.15),
-# не нужна отдельная сборка под каждую версию Python. Ниже 3.10 недоступен
-# PyUnicode_AsUTF8AndSize (нужен для PyString::to_str), а Python-слой Ferronit и так
-# требует >=3.12 — тег cp312-abi3 покрывает весь поддерживаемый диапазон.
-# extension-module обязателен для сборки .so без линковки с libpython.
+# abi3-py312: stable CPython ABI — one wheel works on 3.12+ (including 3.15),
+# no separate build per Python version. Below 3.10 PyUnicode_AsUTF8AndSize is
+# unavailable (needed by PyString::to_str), and Ferronit's Python layer
+# already requires >=3.12 — the cp312-abi3 tag covers the whole supported range.
+# extension-module is required to build the .so without linking libpython.
 pyo3 = { version = "0.24", features = ["extension-module", "abi3-py312"] }
 matchit = "0.8"
 flate2 = "1"

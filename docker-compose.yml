@@ -1,10 +1,10 @@
-# Ferronit — запуск образа «одной командой».
+# Ferronit — run the image with a single command.
 #
-#   docker compose up --build api           # минимальное приложение (порт 8000)
-#   docker compose --profile postgres up --build ecommerce   # DDD-пример на Postgres (порт 8001)
-#   docker compose --profile postgres up -d  # Postgres 18 рядом (порт 5432)
+#   docker compose up --build api           # minimal app (port 8000)
+#   docker compose --profile postgres up --build ecommerce   # DDD example on Postgres (port 8001)
+#   docker compose --profile postgres up -d  # Postgres 18 alongside (port 5432)
 #
-# ecommerce работает с Postgres из профиля `postgres` (DATABASE_URL уже настроен).
+# ecommerce uses Postgres from the `postgres` profile (DATABASE_URL is preconfigured).
 
 services:
   api:
@@ -18,7 +18,7 @@ services:
       PORT: "8000"
     restart: unless-stopped
 
-  # examples/app.py — e-commerce с DDD/CQRS (Postgres из профиля `postgres`)
+  # examples/app.py — e-commerce with DDD/CQRS (Postgres from the `postgres` profile)
   ecommerce:
     build: .
     image: ferronit:0.24.0
@@ -42,7 +42,7 @@ services:
   postgres:
     image: postgres:18-alpine
     profiles: ["postgres"]
-    # 5433 на хосте: не конфликтует с локальным Postgres/тестовым ferronit-pg на 5432
+    # 5433 on the host: does not clash with the local Postgres/test ferronit-pg on 5432
     ports:
       - "5433:5432"
     environment:

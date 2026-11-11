@@ -1,15 +1,15 @@
-"""Реальные СУБД под сгенерированным SQL: SQLite и MySQL.
+"""Real DBMSes under generated SQL: SQLite and MySQL.
 
-Проверяем не строку, а исполнение: SQL, который выдаёт `sql` для диалекта,
-уходит в настоящую базу и приносит ожидаемые строки.
+We check execution, not the string: the SQL that `sql` emits for a dialect
+goes to a real database and brings back the expected rows.
 
-* SQLite — библиотека в процессе (контейнер не нужен), драйвер `aiosqlite`.
-* MySQL — контейнер `ferronit-mysql` на :3307, драйвер `aiomysql`:
-  `./scripts/dbs_up.sh up`. Нет контейнера — тест пропускается, как и
-  postgres-тесты слоя данных в tests/test_rawdb.py.
+* SQLite — an in-process library (no container needed), the `aiosqlite` driver.
+* MySQL — the `ferronit-mysql` container on :3307, the `aiomysql` driver:
+  `./scripts/dbs_up.sh up`. Without a container the test is skipped, as are the
+  postgres tests of the data layer in tests/test_rawdb.py.
 
-DDL пишем руками: слой данных не генерирует CREATE TABLE (это отдельный пункт
-плана — миграции). Здесь проверяется ровно то, что уже умеет диалект.
+DDL is written by hand: the data layer does not generate CREATE TABLE (that is a
+separate plan item — migrations). Here exactly what the dialect already supports is checked.
 """
 
 from __future__ import annotations
@@ -23,12 +23,12 @@ from ferronit.contrib.rawmodel import Model, select
 
 try:
     import aiosqlite
-except ImportError:  # pragma: no cover - extra sqlite не установлен
+except ImportError:  # pragma: no cover - sqlite extra not installed
     aiosqlite = None
 
 try:
     import aiomysql
-except ImportError:  # pragma: no cover - extra mysql не установлен
+except ImportError:  # pragma: no cover - mysql extra not installed
     aiomysql = None
 
 
@@ -52,7 +52,7 @@ DDL_MYSQL = (
 
 
 class User(Model):
-    """Модель строки для проверки Query/DSL-путей на SQLite."""
+    """Row model for exercising Query/DSL paths on SQLite."""
 
     id: int = 0
     name: str = ""
@@ -62,7 +62,7 @@ class User(Model):
 # ── SQLite ───────────────────────────────────────────────────────────────────
 
 
-@pytest.mark.skipif(aiosqlite is None, reason="aiosqlite не установлен (extra sqlite)")
+@pytest.mark.skipif(aiosqlite is None, reason="aiosqlite is not installed (sqlite extra)")
 async def test_sqlite_executes_generated_sql() -> None:
     async with aiosqlite.connect(":memory:") as db:
         await db.execute(DDL_SQLITE)
@@ -122,9 +122,9 @@ async def test_sqlite_executes_generated_sql() -> None:
             assert await cursor.fetchone() == (1,)
 
 
-@pytest.mark.skipif(aiosqlite is None, reason="aiosqlite не установлен (extra sqlite)")
+@pytest.mark.skipif(aiosqlite is None, reason="aiosqlite is not installed (sqlite extra)")
 async def test_sqlite_runs_query_and_dsl_path() -> None:
-    """Тот же путь, что у приложения: Query/DSL → диалект → база."""
+    """The same path as the application: Query/DSL → dialect → database."""
     async with aiosqlite.connect(":memory:") as db:
         await db.execute(DDL_SQLITE.replace("ast_users", "users"))
         users = [("Ann", "ann@example.com"), ("Bob", "bob@example.com")]
@@ -151,14 +151,14 @@ async def test_sqlite_runs_query_and_dsl_path() -> None:
 
 
 async def _mysql_connect():
-    """Подключиться к контейнеру MySQL или пропустить тест."""
+    """Connect to the MySQL container or skip the test."""
     if aiomysql is None:
-        pytest.skip("aiomysql не установлен (extra mysql)")
+        pytest.skip("aiomysql is not installed (mysql extra)")
     try:
         return await aiomysql.connect(**MYSQL_PARAMS, autocommit=True, connect_timeout=5)
     except Exception as exc:
-        # любая ошибка подключения = контейнера нет (как в postgres-тестах слоя данных)
-        pytest.skip(f"MySQL недоступна ({exc}); подними ./scripts/dbs_up.sh up")
+        # any connection error means there is no container (as in the postgres data-layer tests)
+        pytest.skip(f"MySQL is unavailable ({exc}); start it with ./scripts/dbs_up.sh up")
 
 
 async def test_mysql_executes_generated_sql() -> None:
@@ -174,7 +174,7 @@ async def test_mysql_executes_generated_sql() -> None:
             await cursor.execute(insert_sql, ["Ann", "ann@example.com"])
             assert cursor.lastrowid == 1
 
-            # upsert: конфликт по PK обновляет строку, а не заводит вторую
+            # upsert: a PK conflict updates the row instead of adding a second one
             upsert_sql, _ = sql.compile_statement(
                 sql.Insert(
                     "ast_users",
@@ -198,7 +198,7 @@ async def test_mysql_executes_generated_sql() -> None:
             await cursor.execute(select_sql, params)
             assert await cursor.fetchall() == ((1, "Ann-2", "ann2@example.com"),)
 
-            # IN-список: ANY в MySQL нет — разворачивается в IN (%s, %s)
+            # IN list: MySQL has no ANY — expands to IN (%s, %s)
             in_sql, in_params = sql.compile_statement(
                 sql.Select(
                     "ast_users",
@@ -212,7 +212,7 @@ async def test_mysql_executes_generated_sql() -> None:
             await cursor.execute(in_sql, in_params)
             assert await cursor.fetchall() == (("Ann-2",), ("Bob",))
 
-            # insensensitive LIKE: ILIKE нет, но collation *_ci даёт тот же результат
+            # case-insensitive LIKE: no ILIKE, but a *_ci collation gives the same result
             like_sql, like_params = sql.compile_expr(
                 sql.Like("name", "b%", insensitive=True), sql.MYSQL
             )
@@ -245,7 +245,7 @@ async def test_mysql_executes_generated_sql() -> None:
 
 
 async def test_mysql_rejects_returning() -> None:
-    """RETURNING в MySQL нет — генератор обязан упасть, а не выдать мусор."""
+    """MySQL has no RETURNING — the builder must fail instead of emitting garbage."""
     conn = await _mysql_connect()
     try:
         with pytest.raises(sql.DialectError):
@@ -256,10 +256,10 @@ async def test_mysql_rejects_returning() -> None:
         conn.close()
 
 
-# ── разбор DSN ──────────────────────────────────────────────────────────
+# ── DSN parsing ─────────────────────────────────────────────────────────
 
 def test_parse_dsn_splits_network_engines() -> None:
-    """mysql:// и postgresql:// дают аргументы драйвера, порт по умолчанию — свой."""
+    """mysql:// and postgresql:// produce driver arguments with their own default ports."""
     from ferronit.contrib.drivers import parse_dsn
 
     assert parse_dsn("mysql://root:secret@db.internal:3307/app") == {
@@ -274,7 +274,7 @@ def test_parse_dsn_splits_network_engines() -> None:
 
 
 def test_parse_dsn_gives_sqlite_a_path_not_a_host() -> None:
-    """SQLite — файл: путь берём дословно, а не как у MySQL (иначе база «уедет»)."""
+    """SQLite is a file: take the path verbatim, unlike MySQL (otherwise the database moves)."""
     from ferronit.contrib.drivers import parse_dsn
 
     assert parse_dsn("sqlite://:memory:") == {"path": ":memory:"}
@@ -283,7 +283,7 @@ def test_parse_dsn_gives_sqlite_a_path_not_a_host() -> None:
 
 
 def test_parse_dsn_rejects_unknown_scheme() -> None:
-    """Неизвестная схема — ошибка, а не молчаливые MySQL-умолчания."""
+    """An unknown scheme is an error, not silent MySQL defaults."""
     from ferronit.contrib.drivers import parse_dsn
 
     with pytest.raises(ValueError):

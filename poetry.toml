@@ -1,4 +1,4 @@
-# Локальная конфигурация Poetry для этого репозитория (коммитится).
-# Окружение создаётся в .venv внутри проекта — так же, как в скриптах и документации.
+# Local Poetry config for this repository (committed).
+# The environment is created in .venv inside the project — same as in scripts and docs.
 [virtualenvs]
 in-project = true

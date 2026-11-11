@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Единая проверка перед коммитом: линт → типы → сборка Rust-ядра → тесты.
+# Single pre-commit check: lint → types → Rust core build → tests.
 #
-#   ./scripts/check.sh              # всё
-#   SKIP_CORE=1 ./scripts/check.sh  # без пересборки ядра (быстро, для правок на Python)
+#   ./scripts/check.sh              # everything
+#   SKIP_CORE=1 ./scripts/check.sh  # skip the core rebuild (fast, for Python-only edits)
 #
-# Возвращает ненулевой код при первой же неудаче — годится для CI и для агентов.
+# Returns a non-zero code at the first failure — suitable for CI and for agents.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -14,32 +14,32 @@ PY="${PY:-$ROOT/.venv/bin/python}"
 MATURIN="$ROOT/.venv/bin/maturin"
 
 if [ ! -x "$PY" ]; then
-    echo "нет интерпретатора $PY" >&2
-    echo "создай окружение: poetry install --all-extras (+ poetry run maturin develop --release)" >&2
+    echo "no interpreter at $PY" >&2
+    echo "create it: poetry install --all-extras (+ poetry run maturin develop --release)" >&2
     exit 1
 fi
 
 step() { printf '\n==> %s\n' "$*"; }
 
-step "ruff (линт)"
+step "ruff (lint)"
 "$PY" -m ruff check ferronit tests
 
-step "докстринги публичного API (порог 90%)"
+step "public API docstrings (threshold 90%)"
 "$PY" scripts/agent_readiness.py --min-coverage "${MIN_DOCS_COVERAGE:-90}"
 
-step "mypy (типы)"
+step "mypy (types)"
 "$PY" -m mypy ferronit
 
 if [ "${SKIP_CORE:-0}" = "1" ]; then
-    step "Rust-ядро: пропущено (SKIP_CORE=1)"
+    step "Rust core: skipped (SKIP_CORE=1)"
 elif [ -x "$MATURIN" ]; then
-    step "Rust-ядро (maturin, abi3) — ferronit_core"
+    step "Rust core (maturin, abi3) — ferronit_core"
     (PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 "$MATURIN" develop --release 2>&1 | tail -3)
 else
-    step "Rust-ядро: maturin не найден, пропускаю"
+    step "Rust core: maturin not found, skipping"
 fi
 
-step "pytest (тесты)"
+step "pytest (tests)"
 "$PY" -m pytest tests/ -q
 
-step "готово: линт, типы, ядро и тесты прошли"
+step "done: lint, types, core and tests passed"

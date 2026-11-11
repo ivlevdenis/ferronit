@@ -95,11 +95,11 @@ def test_async_callable_object_handler_is_accepted():
 
 
 def test_route_with_26_params_is_rejected_with_value_error():
-    """Шаблон из 26 параметров matchit не раскладывает по буквам a..z и паникует.
+    """matchit does not expand a 26-parameter template into letters a..z and panics.
 
-    Наружу это обязано выходить ValueError («Invalid route: ...»), а не
-    PanicException: паника Rust через FFI — не тот отказ, который ловит код
-    приложения (PanicException наследуется от BaseException).
+    This must surface as ValueError ("Invalid route: ..."), not
+    PanicException: a Rust panic across FFI is not the failure application code
+    can catch (PanicException inherits from BaseException).
     """
     v = Ferronit()
     pattern = "/" + "/".join(f"{{p{i}}}" for i in range(26))
@@ -112,7 +112,7 @@ def test_route_with_26_params_is_rejected_with_value_error():
 
 
 def test_route_with_25_params_is_accepted():
-    """25 параметров — предел matchit, шаблон ещё регистрируется."""
+    """25 parameters is matchit's limit; the template still registers."""
     v = Ferronit()
     pattern = "/" + "/".join(f"{{p{i}}}" for i in range(25))
 

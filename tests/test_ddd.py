@@ -97,7 +97,7 @@ async def test_ddd_full_cycle():
 
 
 def test_commands_and_queries_are_serialisable():
-    """Команда и запрос — msgspec.Struct: гоняются через внешнюю шину, а не только in-process."""
+    """They are msgspec.Struct: commands/queries travel an external bus, not only in-process."""
     raw = msgspec.json.encode(CreateUser("1", "Denis"))
     assert raw == b'{"user_id":"1","name":"Denis"}'
     assert msgspec.json.decode(raw, type=CreateUser) == CreateUser("1", "Denis")
@@ -108,7 +108,7 @@ def test_commands_and_queries_are_serialisable():
 
 @pytest.mark.asyncio
 async def test_deserialised_command_reaches_the_bus():
-    """Команда, пришедшая из внешней шины, диспетчеризуется той же шиной."""
+    """A command arriving from an external bus is dispatched by the same bus."""
     repo = InMemoryUserRepo()
     cmd_bus = CommandBus()
     cmd_bus.register(CreateUser, CreateUserHandler(repo))

@@ -1,32 +1,33 @@
 # Copilot instructions — Ferronit
 
-Полная инструкция для агентов: **`AGENTS.md`** в корне репозитория (читать первым).
+Full instructions for agents: **`AGENTS.md`** in the repository root (read it first).
 
-Ferronit — Python ASGI-фреймворк с Rust-ядром: `ferronit/` (Python-пакет, ноль внешних зависимостей)
-+ `ferronit-rs/` (Rust-крейт, импортируется как `ferronit._core`, сборка maturin, abi3-py312).
-Требуется Python ≥ 3.12.
+Ferronit is a Python ASGI framework with a Rust core: `ferronit/` (Python package, zero external
+dependencies) + `ferronit-rs/` (Rust crate, imported as `ferronit._core`, built with maturin,
+abi3-py312). Requires Python ≥ 3.12.
 
-## Команды
+## Commands
 
 ```bash
-./scripts/check.sh                                  # ruff → mypy → сборка ядра → pytest
-poetry run pytest tests/ -q                         # 263 теста
+./scripts/check.sh                                  # ruff → mypy → core build → pytest
+poetry run pytest tests/ -q                         # 263 tests
 poetry run ruff check ferronit tests
 poetry run mypy ferronit
 PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 poetry run maturin develop --release
 ```
 
-Окружение ведёт Poetry (`poetry.toml` — venv в `.venv/`): `poetry install --all-extras`.
-Проект Poetry не устанавливает (package-mode = false) — wheel собирает maturin.
+Poetry manages the environment (`poetry.toml` — venv in `.venv/`): `poetry install --all-extras`.
+Poetry does not install the project (package-mode = false) — maturin builds the wheel.
 
-## Правила
+## Rules
 
-- Полные аннотации типов на публичных функциях (пакет помечен `py.typed`).
-- Докстринги на английском, Google-style, первая строка — краткое описание.
-- Публичный API — в `__all__`; приватное — с префиксом `_`.
-- Публичное поведение меняется только вместе с тестом (сначала тест, потом код).
-- Версия правится в двух файлах: `ferronit/__init__.py` и `ferronit-rs/Cargo.toml` (синхронность
-  проверяет `tests/test_packaging.py`).
-- Не понижать `abi3-py312`; не менять фичи pyo3 без пересборки; не добавлять зависимости в `ferronit/`.
-- Context-sensitive нюансы (PyO3 `#[getter]`, `ferronit._core.Response`, trace-id, middleware)
-  перечислены в `AGENTS.md`, раздел «Инварианты».
+- Full type annotations on public functions (the package is marked `py.typed`).
+- Docstrings in English, Google-style, first line is a short description.
+- Public API goes in `__all__`; private names are prefixed with `_`.
+- Public behavior changes only together with a test (test first, then code).
+- The version is edited in two files: `ferronit/__init__.py` and `ferronit-rs/Cargo.toml` (sync is
+  checked by `tests/test_packaging.py`).
+- Do not downgrade `abi3-py312`; do not change pyo3 features without a rebuild; do not add
+  dependencies to `ferronit/`.
+- Context-sensitive nuances (PyO3 `#[getter]`, `ferronit._core.Response`, trace-id, middleware)
+  are listed in `AGENTS.md`, section "Invariants".

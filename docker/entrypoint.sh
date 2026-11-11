@@ -1,12 +1,12 @@
 #!/usr/bin/env sh
-# Запуск ASGI-приложения Ferronit в контейнере.
+# Run a Ferronit ASGI application inside a container.
 #
-#   APP=demo_app:app        модуль:атрибут (по умолчанию)
-#   SERVER=granian|uvicorn  бэкенд (granian по умолчанию, как `ferronit run`)
+#   APP=demo_app:app        module:attribute (default)
+#   SERVER=granian|uvicorn  backend (granian by default, like `ferronit run`)
 #   HOST=0.0.0.0
 #   PORT=8000
-#   WORKERS=1               число воркеров (granian/uvicorn)
-#   RELOAD=0               1 — режим разработки с авто-перезагрузкой (uvicorn)
+#   WORKERS=1               number of workers (granian/uvicorn)
+#   RELOAD=0                1 — development mode with auto-reload (uvicorn)
 set -eu
 
 APP="${APP:-demo_app:app}"
@@ -17,7 +17,7 @@ WORKERS="${WORKERS:-1}"
 RELOAD="${RELOAD:-0}"
 
 if [ "$#" -gt 0 ]; then
-    # Явная команда имеет приоритет: docker run ferronit:0.24.0 <cmd>
+    # An explicit command takes priority: docker run ferronit:0.24.0 <cmd>
     exec "$@"
 fi
 

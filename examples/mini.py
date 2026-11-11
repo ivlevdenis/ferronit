@@ -1,8 +1,8 @@
-"""Ferronit — минимальный сервис: агрегат + репозиторий + маршруты (без порта, без CQRS).
+"""Ferronit — minimal service: aggregate + repository + routes (no port, no CQRS).
 
-Самое простое, что есть в Ferronit для сервиса с БД: хендлеры берут репозиторий
-из DI напрямую — ни входящего порта, ни сервиса, ни шин, ни DTO. Порт/адаптер
-появляются, когда сервис растёт (см. ``examples/app.py``).
+The simplest DB-backed service Ferronit offers: handlers take the repository
+straight from DI — no incoming port, no service, no buses, no DTOs. A
+port/adapter appears once the service grows (see ``examples/app.py``).
 
     uvicorn examples.mini:app
 """
@@ -25,7 +25,7 @@ container = Container()
 app = Ferronit(debug=True, container=container)
 
 
-# ── Домен ─────────────────────────────────────────────────────────────
+# ── Domain ────────────────────────────────────────────────────────────
 
 class Order(AggregateRoot):
     def __init__(self, order_id: str, user_id: str, amount: int):
@@ -39,7 +39,7 @@ class Order(AggregateRoot):
         self.status = "cancelled"
 
 
-# ── Персистентность (модель + маппер + репозиторий) ───────────────────
+# ── Persistence (model + mapper + repository) ─────────────────────────
 
 class OrderModel(Model):
     __table__ = "mini_orders"
@@ -69,9 +69,9 @@ class CreateOrderBody(msgspec.Struct):
     amount: int = 0
 
 
-# ── DI + жизненный цикл ───────────────────────────────────────────────
+# ── DI + lifecycle ────────────────────────────────────────────────────
 
-container.factory(OrderRepository)  # до объявления маршрутов (DI по аннотации)
+container.factory(OrderRepository)  # before the routes are declared (DI by annotation)
 
 
 @app.lifespan
@@ -88,7 +88,7 @@ async def lifespan():
     await pool.close()
 
 
-# ── Маршруты: репозиторий из DI напрямую ──────────────────────────────
+# ── Routes: the repository straight from DI ───────────────────────────
 
 @app.route("/orders", methods=["POST"], summary="Create order")
 async def create_order(body: Annotated[CreateOrderBody, Body()], orders: OrderRepository):

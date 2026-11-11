@@ -164,7 +164,7 @@ async def test_list_invalid_element_returns_400(client):
 
 
 async def test_union_list_param(client):
-    """list[int | str]: int пробуется первым, иначе остаётся строка."""
+    """list[int | str]: int is tried first, otherwise the value stays a string."""
     r = await client.get("/mixed?items=1&items=abc&items=2.5")
     assert r.json() == {"items": [1, "abc", "2.5"]}
 

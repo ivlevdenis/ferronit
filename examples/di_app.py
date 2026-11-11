@@ -1,12 +1,12 @@
-"""DI-контейнер: зависимости собираются по аннотациям, а не по строкам-ключам.
+"""DI container: dependencies are assembled from annotations, not string keys.
 
-Контейнер разрешает граф один раз (при появлении сервиса), поэтому в горячем пути
-запроса не тратится время на рефлексию: хендлер просто использует готовый объект.
+The container resolves the graph once (when a service appears), so the request
+hot path spends no time on reflection: the handler simply uses a ready object.
 
-Запуск:
+Run:
     .venv/bin/python -m granian --interface asgi --no-ws examples.di_app:app
-Проверка:
-    curl localhost:8000/greet/Денис
+Check:
+    curl localhost:8000/greet/Denis
     curl localhost:8000/stats
 """
 
@@ -45,9 +45,9 @@ class Greeter:
 container = Container()
 container.singleton(Logger, PrintLogger())
 container.singleton(Cache, InMemoryCache())
-container.factory(Greeter)  # Logger и Cache подставятся по аннотациям __init__
+container.factory(Greeter)  # Logger and Cache are injected by __init__ annotations
 
-greeter = container.get(Greeter)  # автосборка графа происходит здесь, один раз
+greeter = container.get(Greeter)  # the graph is assembled here, once
 
 app = Ferronit()
 

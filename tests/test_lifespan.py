@@ -1,4 +1,4 @@
-"""Lifespan + DI: ресурсы в контейнере, инъекция портов по типу/Annotated."""
+"""Lifespan + DI: resources in the container, port injection by type/Annotated."""
 
 from __future__ import annotations
 
@@ -51,7 +51,7 @@ async def _wait_for(sent: list, msg_type: str) -> None:
         if any(m.get("type") == msg_type for m in sent):
             return
         await asyncio.sleep(0)
-    raise TimeoutError(f"{msg_type} не получен")
+    raise TimeoutError(f"{msg_type} was not received")
 
 
 async def test_di_injects_repo_from_container():
@@ -71,7 +71,7 @@ async def test_factory_is_cached_lazy_singleton():
 
     a = container.get(Repo)
     b = container.get(Repo)
-    assert a is b            # фабрика кэшируется — один экземпляр на контейнер
+    assert a is b            # the factory is cached — one instance per container
     assert a.token == b.token == "x"
 
 
@@ -98,16 +98,16 @@ async def test_lifespan_registers_resource_and_runs_teardown():
 
     task = asyncio.create_task(app({"type": "lifespan"}, receive, send))
 
-    # startup: ресурс кладётся в контейнер до startup.complete
+    # startup: the resource is placed in the container before startup.complete
     await inbox.put({"type": "lifespan.startup"})
     await _wait_for(sent, "lifespan.startup.complete")
 
-    # запрос между startup и shutdown видит ресурс
+    # a request between startup and shutdown sees the resource
     status, body = await _http_get(app, "/token")
     assert status == 200
     assert json.loads(body) == {"token": "started"}
 
-    # shutdown: teardown отрабатывает до shutdown.complete
+    # shutdown: teardown runs before shutdown.complete
     await inbox.put({"type": "lifespan.shutdown"})
     await _wait_for(sent, "lifespan.shutdown.complete")
     await task

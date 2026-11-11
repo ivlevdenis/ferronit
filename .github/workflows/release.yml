@@ -1,14 +1,14 @@
-# Релиз Ferronit: проверки → колеса под все платформы → GitHub Release → PyPI.
+# Ferronit release: checks → wheels for all platforms → GitHub Release → PyPI.
 #
 #   git tag -a v0.24.0 -m "Ferronit 0.24.0" && git push origin v0.24.0
 #
-# Триггер — тег вида v*; workflow_dispatch запускает проверки и сборку без публикации.
-# Публикация на PyPI — по API-токену из секрета репозитория PYPI_API_TOKEN.
-# Альтернатива — Trusted Publishing (OIDC, без секрета): тогда здесь нужен password: ''
-# и на pypi.org pending publisher: project ferronit, owner ivlevdenis, repo ferronit,
+# Trigger — a v* tag; workflow_dispatch runs checks and the build without publishing.
+# Publishing to PyPI — via the API token from the repository secret PYPI_API_TOKEN.
+# Alternative — Trusted Publishing (OIDC, no secret): then password: '' is needed here
+# and a pending publisher on pypi.org: project ferronit, owner ivlevdenis, repo ferronit,
 # workflow release.yml, environment release.
 #
-# Сборку колеса с Rust-ядром делает maturin (PyO3/maturin-action), окружение — Poetry.
+# maturin (PyO3/maturin-action) builds the wheel with the Rust core, Poetry manages the environment.
 name: release
 
 on:
@@ -21,13 +21,13 @@ permissions:
   contents: read
 
 jobs:
-  # Версия тега должна совпасть с версией в Cargo.toml и ferronit/__init__.py,
-  # затем прогоняется штатный scripts/check.sh (ruff → докстринги → mypy → ядро → тесты).
+  # The tag version must match the version in Cargo.toml and ferronit/__init__.py,
+  # then the standard scripts/check.sh runs (ruff → docstrings → mypy → core → tests).
   check:
-    name: Проверки и тесты
+    name: Checks and tests
     runs-on: ubuntu-latest
     services:
-      # tests/test_rawdb.py, tests/test_rawmodel.py и tests/test_postgres_real.py ходят в живой PostgreSQL :5432
+      # tests/test_rawdb.py, tests/test_rawmodel.py and tests/test_postgres_real.py talk to a live PostgreSQL :5432
       postgres:
         image: postgres:18
         env:
@@ -41,8 +41,8 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 10
-      # Диалект MySQL проверяется живым прогоном: tests/test_backends_repository.py,
-      # tests/test_sql_backends.py (без сервиса тесты пропускаются), SQLite — в процессе.
+      # The MySQL dialect is verified by a live run: tests/test_backends_repository.py,
+      # tests/test_sql_backends.py (tests are skipped without the service), SQLite is in-process.
       mysql:
         image: mysql:8.4
         env:
@@ -68,27 +68,27 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Версия тега = Cargo.toml = ferronit.__version__
+      - name: Tag version = Cargo.toml = ferronit.__version__
         if: startsWith(github.ref, 'refs/tags/')
         run: |
           tag="${GITHUB_REF_NAME#v}"
           cargo="$(grep -m1 '^version' ferronit-rs/Cargo.toml | cut -d'"' -f2)"
           pyver="$(grep -m1 '__version__' ferronit/__init__.py | cut -d'"' -f2)"
-          echo "тег=$tag Cargo.toml=$cargo ferronit/__init__.py=$pyver"
+          echo "tag=$tag Cargo.toml=$cargo ferronit/__init__.py=$pyver"
           if [ "$tag" != "$cargo" ] || [ "$tag" != "$pyver" ]; then
-            echo "::error::версия тега ($tag) не совпадает с Cargo.toml ($cargo) / __init__.py ($pyver)"
+            echo "::error::tag version ($tag) does not match Cargo.toml ($cargo) / __init__.py ($pyver)"
             exit 1
           fi
 
-      - name: Установка Poetry и окружения
+      - name: Install Poetry and the environment
         run: |
           python -m venv /tmp/poetry-venv
           /tmp/poetry-venv/bin/pip install --quiet poetry
           echo "/tmp/poetry-venv/bin" >> "$GITHUB_PATH"
-          # в этом же шаге poetry ещё нет в PATH (GITHUB_PATH влияет на следующие шаги) — путь явный
+          # in this same step poetry is not yet in PATH (GITHUB_PATH affects later steps) — use the explicit path
           /tmp/poetry-venv/bin/poetry install --all-extras
 
-      - name: Линт, типы, ядро и тесты
+      - name: Lint, types, core and tests
         run: ./scripts/check.sh
 
   linux:
@@ -103,15 +103,15 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - name: Колёса (maturin, abi3-py312)
+      - name: Wheels (maturin, abi3-py312)
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
           args: --release --out dist
           sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
-          # 2_28, а не auto: для target=aarch64 auto выбирает manylinux2014-cross, где старый
-          # ассемблер не собирает ring (chacha-armv8-linux64.S) — джоба падала на cc-rs.
-          # Проверено пробником: 2_28 собирает и aarch64, и x86_64; теги колёс согласованы.
+          # 2_28, not auto: for target=aarch64 auto picks manylinux2014-cross, where the old
+          # assembler cannot build ring (chacha-armv8-linux64.S) — the job failed on cc-rs.
+          # Verified with a probe: 2_28 builds both aarch64 and x86_64; wheel tags are consistent.
           manylinux: 2_28
       - uses: actions/upload-artifact@v6
         with:
@@ -130,7 +130,7 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - name: Колёса (maturin, abi3-py312)
+      - name: Wheels (maturin, abi3-py312)
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
@@ -155,7 +155,7 @@ jobs:
         with:
           python-version: "3.12"
           architecture: x64
-      - name: Колёса (maturin, abi3-py312)
+      - name: Wheels (maturin, abi3-py312)
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
@@ -168,14 +168,14 @@ jobs:
 
   macos:
     name: macOS
-    # Оба колеса собирает один Intel-раннер: x86_64 — родная сборка, aarch64 —
-    # кросс-сборка (`--target aarch64-apple-darwin`; SDK macOS универсален, а PyO3
-    # с abi3-py312 не требует интерпретатора целевой архитектуры, maturin-action
-    # сам ставит rustup-target и SDKROOT). Раньше arm64 собирался на
-    # `macos-latest`, но 2026-11-02 эта джоба дважды не получила раннер и была
-    # отменена через 15 минут — «The job was not acquired by Runner of type
-    # hosted even after multiple attempts» + «capacity constraints … macOS arm64
-    # runners». Из-за неё не вышел 0.24.0: релиз ждёт все джобы matrix.
+    # Both wheels are built by one Intel runner: x86_64 is a native build, aarch64 is a
+    # cross build (`--target aarch64-apple-darwin`; the macOS SDK is universal, and PyO3
+    # with abi3-py312 does not require an interpreter of the target architecture,
+    # maturin-action installs rustup-target and SDKROOT itself). Previously arm64 was built on
+    # `macos-latest`, but on 2026-11-02 that job twice failed to get a runner and was
+    # cancelled after 15 minutes — "The job was not acquired by Runner of type
+    # hosted even after multiple attempts" + "capacity constraints … macOS arm64
+    # runners". Because of it 0.24.0 never shipped: the release waits for all matrix jobs.
     runs-on: macos-15-intel
     strategy:
       fail-fast: false
@@ -186,7 +186,7 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - name: Колёса (maturin, abi3-py312)
+      - name: Wheels (maturin, abi3-py312)
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
@@ -202,7 +202,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - name: Исходники (LICENSE, Cargo.lock внутри)
+      - name: Sources (LICENSE, Cargo.lock inside)
         uses: PyO3/maturin-action@v1
         with:
           command: sdist
@@ -213,17 +213,17 @@ jobs:
           path: dist
 
   release:
-    name: GitHub Release и PyPI
+    name: GitHub Release and PyPI
     runs-on: ubuntu-latest
     needs: [check, linux, musllinux, windows, macos, sdist]
     if: ${{ startsWith(github.ref, 'refs/tags/') }}
     environment: release
     permissions:
-      id-token: write        # Trusted Publishing на PyPI + артефакт-аттестация
-      contents: write        # создание релиза
+      id-token: write        # Trusted Publishing to PyPI + artifact attestation
+      contents: write        # creating the release
       attestations: write
     steps:
-      # checkout нужен, чтобы gh мог определить репозиторий (иначе «not a git repository»)
+      # checkout is needed so gh can determine the repository (otherwise "not a git repository")
       - uses: actions/checkout@v6
 
       - uses: actions/download-artifact@v7
@@ -231,23 +231,23 @@ jobs:
           path: dist
           merge-multiple: true
 
-      - name: Что собрано
+      - name: What was built
         run: ls -lh dist
 
-      - name: Аттестация происхождения артефактов
+      - name: Artifact provenance attestation
         uses: actions/attest@v4
         with:
           subject-path: "dist/*"
 
-      - name: Публикация на PyPI (API-токен)
+      - name: Publish to PyPI (API token)
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist/
           password: ${{ secrets.PYPI_API_TOKEN }}
-          # повторный прогон релиза не должен падать на «файл уже существует»
+          # a repeated release run must not fail on "file already exists"
           skip-existing: true
 
-      - name: GitHub Release с артефактами
+      - name: GitHub Release with artifacts
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

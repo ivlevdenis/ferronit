@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Тестовые БД для слоя данных: поднять / проверить / остановить.
+# Test databases for the data layer: start / check / stop.
 #
-#   ./scripts/dbs_up.sh up        — поднять MySQL и дождаться healthcheck
-#   ./scripts/dbs_up.sh status    — что запущено
-#   ./scripts/dbs_up.sh down      — остановить (данные тестов не нужны)
+#   ./scripts/dbs_up.sh up        — start MySQL and wait for its healthcheck
+#   ./scripts/dbs_up.sh status    — what is running
+#   ./scripts/dbs_up.sh down      — stop (test data is not needed)
 #
-# SQLite контейнера не требует (библиотека в процессе) — он проверяется тестами
-# tests/test_sql_backends.py через aiosqlite.
+# SQLite needs no container (the library runs in-process) — it is covered by
+# tests/test_sql_backends.py via aiosqlite.
 set -eu
 cd "$(dirname "$0")/.."
 COMPOSE="docker-compose.dbs.yml"
@@ -14,7 +14,7 @@ COMPOSE="docker-compose.dbs.yml"
 case "${1:-up}" in
   up)
     docker compose -f "$COMPOSE" up -d --wait
-    echo "MySQL готова: 127.0.0.1:3307 (root/root, база ferronit_test)"
+    echo "MySQL is ready: 127.0.0.1:3307 (root/root, db ferronit_test)"
     ;;
   status)
     docker compose -f "$COMPOSE" ps

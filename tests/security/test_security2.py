@@ -47,17 +47,17 @@ async def call_app(app, method: str, path: str, headers: list | None = None,
 
 @pytest.mark.asyncio
 async def test_static_symlink_escape(tmp_path):
-    """Symlink внутри статики, указывающий наружу, не отдаёт внешние файлы."""
+    """A symlink inside static files pointing outside does not serve external files."""
     (tmp_path / "real.txt").write_text("inside")
     target = tmp_path / "target.txt"
     target.write_text("SECRET")
     link = tmp_path / "link.txt"
-    os.symlink(target, link)  # link внутри, target внутри — но проверим и наружу
+    os.symlink(target, link)  # link inside, target inside — but we check outside too
 
     app = Ferronit()
     app.mount("/static", StaticFiles(str(tmp_path)))
 
-    # symlink на файл ВНЕ статики
+    # a symlink to a file OUTSIDE static files
     outside = tmp_path.parent / "outside_secret.txt"
     outside.write_text("OUTSIDE_SECRET")
     link2 = tmp_path / "escape.txt"
@@ -67,7 +67,7 @@ async def test_static_symlink_escape(tmp_path):
     assert status in (403, 404)
     assert b"OUTSIDE_SECRET" not in body
 
-    # обычный файл и symlink внутри — работают
+    # a regular file and a symlink inside — both work
     status, _, body = await call_app(app, "GET", "/static/real.txt")
     assert status == 200 and body == b"inside"
 
@@ -76,7 +76,7 @@ async def test_static_symlink_escape(tmp_path):
 
 @pytest.mark.asyncio
 async def test_static_dotfiles_hidden(tmp_path):
-    """.env/.git не должны отдаваться из статики."""
+    """.env/.git must not be served from static files."""
     (tmp_path / ".env").write_text("DATABASE_URL=postgres://secret")
     (tmp_path / ".git").write_text("repo")
     (tmp_path / "index.html").write_text("<h1>ok</h1>")
@@ -99,7 +99,7 @@ async def test_static_dotfiles_hidden(tmp_path):
 
 @pytest.mark.asyncio
 async def test_content_type_header_injection():
-    """CRLF в content_type ответа не создаёт новые заголовки."""
+    """CRLF in the response content_type does not create new headers."""
     app = Ferronit()
 
     @app.route("/ct")
@@ -109,7 +109,7 @@ async def test_content_type_header_injection():
     status, hdrs, _ = await call_app(app, "GET", "/ct")
     assert status == 200
     assert "x-injected" not in hdrs
-    value = hdrs["content-type"]  # CRLF заменён на SP, второй строки не возникло
+    value = hdrs["content-type"]  # CRLF replaced with SP, no second line appeared
     assert "\r" not in value and "\n" not in value
     assert value.startswith("text/html")
 
@@ -162,7 +162,7 @@ async def test_gzip_response_valid():
     )
     assert status == 200
     assert hdrs.get("content-encoding") == "gzip"
-    # тело — валидный gzip
+    # the body is valid gzip
     decoded = json.loads(gzip.decompress(body))
     assert decoded["items"][0] == "a" * 1000
 
@@ -186,7 +186,7 @@ async def test_giant_query_string_no_crash():
 
 @pytest.mark.asyncio
 async def test_control_chars_escaped_in_json():
-    """\\x00 и \\x1f в значениях не попадают в ответ сырыми байтами."""
+    """\\x00 and \\x1f in values do not reach the response as raw bytes."""
     app = Ferronit()
 
     @app.route("/ctrl")
@@ -198,7 +198,7 @@ async def test_control_chars_escaped_in_json():
     assert b"\x00" not in body
     assert b"\x1f" not in body
     assert b"\\u0000" in body or b"\\u0000" in body
-    # парсится обратно корректно
+    # parses back correctly
     assert json.loads(body)["payload"] == "\x00\x1f\x7f"
 
 
@@ -232,11 +232,11 @@ async def test_method_not_allowed_no_500():
     async def only_get(req):
         return {"ok": True}
 
-    # POST на GET-маршрут
+    # POST to a GET route
     status, hdrs, body = await call_app(app, "POST", "/only-get", body=b"{}")
     assert status == 404
     assert b"Traceback" not in body
 
-    # OPTIONS без CORS
+    # OPTIONS without CORS
     status, hdrs, _ = await call_app(app, "OPTIONS", "/only-get")
     assert status == 404

@@ -1,7 +1,7 @@
-"""ASVS 5.0 Level 1 compliance tests — каждый тест = одно требование L1.
+"""ASVS 5.0 Level 1 compliance tests — each test covers one L1 requirement.
 
-Имена: test_asvs_<V>_<N>_<M>_<slug>. Docstring содержит полный текст требования
-из официального OWASP ASVS 5.0 (github.com/OWASP/ASVS, 5.0/en/).
+Names: test_asvs_<V>_<N>_<M>_<slug>. Each docstring holds the full requirement
+text from the official OWASP ASVS 5.0 (github.com/OWASP/ASVS, 5.0/en/).
 """
 import json
 import os
@@ -58,7 +58,7 @@ async def test_asvs_v1_2_1_output_encoding_for_json_context():
     assert status == 200
     assert b"<script>" not in body
     assert b"\\u003cscript\\u003e" in body
-    assert b"\\u0026" in body  # & тоже экранирован
+    assert b"\\u0026" in body  # & is escaped too
 
 
 class AsvsUser(Model):
@@ -72,8 +72,8 @@ async def test_asvs_v1_2_4_parameterized_queries():
     """V1.2.4 (L1): data selection or database queries use parameterized queries."""
     evil = "1 OR 1=1"
     sql, params = select(AsvsUser).where(AsvsUser.c.name == evil).compile()
-    assert evil not in sql          # инъекция не попала в текст запроса
-    assert params == [evil]         # а ушла bound-параметром
+    assert evil not in sql          # the injection did not reach the query text
+    assert params == [evil]         # it went as a bound parameter instead
 
 
 @pytest.mark.asyncio
@@ -84,12 +84,12 @@ async def test_asvs_v1_3_2_no_dynamic_code_execution():
 
     offenders = []
     for path in (FERRONIT_ROOT / "ferronit").rglob("*.py"):
-        if "cli.py" in str(path):  # CLI-шаблоны — не рантайм
+        if "cli.py" in str(path):  # CLI templates — not runtime
             continue
         for i, line in enumerate(path.read_text().splitlines(), 1):
             if re.search(r"\b(eval|exec)\s*\(", line):
                 offenders.append(f"{path.relative_to(FERRONIT_ROOT)}:{i}")
-    assert offenders == [], f"eval/exec найден: {offenders}"
+    assert offenders == [], f"eval/exec found: {offenders}"
 
 
 # ── V3 Web Frontend Security ──────────────────────────────────────────
@@ -136,12 +136,12 @@ async def test_asvs_v3_4_2_cors_fixed_origin():
     async def api(req):
         return {"ok": True}
 
-    # evil origin не получает ACAO
+    # a disallowed origin gets no ACAO
     status, hdrs, _ = await call_app(app, "GET", "/api",
                                      headers=[(b"origin", b"https://evil.example")])
     assert "access-control-allow-origin" not in hdrs
 
-    # good origin получает ровно свой
+    # the allowed origin gets exactly its own
     status, hdrs, _ = await call_app(app, "GET", "/api",
                                      headers=[(b"origin", b"https://good.example")])
     assert hdrs["access-control-allow-origin"] == "https://good.example"
@@ -268,7 +268,7 @@ async def test_asvs_v13_4_1_git_metadata_hidden(tmp_path):
         assert status in (403, 404), dotfile
 
 
-# ── Дополнительные проверки инфраструктурных L1 ──────────────────────
+# ── Additional infrastructure L1 checks ───────────────────────────────
 
 @pytest.mark.asyncio
 async def test_asvs_v5_3_1_static_files_not_executed(tmp_path):
@@ -281,7 +281,7 @@ async def test_asvs_v5_3_1_static_files_not_executed(tmp_path):
 
     status, hdrs, body = await call_app(app, "GET", "/static/malware.py")
     assert status == 200
-    # отдаётся как файл с content-type по mimetype, тело не исполняется
+    # served as a file with a content-type from the mimetype; the body is not executed
     assert b"pwned" in body
     assert "python" in hdrs.get("content-type", "") or "octet-stream" in hdrs.get("content-type", "")
 
@@ -289,8 +289,8 @@ async def test_asvs_v5_3_1_static_files_not_executed(tmp_path):
 @pytest.mark.asyncio
 async def test_asvs_v1_2_2_no_untrusted_url_building():
     """V1.2.2 (L1): when dynamically building URLs, untrusted data is encoded
-    per context. Ferronit не строит URL из ввода пользователя — query-параметры
-    возвращаются как данные, не как ссылки."""
+    per context. Ferronit does not build URLs from user input — query parameters
+    are returned as data, not as links."""
     app = Ferronit()
 
     @app.route("/redirect")
@@ -300,4 +300,4 @@ async def test_asvs_v1_2_2_no_untrusted_url_building():
     status, _, body = await call_app(app, "GET", "/redirect", query=b"next=javascript:alert(1)")
     assert status == 200
     data = json.loads(body)
-    assert data["next"] == "javascript:alert(1)"  # это данные, фреймворк их не выполняет
+    assert data["next"] == "javascript:alert(1)"  # it is data; the framework does not execute it

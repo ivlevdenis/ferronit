@@ -1,8 +1,8 @@
-"""Кодировки в query-строке — регрессия на двойное кодирование.
+"""Query-string encodings — regression against double encoding.
 
-Клиенты шлют параметры по-разному: curl и часть SDK передают сырые UTF-8 байты,
-браузеры — percent-encoded, легаси — latin-1. Все три варианта должны давать
-корректный Python-str, а не «ÐÐµÐ½Ð¸Ñ».
+Clients send parameters differently: curl and some SDKs pass raw UTF-8 bytes,
+browsers send percent-encoded values, legacy clients use latin-1. All three
+variants must yield a correct Python str, not mojibake.
 """
 
 import pytest
@@ -46,7 +46,7 @@ async def query_of(app, query_string: bytes) -> dict:
 
 @pytest.mark.asyncio
 async def test_raw_utf8_bytes_are_decoded():
-    """curl шлёт сырые UTF-8 байты — раньше получалось двойное кодирование."""
+    """curl sends raw UTF-8 bytes — this used to result in double encoding."""
     app = Ferronit()
     query = await query_of(app, "name=Денис".encode())
 
@@ -63,7 +63,7 @@ async def test_percent_encoded_utf8_is_decoded():
 
 @pytest.mark.asyncio
 async def test_latin1_bytes_still_work():
-    """Настоящая latin-1-строка (é = 0xE9) не должна ломаться."""
+    """A genuine latin-1 string (é = 0xE9) must not break."""
     app = Ferronit()
     query = await query_of(app, b"city=caf\xe9")
 
@@ -89,7 +89,7 @@ async def test_repeated_keys_accumulate_into_list():
 
 @pytest.mark.asyncio
 async def test_cyrillic_path_param_roundtrip_via_example():
-    """Сквозная проверка на примере: /hello?name=Денис отдаёт правильный текст."""
+    """End-to-end check by example: /hello?name=<non-ASCII> returns the correct text."""
     import importlib
     import pathlib
     import sys

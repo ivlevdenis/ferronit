@@ -1,14 +1,14 @@
-"""0001 — заказы и позиции заказа.
+"""0001 — orders and order items.
 
-Пример файла миграции: так его будет создавать `ferronit migrate new`.
-Схема описана шагами — либо DDL-узлами генератора, либо `sql.Raw`,
-когда движок требует своего синтаксиса.
+An example migration file: this is how `ferronit migrate new` will create it.
+The schema is described as steps — either generator DDL nodes or `sql.Raw`
+when the engine needs its own syntax.
 
-Правила:
-* ``UP`` применяется по порядку, один шаг = один оператор;
-* ``DOWN`` — откат, применяется в обратном порядке;
-* порядок применения задаёт имя файла (``0001_``, ``0002_``, …);
-* в файле нет ничего, что знает о конкретной СУБД: это работа диалекта.
+Rules:
+* ``UP`` is applied in order, one step = one statement;
+* ``DOWN`` is the rollback, applied in reverse order;
+* the file name sets the application order (``0001_``, ``0002_``, …);
+* nothing in the file knows about a specific DBMS: that is the dialect's job.
 """
 
 from ferronit.contrib import sql
@@ -21,7 +21,7 @@ UP = [
             sql.Column("user_id", sql.INT, nullable=False),
             sql.Column("total", sql.NUMERIC, nullable=False, precision=12, scale=2),
             sql.Column("status", sql.TEXT, nullable=False, default="new"),
-            # now() есть у PG и MySQL, но не у SQLite — CURRENT_TIMESTAMP есть у всех.
+            # now() exists in PG and MySQL but not in SQLite — CURRENT_TIMESTAMP exists everywhere.
             sql.Column("placed_at", sql.TIMESTAMP, nullable=False, default=sql.Raw("CURRENT_TIMESTAMP")),
         ],
     ),

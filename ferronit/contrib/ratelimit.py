@@ -43,7 +43,7 @@ def rate_limit(limit: int, window: float = 60.0, key=None):
 
         times.append(now)
 
-        # защита от неограниченного роста памяти
+        # guard against unbounded memory growth
         if len(_buckets) > _MAX_BUCKETS:
             cutoff = now - window
             stale = [bk for bk, t in _buckets.items() if not t or t[-1] <= cutoff]

@@ -1,7 +1,7 @@
-"""Kafka-адаптер: контракт и жизненный цикл без настоящего брокера.
+"""Kafka adapter: contract and lifecycle without a real broker.
 
-aiokafka — опциональная зависимость, поэтому модуль подменяется фейком:
-проверяются ветки «не запущен», «запущен», фоновая задача потребителя.
+aiokafka is an optional dependency, so the module is replaced by a fake:
+the "not started", "started" and consumer background task branches are checked.
 """
 
 import sys
@@ -82,12 +82,12 @@ async def test_subscribe_keeps_task_reference_and_stop_cancels_it(fake_aiokafka)
     bus = KafkaMessageBus("kafka:9092")
 
     async def handler(value):
-        raise AssertionError("потребитель не должен получать сообщения в этом тесте")
+        raise AssertionError("the consumer must not receive messages in this test")
 
     await bus.subscribe("orders", handler)
 
     assert bus._consumer.topics == ("orders",)
-    assert bus._poll_task is not None  # ссылка удерживается: иначе задачу снимет GC
+    assert bus._poll_task is not None  # the reference is kept: otherwise GC collects the task
 
     await bus.stop()
     assert bus._poll_task is None
@@ -95,4 +95,4 @@ async def test_subscribe_keeps_task_reference_and_stop_cancels_it(fake_aiokafka)
 
 @pytest.mark.asyncio
 async def test_stop_without_start_is_safe():
-    await KafkaMessageBus().stop()  # ни продюсера, ни потребителя, ни задачи
+    await KafkaMessageBus().stop()  # no producer, no consumer, no task

@@ -1,15 +1,15 @@
-"""HTTP-адаптер входящего порта ``OrderApiPort`` — переводит HTTP в вызовы порта.
+"""HTTP adapter for the incoming ``OrderApiPort`` — turns HTTP into port calls.
 
-Тонкий вход: работает только с DTO прикладного слоя (``CreateOrderDTO`` →
-``OrderDTO``) и портом. Домена и маппинга здесь нет — перевод домен ↔ DTO делает
-``OrderService`` в ``examples/app.py``. Монтируется из точки сборки
-``examples/main.py`` через ``app.mount("/", HttpOrdersAdapter())``.
+Thin entry: it works only with application-layer DTOs (``CreateOrderDTO`` →
+``OrderDTO``) and the port. No domain and no mapping here — ``OrderService`` in
+``examples/app.py`` translates domain ↔ DTO. Mounted from the composition root
+``examples/main.py`` via ``app.mount("/", HttpOrdersAdapter())``.
 
 Endpoints:
-  POST /orders              — создать заказ (команда PlaceOrder)
-  GET  /orders              — список заказов (запрос ListUserOrders)
-  GET  /orders/{id}         — заказ со всеми позициями (запрос GetOrder)
-  POST /orders/{id}/cancel  — отменить заказ (команда CancelOrder)
+  POST /orders              — create an order (PlaceOrder command)
+  GET  /orders              — list orders (ListUserOrders query)
+  GET  /orders/{id}         — an order with all its items (GetOrder query)
+  POST /orders/{id}/cancel  — cancel an order (CancelOrder command)
   GET  /openapi.json
   GET  /ping
 """
@@ -21,15 +21,15 @@ from examples.app import CreateOrderDTO, OrderApiPort, OrderDTO
 
 
 class HttpOrdersAdapter:
-    """Входящий HTTP-адаптер: маршруты зависят только от ``OrderApiPort``.
+    """Incoming HTTP adapter: its routes depend only on ``OrderApiPort``.
 
-    Регистрируется через ``app.mount(prefix, adapter)`` — Ferronit вызывает
-    :meth:`mount` с готовым приложением, поэтому адаптер не держит ``app`` в
-    конструкторе и не требует отдельного ``.bind()``.
+    Registered via ``app.mount(prefix, adapter)`` — Ferronit calls :meth:`mount`
+    with a ready application, so the adapter keeps no ``app`` in its constructor
+    and needs no separate ``.bind()``.
     """
 
     def mount(self, app: Ferronit, prefix: str = "") -> None:
-        """Зарегистрировать маршруты на ``app`` под ``prefix``."""
+        """Register the routes on ``app`` under ``prefix``."""
         base = prefix.rstrip("/")
 
         @app.route(f"{base}/orders", methods=["POST"], summary="Create order")

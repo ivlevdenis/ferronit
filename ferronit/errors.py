@@ -60,7 +60,7 @@ __all__ = [
     "validation_error_for_body",
 ]
 
-# ── Коды ошибок (публичный контракт: клиент переключается по ним) ──────
+# ── Error codes (public contract: clients switch on them) ──────────────
 MISSING = "missing"
 INVALID_TYPE = "invalid_type"
 INVALID_VALUE = "invalid_value"
@@ -79,7 +79,7 @@ UNSUPPORTED_MEDIA_TYPE = "unsupported_media_type"
 BODY_TOO_LARGE = "body_too_large"
 INTERNAL_ERROR = "internal_error"
 
-#: Все коды, которые может отдать фреймворк (для доков и тестов).
+#: All codes the framework can return (for docs and tests).
 REQUEST_ERRORS = (
     MISSING, INVALID_TYPE, INVALID_VALUE, TOO_SMALL, TOO_LARGE, TOO_SHORT, TOO_LONG,
     NOT_MULTIPLE_OF, PATTERN_MISMATCH, INVALID_ENUM, INVALID_JSON, INVALID_REQUEST,
@@ -193,7 +193,7 @@ class InternalError(RequestError):
     code = INTERNAL_ERROR
 
 
-# ── Классификация сообщений msgspec ────────────────────────────────────
+# ── msgspec message classification ─────────────────────────────────────
 
 #: ``Expected `str` of length >= 2`` / ``... <= 4``
 _LENGTH_RE = re.compile(r" of length (>=|<=|>|<) ")
@@ -261,7 +261,7 @@ def from_msgspec(exc: Exception, field: str = "") -> FieldError:
     return FieldError(code, text, field or None)
 
 
-# ── Сбор ошибок по модели (все сразу, а не первая) ─────────────────────
+# ── Collecting model errors (all at once, not just the first) ──────────
 
 
 def _split_annotated(hint: Any) -> tuple[Any, msgspec.Meta | None]:
@@ -399,13 +399,13 @@ def collect_errors(
             values[key] = msgspec.convert(raw, field.type)
         except msgspec.ValidationError as exc:
             errors.append(from_msgspec(exc, path))
-        except TypeError as exc:  # unsupported annotation — не ошибка входа
+        except TypeError as exc:  # unsupported annotation — not an input error
             errors.append(FieldError(INVALID_VALUE, str(exc), path))
     if errors:
         return None, errors
     try:
         return model(**values), []
-    except TypeError as exc:  # несогласованные default'ы модели — вина кода, не входа
+    except TypeError as exc:  # inconsistent model defaults — a code fault, not an input error
         return None, [FieldError(INVALID_VALUE, str(exc))]
 
 
@@ -427,5 +427,5 @@ def validation_error_for_body(body: bytes, model: type, first: Exception) -> Req
         return RequestError(f"Malformed JSON body: {exc}", code=INVALID_JSON)
     _value, errors = collect_errors(data, model)
     if not errors:
-        errors = [from_msgspec(first)]  # страховка: fast path упал, обход — нет
+        errors = [from_msgspec(first)]  # safety net: fast path failed, fallback did not
     return ValidationError(errors)

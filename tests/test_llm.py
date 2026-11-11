@@ -1,8 +1,8 @@
-"""LLM-адаптеры: сборка запроса, разбор ответа и ошибки — на подменённом httpx.
+"""LLM adapters: request assembly, response parsing and errors — on a patched httpx.
 
-Живой провайдер не нужен и не должен вызываться: подменяем `httpx.AsyncClient`
-заглушкой, которая запоминает запрос и отдаёт заранее заданный ответ. Так
-проверяется ровно наш код (payload, заголовки, разбор), а не сеть.
+No live provider is needed or should be called: we replace `httpx.AsyncClient`
+with a stub that records the request and returns a preset response. This way
+exactly our code is checked (payload, headers, parsing), not the network.
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ from ferronit.contrib.llm import (
 
 
 class _FakeResponse:
-    """Ответ провайдера: payload + статус (для проверки ошибок)."""
+    """Provider response: payload + status (for checking errors)."""
 
     def __init__(self, payload: dict, status: int = 200) -> None:
         self._payload = payload
@@ -40,7 +40,7 @@ class _FakeResponse:
 
 
 class _FakeClient:
-    """Заглушка `httpx.AsyncClient`: помнит запросы, отдаёт ответы по порядку."""
+    """Stub for `httpx.AsyncClient`: records requests, returns responses in order."""
 
     def __init__(self, responses: list[_FakeResponse]) -> None:
         self._responses = list(responses)
@@ -59,7 +59,7 @@ class _FakeClient:
 
 @pytest.fixture
 def fake_httpx(monkeypatch: pytest.MonkeyPatch):
-    """Установить заглушку httpx.AsyncClient и вернуть её установщик."""
+    """Install the httpx.AsyncClient stub and return its installer."""
 
     def install(*responses: _FakeResponse) -> _FakeClient:
         client = _FakeClient(list(responses))
@@ -81,7 +81,7 @@ def _openai_payload(content: str = "привет", model: str = "gpt-4o") -> dic
 
 
 async def test_openai_chat_sends_messages_and_parses_answer(fake_httpx) -> None:
-    """Chat: тело запроса, заголовок с ключом, разбор ответа в ChatResponse."""
+    """Chat: request body, header with the key, response parsing into ChatResponse."""
     client = fake_httpx(_FakeResponse(_openai_payload("привет")))
     adapter = OpenAiAdapter(api_key="sk-test", model="gpt-4o")
 
@@ -103,7 +103,7 @@ async def test_openai_chat_sends_messages_and_parses_answer(fake_httpx) -> None:
 
 
 async def test_openai_chat_passes_model_and_temperature_overrides(fake_httpx) -> None:
-    """Переопределение модели и temperature уходит в тело запроса."""
+    """Model and temperature overrides go into the request body."""
     client = fake_httpx(_FakeResponse(_openai_payload()))
     adapter = OpenAiAdapter(api_key="sk-test")
 
@@ -114,7 +114,7 @@ async def test_openai_chat_passes_model_and_temperature_overrides(fake_httpx) ->
 
 
 async def test_openai_complete_wraps_prompt_into_user_message(fake_httpx) -> None:
-    """Complete — тот же chat, но промпт становится одним user-сообщением."""
+    """Complete — the same chat, but the prompt becomes a single user message."""
     client = fake_httpx(_FakeResponse(_openai_payload("ответ")))
 
     assert await OpenAiAdapter(api_key="k").complete("вопрос") == "ответ"
@@ -122,7 +122,7 @@ async def test_openai_complete_wraps_prompt_into_user_message(fake_httpx) -> Non
 
 
 async def test_openai_embed_handles_string_and_list(fake_httpx) -> None:
-    """Embed: строка заворачивается в список, возвращается первый вектор."""
+    """Embed: the string is wrapped into a list, the first vector is returned."""
     payload = {"data": [{"embedding": [0.1, 0.2, 0.3]}]}
     client = fake_httpx(_FakeResponse(payload), _FakeResponse(payload))
     adapter = OpenAiAdapter(api_key="k")
@@ -135,7 +135,7 @@ async def test_openai_embed_handles_string_and_list(fake_httpx) -> None:
 
 
 async def test_openai_raises_on_error_status(fake_httpx) -> None:
-    """Ошибка провайдера не глотается — уходит наружу."""
+    """A provider error is not swallowed — it propagates outward."""
     fake_httpx(_FakeResponse({}, status=500))
 
     with pytest.raises(httpx.HTTPStatusError):
@@ -143,7 +143,7 @@ async def test_openai_raises_on_error_status(fake_httpx) -> None:
 
 
 async def test_openai_takes_key_from_environment(fake_httpx, monkeypatch) -> None:
-    """Ключ без явного аргумента берётся из окружения."""
+    """The key without an explicit argument is taken from the environment."""
     monkeypatch.setenv("OPENAI_API_KEY", "sk-env")
     client = fake_httpx(_FakeResponse(_openai_payload()))
 
@@ -156,7 +156,7 @@ async def test_openai_takes_key_from_environment(fake_httpx, monkeypatch) -> Non
 
 
 async def test_claude_moves_system_message_to_top_level(fake_httpx) -> None:
-    """System-сообщение уходит в отдельное поле, остальные — в messages."""
+    """The system message goes to a separate field, the rest — into messages."""
     payload = {
         "model": "claude-sonnet-4-20250514",
         "content": [{"type": "text", "text": "готово"}],
@@ -181,7 +181,7 @@ async def test_claude_moves_system_message_to_top_level(fake_httpx) -> None:
 
 
 async def test_claude_max_tokens_override_and_env_key(fake_httpx, monkeypatch) -> None:
-    """max_tokens переопределяется, ключ может прийти из окружения."""
+    """max_tokens is overridden, the key may come from the environment."""
     monkeypatch.setenv("ANTHROPIC_API_KEY", "anthropic-env")
     client = fake_httpx(_FakeResponse(
         {"content": [{"text": "x"}], "usage": {"input_tokens": 1, "output_tokens": 1}}
@@ -191,20 +191,20 @@ async def test_claude_max_tokens_override_and_env_key(fake_httpx, monkeypatch) -
 
     assert client.calls[0]["json"]["max_tokens"] == 256
     assert client.calls[0]["headers"]["x-api-key"] == "anthropic-env"
-    assert "system" not in client.calls[0]["json"]  # системного сообщения не было
+    assert "system" not in client.calls[0]["json"]  # there was no system message
 
 
 async def test_claude_has_no_embeddings() -> None:
-    """У Claude нет эмбеддингов — явная ошибка вместо пустого вектора."""
+    """Claude has no embeddings — an explicit error instead of an empty vector."""
     with pytest.raises(NotImplementedError):
         await ClaudeAdapter(api_key="k").embed("текст")
 
 
-# ── Mock и порт ────────────────────────────────────────────────────────
+# ── Mock and port ──────────────────────────────────────────────────────
 
 
 async def test_mock_adapter_returns_canned_answers_and_records_history() -> None:
-    """Мок отдаёт заданные ответы и ведёт историю вызовов."""
+    """The mock returns preset answers and keeps a call history."""
     adapter = MockLlmAdapter({"complete": "готово", "chat": "ответ"})
 
     assert await adapter.complete("вопрос", temperature=0.5) == "готово"
@@ -224,7 +224,7 @@ async def test_mock_adapter_returns_canned_answers_and_records_history() -> None
 
 
 async def test_mock_adapter_without_responses_uses_defaults() -> None:
-    """Без настройки мок отвечает по умолчанию и не падает на пустой истории."""
+    """Without configuration the mock answers by default and does not fail on an empty history."""
     adapter = MockLlmAdapter()
 
     assert (await adapter.complete("длинный вопрос " * 10)).startswith("Mock response to:")
@@ -235,6 +235,6 @@ async def test_mock_adapter_without_responses_uses_defaults() -> None:
 
 
 def test_llm_port_is_abstract() -> None:
-    """Порт нельзя инстанциировать — адаптеры обязаны реализовать три метода."""
+    """The port cannot be instantiated — adapters must implement three methods."""
     with pytest.raises(TypeError):
         LlmPort()  # type: ignore[abstract]

@@ -1,8 +1,8 @@
-"""Тесты декларативных моделей над сырым asyncpg-слоем (``ferronit.contrib.rawmodel``).
+"""Tests for declarative models over the raw asyncpg layer (``ferronit.contrib.rawmodel``).
 
-Юнит-часть (плюрализация имён таблиц, компиляция ``Query``, ``IdentityMap``,
-репозиторий с фейковым соединением) работает без базы. Интеграционная часть
-требует контейнер PostgreSQL на :5432 и пропускается, если его нет:
+The unit part (table-name pluralization, ``Query`` compilation, ``IdentityMap``, the
+repository with a fake connection) works without a database. The integration part
+requires a PostgreSQL container on :5432 and is skipped if it is absent:
 
     docker run -d --name ferronit-pg -e POSTGRES_PASSWORD=postgres \\
         -e POSTGRES_USER=postgres -e POSTGRES_DB=postgres -p 5432:5432 postgres:18
@@ -26,18 +26,18 @@ from ferronit.contrib.rawmodel import (
     select,
 )
 
-try:  # asyncpg живёт в extra "postgres"
+try:  # asyncpg lives in the "postgres" extra
     import asyncpg
-except ModuleNotFoundError:  # pragma: no cover - окружение без extra
+except ModuleNotFoundError:  # pragma: no cover - environment without the extra
     asyncpg = None  # type: ignore[assignment]
 
 DSN = "postgresql://postgres:postgres@localhost:5432/postgres"
 TABLE = "raw_model_test"
 
-pytestmark = pytest.mark.skipif(asyncpg is None, reason="asyncpg не установлен (extra postgres)")
+pytestmark = pytest.mark.skipif(asyncpg is None, reason="asyncpg is not installed (postgres extra)")
 
 
-# ── модели для юнит-тестов ───────────────────────────────────────────────────
+# ── models for unit tests ────────────────────────────────────────────────────
 
 
 class User(Model):
@@ -78,7 +78,7 @@ def _table_of(model: type[Model], table: str | None = None) -> str:
     return sql.split(" FROM ", 1)[1].split(" ", 1)[0]
 
 
-# ── имя таблицы: плюрализация ────────────────────────────────────────────────
+# ── table name: pluralization ────────────────────────────────────────────────
 
 
 def test_default_table_pluralizes() -> None:
@@ -105,7 +105,7 @@ def test_explicit_argument_overrides_model_attribute() -> None:
     assert _table_of(Widget, "other_widgets") == "other_widgets"
 
 
-# ── компиляция Query ─────────────────────────────────────────────────────────
+# ── Query compilation ────────────────────────────────────────────────────────
 
 
 def test_column_comparisons_build_conditions() -> None:
@@ -234,7 +234,7 @@ def test_unknown_column_raises_attribute_error() -> None:
         _ = User.c.nope
 
 
-# ── модель как датакласс ─────────────────────────────────────────────────────
+# ── model as a dataclass ─────────────────────────────────────────────────────
 
 
 def test_columns_capture_declaration_order() -> None:
@@ -248,7 +248,7 @@ def test_from_row_and_to_tuple_roundtrip() -> None:
 
 
 def test_identity_map_holds_strong_references() -> None:
-    """Кэш живёт вместе с unit of work и держит строки, пока его не выбросят."""
+    """The cache lives with the unit of work and holds rows until it is discarded."""
     identity_map = IdentityMap()
     user = User.from_row((1, "A", "a@example.com"))
     identity_map.put(User, 1, user)
@@ -261,11 +261,11 @@ def test_model_instance_is_unhashable() -> None:
         hash(User(id=1, name="A", email="a@example.com"))
 
 
-# ── репозиторий на фейковом соединении ───────────────────────────────────────
+# ── repository on a fake connection ──────────────────────────────────────────
 
 
 class FakeConnection:
-    """Минимальная заглушка asyncpg-соединения, записывающая вызовы."""
+    """Minimal asyncpg connection stub that records calls."""
 
     def __init__(self, *, row=None, rows=None) -> None:
         self.row = row
@@ -304,7 +304,7 @@ async def test_save_returns_model_with_generated_id() -> None:
     saved = await repo.save(User(name="Zoe", email="z@example.com"))
     assert saved == User(id=7, name="Zoe", email="z@example.com")
     assert conn.calls[-1][0:1] == ("fetchrow",)
-    assert conn.calls[-1][2] == ("Zoe", "z@example.com")  # pk не уходит в INSERT
+    assert conn.calls[-1][2] == ("Zoe", "z@example.com")  # pk is not sent to INSERT
 
 
 async def test_list_selects_only_model_columns() -> None:
@@ -324,7 +324,7 @@ async def test_get_uses_identity_map_and_skips_second_query() -> None:
     second = await repo.get(1)
 
     assert first is second
-    assert len(conn.calls) == calls_after_first  # второго запроса нет
+    assert len(conn.calls) == calls_after_first  # there is no second query
 
 
 async def test_list_does_not_populate_identity_map() -> None:
@@ -332,7 +332,7 @@ async def test_list_does_not_populate_identity_map() -> None:
     identity_map = IdentityMap()
     repo = RawModelRepository(conn, User, identity_map=identity_map)
     await repo.list()
-    assert identity_map.get(User, 1) is None  # list не кладёт строки в карту
+    assert identity_map.get(User, 1) is None  # list does not put rows into the map
 
 
 async def test_update_returns_model_via_returning() -> None:
@@ -349,7 +349,7 @@ async def test_update_missing_row_returns_none() -> None:
     assert await repo.update(999, {"name": "B"}) is None
 
 
-# ── интеграционная часть ─────────────────────────────────────────────────────
+# ── integration part ─────────────────────────────────────────────────────────
 
 
 class RawUser(Model):
@@ -372,11 +372,11 @@ CREATE TABLE IF NOT EXISTS {TABLE} (
 
 @pytest.fixture
 async def pool():
-    """Пул к реальному PostgreSQL; без контейнера тесты пропускаются."""
+    """Pool to a real PostgreSQL; tests are skipped without a container."""
     try:
         created = await create_raw_pool(DSN, min_size=1, max_size=4)
-    except Exception as exc:  # pragma: no cover - зависит от окружения
-        pytest.skip(f"PostgreSQL недоступен: {type(exc).__name__}")
+    except Exception as exc:  # pragma: no cover - depends on the environment
+        pytest.skip(f"PostgreSQL is unavailable: {type(exc).__name__}")
 
     async with created.acquire() as conn:
         await conn.execute(DDL)
@@ -455,21 +455,21 @@ async def test_integration_identity_map_dedupes(pool) -> None:
         repo = uow.model(RawUser)
         saved = await repo.save(RawUser(name="A", email="a@example.com"))
 
-        # повторное чтение тем же репозиторием вернёт тот же объект
+        # re-reading with the same repository returns the same object
         first = await repo.get(saved.id)
         second = await repo.get(saved.id)
         assert first is second
 
-        # новый вызов uow.model(...) делит ту же identity map
+        # a new uow.model(...) call shares the same identity map
         other = uow.model(RawUser)
         assert await other.get(saved.id) is first
 
 
 async def test_selects_only_model_columns(pool) -> None:
-    """Модель может быть уже таблицы: SELECT/RETURNING берут только её поля."""
+    """A model may be narrower than its table: SELECT/RETURNING use only its fields."""
 
     class Partial(Model):
-        __table__ = TABLE  # в raw_repo_test есть ещё колонка age, которой нет в модели
+        __table__ = TABLE  # raw_repo_test also has an age column absent from the model
         id: int = 0
         name: str = ""
         email: str = ""
@@ -499,7 +499,7 @@ async def test_integration_unit_of_work_commits_and_rolls_back(pool) -> None:
     assert names == ["keep"]
 
 
-# ── связи ────────────────────────────────────────────────────────────────────
+# ── relations ────────────────────────────────────────────────────────────────
 
 class RelItem(Model):
     __table__ = "rel_items"
@@ -515,7 +515,7 @@ class RelParent(Model):
 
 
 async def test_relations_always_loaded(pool) -> None:
-    """Объявленная связь грузится всегда: get() и list() подтягивают детей."""
+    """A declared relation is always loaded: get() and list() fetch children."""
     async with RawUnitOfWork(pool) as uow:
         await uow.connection.execute("DROP TABLE IF EXISTS rel_items, rel_parents")
         await uow.connection.execute("CREATE TABLE rel_parents (id serial PRIMARY KEY)")
@@ -539,7 +539,7 @@ async def test_relations_always_loaded(pool) -> None:
 
 
 async def test_relation_point_read_uses_join() -> None:
-    """get() (точечное чтение) грузит связь одним LEFT JOIN."""
+    """get() (point read) loads the relation with a single LEFT JOIN."""
 
     class JoinConn:
         def __init__(self) -> None:
@@ -547,7 +547,7 @@ async def test_relation_point_read_uses_join() -> None:
 
         async def fetch(self, sql: str, *params):
             self.calls.append(("fetch", sql, params))
-            # плоские JOIN-строки: родитель id=1 с двумя детьми
+            # flat JOIN rows: parent id=1 with two children
             return [(1, 1, 1, "a"), (1, 2, 1, "b")]
 
     conn = JoinConn()
@@ -560,7 +560,7 @@ async def test_relation_point_read_uses_join() -> None:
 
 
 async def test_relation_list_uses_separate_query() -> None:
-    """list() (массовое чтение) грузит связь отдельным запросом, не JOIN."""
+    """list() (bulk read) loads the relation with a separate query, not a JOIN."""
 
     class ListConn:
         def __init__(self) -> None:
@@ -569,9 +569,9 @@ async def test_relation_list_uses_separate_query() -> None:
         async def fetch(self, sql: str, *params):
             self.calls.append(("fetch", sql, params))
             if "rel_items" in sql:
-                # отдельный child-запрос: id, parent_id, name
+                # separate child query: id, parent_id, name
                 return [(1, 1, "a"), (2, 1, "b")]
-            return [(1,)]  # родитель id=1
+            return [(1,)]  # parent id=1
 
     conn = ListConn()
     repo = RawModelRepository(conn, RelParent)
@@ -583,7 +583,7 @@ async def test_relation_list_uses_separate_query() -> None:
     assert [i.name for i in parents[0].items] == ["a", "b"]
 
 
-# ── явный join ──────────────────────────────────────────────────────────────
+# ── explicit join ────────────────────────────────────────────────────────────
 
 
 class JoinParent(Model):
@@ -633,7 +633,7 @@ def test_join_kind_right_and_full_compile() -> None:
 
 
 def test_join_kind_full_is_refused_on_mysql() -> None:
-    """У MySQL нет FULL OUTER JOIN — отказ вместо SQL, который сервер отвергнет."""
+    """MySQL has no FULL OUTER JOIN — refuse instead of SQL the server would reject."""
     query = select(JoinParent).join(JoinChild, fk="parent_id", kind=sql.FULL)
     with pytest.raises(sql.DialectError):
         query.compile(sql.MYSQL)
@@ -672,13 +672,13 @@ async def test_fetch_joined_returns_pairs() -> None:
     assert [c.name for c in children2] == ["c"]
 
 
-# ── базовый репозиторий ────────────────────────────────────────────────────
+# ── base repository ──────────────────────────────────────────────────────────
 
 UsersPool = Annotated[Pool, "users"]
 
 
 class UserAgg:
-    """Доменный объект (не модель строки)."""
+    """Domain object (not a row model)."""
 
     def __init__(self, id: int, name: str, email: str):
         self.id = id
@@ -721,7 +721,7 @@ async def test_repository_crud_roundtrip() -> None:
     try:
         pool = await create_raw_pool(DSN, min_size=1, max_size=4)
     except Exception as exc:  # pragma: no cover
-        pytest.skip(f"PostgreSQL недоступен: {type(exc).__name__}")
+        pytest.skip(f"PostgreSQL is unavailable: {type(exc).__name__}")
 
     wrapped = Pool(pool)
     try:
@@ -737,7 +737,7 @@ async def test_repository_crud_roundtrip() -> None:
         assert isinstance(fetched, UserAgg)
         assert fetched.name == "A"
 
-        # повторный save по тому же id — замена (upsert), а не вставка
+        # a repeated save with the same id is a replacement (upsert), not an insert
         await repo.save(UserAgg(id=1, name="B", email="a@x.io"))
         assert (await repo.get(1)).name == "B"
 
@@ -789,7 +789,7 @@ async def test_repository_save_loads_aggregate_with_relations() -> None:
     try:
         pool = await create_raw_pool(DSN, min_size=1, max_size=4)
     except Exception as exc:  # pragma: no cover
-        pytest.skip(f"PostgreSQL недоступен: {type(exc).__name__}")
+        pytest.skip(f"PostgreSQL is unavailable: {type(exc).__name__}")
 
     wrapped = Pool(pool)
     try:
@@ -808,7 +808,7 @@ async def test_repository_save_loads_aggregate_with_relations() -> None:
         assert isinstance(agg, ParentAgg)
         assert agg.names == ["a", "b"]
 
-        # save по тому же id заменяет и header, и дочерние строки
+        # a save with the same id replaces both the header and the child rows
         await repo.save(ParentAgg(id=1, title="t2", names=["c"]))
         agg = await repo.get(1)
         assert agg is not None

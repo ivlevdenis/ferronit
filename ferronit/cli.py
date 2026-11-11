@@ -37,7 +37,7 @@ from infrastructure.db import OrderRepo
 
 
 class OrderApiPort(Port):
-    """Входящий порт заказов — контракт, через который входы вызывают прикладной слой."""
+    """Inbound order port — the contract through which adapters call the application layer."""
 
     async def create(self, order_id: str, user_id: str, amount: int): ...
     async def get(self, order_id: str): ...
@@ -68,7 +68,7 @@ from typing import Annotated
 from ferronit.contrib.rawdb import Pool
 from ferronit.contrib.rawmodel import Model
 
-# Маркер пула: разные БД — разные Annotated-ключи.
+# Pool marker: different databases get different Annotated keys.
 ShopPool = Annotated[Pool, "shop"]
 
 
@@ -96,7 +96,7 @@ class OrderRepo:
 '''
 
 INTERFACES_TEMPLATE = '''\
-"""HTTP-адаптер входящего порта — переводит запросы в вызовы OrderApiPort."""
+"""HTTP adapter for the inbound port — turns requests into OrderApiPort calls."""
 
 from ferronit import Ferronit
 from ferronit.contrib.cors import cors
@@ -111,8 +111,8 @@ from infrastructure.db import OrderRepo, ShopPool
 container = Container()
 container.singleton(Logger, PrintLogger())
 container.factory(OrderRepo)
-# Входящий порт → реализация. Регистрировать ДО маршрутов: binding распознаёт
-# DI-параметр по наличию ключа в контейнере на момент регистрации маршрута.
+# Inbound port → implementation. Register BEFORE the routes: binding recognises a
+# DI parameter by the container key present at the moment the route is registered.
 container.factory(OrderApiPort, OrderService)
 
 app = Ferronit(container=container)
@@ -253,20 +253,20 @@ def cmd_new(args: argparse.Namespace) -> None:
 
     os.makedirs(root)
 
-    # Общие файлы для обоих шаблонов.
+    # Files shared by both templates.
     with open(os.path.join(root, "pyproject.toml"), "w") as f:
         f.write(PYPROJECT_BASE.format(name=name))
     with open(os.path.join(root, "README.md"), "w") as f:
         f.write(README.format(name=name, kind="DDD" if args.ddd else "minimal"))
 
     if not args.ddd:
-        # Минимальный каркас: один app.py + entry point.
+        # Minimal scaffold: a single app.py + entry point.
         with open(os.path.join(root, "app.py"), "w") as f:
             f.write(MINIMAL_APP_TEMPLATE.format(name=name))
         with open(os.path.join(root, "main.py"), "w") as f:
             f.write(MINIMAL_MAIN_TEMPLATE.format(name=name, port=8000))
     else:
-        # Полная DDD-раскладка + пример агрегата Order.
+        # Full DDD layout + an Order aggregate example.
         subdirs = {
             "domain": "",
             "application": "",

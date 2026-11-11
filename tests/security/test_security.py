@@ -1,7 +1,7 @@
 """Security tests — first 10: injection, traversal, header injection, CORS, error handling.
 
-Проверяют реальное поведение Ferronit; тесты, падающие из-за отсутствия
-защиты, фиксируются вместе с фиксом (тест — регрессионный страж).
+They check Ferronit's real behavior; tests that fail due to missing protection
+are committed together with the fix (the test is a regression guard).
 """
 import msgspec
 import pytest
@@ -15,7 +15,7 @@ from ferronit.contrib.staticfiles import StaticFiles
 
 async def call_app(app, method: str, path: str, headers: list | None = None,
                    body: bytes = b"", query: bytes = b"") -> tuple[int, dict, bytes]:
-    """Прямой ASGI-вызов (контролируем path без нормализации клиента)."""
+    """Direct ASGI call (path controlled without client normalization)."""
     sent = []
 
     async def receive():
@@ -47,15 +47,15 @@ class SecUser(Model):
 # ── 1-2. SQL injection ────────────────────────────────────────────────
 
 def test_sql_injection_in_get():
-    """Инъекция в id не выполняется — значение уходит bound-параметром."""
+    """An injection in the id does not execute — the value goes as a bound parameter."""
     evil = "1 OR '1'='1"
     sql, params = select(SecUser).where(SecUser.c.id == evil).compile()
-    assert evil not in sql           # инъекция не попала в текст запроса
-    assert params == [evil]          # а осталась значением параметра
+    assert evil not in sql           # the injection did not reach the query text
+    assert params == [evil]          # it stayed a parameter value
 
 
 def test_sql_injection_in_filter():
-    """Инъекция через значение фильтра остаётся значением, не кодом."""
+    """An injection through a filter value stays a value, not code."""
     evil = "' OR '1'='1"
     sql, params = select(SecUser).where(SecUser.c.name == evil).compile()
     assert evil not in sql
@@ -71,7 +71,7 @@ def test_sql_injection_in_filter():
 
 @pytest.mark.asyncio
 async def test_static_path_traversal(tmp_path):
-    """../../etc/passwd не отдаётся из статики."""
+    """../../etc/passwd is not served from static files."""
     (tmp_path / "public.txt").write_text("hello")
     app = Ferronit()
     app.mount("/static", StaticFiles(str(tmp_path)))
@@ -84,7 +84,7 @@ async def test_static_path_traversal(tmp_path):
     assert status in (403, 404)
     assert b"root:" not in body
 
-    # нормальный файл работает
+    # a normal file works
     status, _, body = await call_app(app, "GET", "/static/public.txt")
     assert status == 200
     assert body == b"hello"
@@ -94,7 +94,7 @@ async def test_static_path_traversal(tmp_path):
 
 @pytest.mark.asyncio
 async def test_crlf_header_injection():
-    """Заголовок с CRLF из пользовательского ввода не создаёт новые заголовки."""
+    """A header with CRLF from user input does not create new headers."""
     app = Ferronit()
 
     @app.route("/echo")
@@ -106,7 +106,7 @@ async def test_crlf_header_injection():
     status, hdrs, _ = await call_app(app, "GET", "/echo", query=b"v=a%0d%0aSet-Cookie:%20evil=1")
     assert status == 200
     assert "set-cookie" not in hdrs
-    value = hdrs["x-user"]  # CRLF заменён на SP, второй строки не возникло
+    value = hdrs["x-user"]  # CRLF replaced with SP, no second line appeared
     assert "\r" not in value and "\n" not in value
     assert value.startswith("a")
 
@@ -115,7 +115,7 @@ async def test_crlf_header_injection():
 
 @pytest.mark.asyncio
 async def test_xss_json_html_escaping():
-    """JSON-ответ не должен содержать сырой <script> (XSS при <script>JSON</script>)."""
+    """A JSON response must not contain raw <script> (XSS via <script>JSON</script>)."""
     app = Ferronit()
 
     @app.route("/xss")
@@ -130,7 +130,7 @@ async def test_xss_json_html_escaping():
 
 @pytest.mark.asyncio
 async def test_xss_msgspec_struct_html_escaping():
-    """msgspec.Struct в ответе (быстрый путь msgspec) тоже экранирует HTML-символы."""
+    """A msgspec.Struct in the response (the fast msgspec path) escapes HTML chars too."""
     class Item(msgspec.Struct):
         user_input: str
 
@@ -151,7 +151,7 @@ async def test_xss_msgspec_struct_html_escaping():
 
 @pytest.mark.asyncio
 async def test_deep_nested_json_no_crash():
-    """Глубокая вложенность JSON не роняет процесс — валидный HTTP-ответ."""
+    """Deep JSON nesting does not crash the process — a valid HTTP response."""
     app = Ferronit()
 
     @app.route("/echo", methods=["POST"])
@@ -162,7 +162,7 @@ async def test_deep_nested_json_no_crash():
     deep = b"[" * 300 + b"1" + b"]" * 300
     status, _, _ = await call_app(app, "POST", "/echo", body=deep,
                                   headers=[(b"content-type", b"application/json")])
-    assert status in (200, 400)  # либо распарсилось, либо аккуратная ошибка
+    assert status in (200, 400)  # either it parsed, or a clean error
     assert status != 500
 
 
@@ -170,7 +170,7 @@ async def test_deep_nested_json_no_crash():
 
 @pytest.mark.asyncio
 async def test_cors_denied_origin():
-    """Origin вне списка не получает Access-Control-Allow-Origin."""
+    """An origin outside the list does not get Access-Control-Allow-Origin."""
     app = Ferronit()
     app.use(cors(allow_origins=["https://good.example"]))
 
@@ -178,7 +178,7 @@ async def test_cors_denied_origin():
     async def api(req):
         return {"ok": True}
 
-    # preflight с запрещённым origin
+    # preflight with a disallowed origin
     status, hdrs, _ = await call_app(
         app, "OPTIONS", "/api",
         headers=[(b"origin", b"https://evil.example"),
@@ -186,13 +186,13 @@ async def test_cors_denied_origin():
     )
     assert "access-control-allow-origin" not in hdrs or hdrs["access-control-allow-origin"] != "https://evil.example"
 
-    # обычный запрос с запрещённым origin — без ACAO
+    # a regular request with a disallowed origin — no ACAO
     status, hdrs, _ = await call_app(
         app, "GET", "/api", headers=[(b"origin", b"https://evil.example")],
     )
     assert "access-control-allow-origin" not in hdrs
 
-    # разрешённый origin — с ACAO
+    # an allowed origin — with ACAO
     status, hdrs, _ = await call_app(
         app, "GET", "/api", headers=[(b"origin", b"https://good.example")],
     )
@@ -203,7 +203,7 @@ async def test_cors_denied_origin():
 
 @pytest.mark.asyncio
 async def test_debug_off_hides_error_details():
-    """debug=False: 500 без деталей исключения."""
+    """debug=False: 500 without exception details."""
     app = Ferronit(debug=False)
 
     @app.route("/boom")
@@ -220,7 +220,7 @@ async def test_debug_off_hides_error_details():
 
 @pytest.mark.asyncio
 async def test_invalid_json_returns_400():
-    """Битый JSON от клиента — 400, не 500."""
+    """Broken JSON from the client — 400, not 500."""
     app = Ferronit()
 
     @app.route("/echo", methods=["POST"])
@@ -237,7 +237,7 @@ async def test_invalid_json_returns_400():
 
 @pytest.mark.asyncio
 async def test_malformed_path_no_crash():
-    """Мусорные/битые пути не роняют роутер."""
+    """Garbage/broken paths do not crash the router."""
     app = Ferronit()
 
     @app.route("/users/{user_id}")

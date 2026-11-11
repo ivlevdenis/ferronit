@@ -1,4 +1,4 @@
-"""`Request.form()` / `Request.files()`: urlencoded и multipart/form-data."""
+"""`Request.form()` / `Request.files()`: urlencoded and multipart/form-data."""
 
 from __future__ import annotations
 
@@ -54,7 +54,7 @@ async def client(app):
 
 
 def multipart_body(boundary: str, parts: list[tuple[bytes, bytes]]) -> bytes:
-    """Собираем multipart-тело вручную — независимо от квирков httpx."""
+    """Build a multipart body by hand — independent of httpx quirks."""
     out = b""
     for headers, content in parts:
         out += b"--" + boundary.encode() + b"\r\n" + headers + b"\r\n\r\n" + content + b"\r\n"

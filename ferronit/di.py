@@ -79,8 +79,8 @@ class Container:
 
         import inspect
         try:
-            # сигнатура класса — это __init__ без self; eval_str разворачивает
-            # строковые аннотации (PEP 563 / `from __future__ import annotations`)
+            # the class signature is __init__ without self; eval_str expands
+            # string annotations (PEP 563 / `from __future__ import annotations`)
             sig = inspect.signature(concrete, eval_str=True)
         except (ValueError, TypeError):
             instance = concrete()
@@ -96,8 +96,8 @@ class Container:
                 if param.default is not inspect.Parameter.empty:
                     continue
                 raise TypeError(f"Cannot resolve {name} for {concrete.__name__}")
-            # Атрибут класса с тем же именем — более конкретный ключ DI
-            # (например, ``pool = ShopPool`` в репозитории из generic).
+            # A class attribute with the same name is a more specific DI key
+            # (for example, ``pool = ShopPool`` in a repository derived from a generic).
             cls_attr = getattr(concrete, name, None)
             if cls_attr is not None and cls_attr is not ann and self.has(cls_attr):
                 kwargs[name] = self.get(cls_attr)
@@ -110,10 +110,10 @@ class Container:
                 else:
                     raise TypeError(
                         f"Cannot resolve dependency '{name}: {ann}' for "
-                        f"{concrete.__name__} — зарегистрируй её в контейнере"
+                        f"{concrete.__name__} — register it in the container"
                     ) from None
 
-        # Ленивый синглтон: первый get() строит и кэширует, дальше отдаёт кэш.
+        # Lazy singleton: the first get() builds and caches, later calls return the cache.
         instance = concrete(**kwargs)
         self._instances[concrete] = instance
         return instance

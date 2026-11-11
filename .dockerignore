@@ -1,4 +1,4 @@
-# Контекст сборки: только исходники, нужные билд-стейджу
+# Build context: only the sources the build stage needs
 .git
 .github
 .venv
@@ -14,7 +14,7 @@ ferronit-rs/target
 graphify-out
 docs
 tests
-# секреты и сессии — никогда
+# secrets and sessions — never
 *.session
 *.session-journal
 .env

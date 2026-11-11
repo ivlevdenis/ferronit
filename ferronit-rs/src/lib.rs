@@ -7,10 +7,10 @@ use std::collections::HashMap;
 
 // ── Router ────────────────────────────────────────────────────────────
 
-/// Роутер, разбитый по HTTP-методу: у каждого метода свой matchit-роутер по
-/// путям (без префикса метода). Метод резолвится в готовый роутер за O(1),
-/// поэтому в горячем пути `lookup` не склеивает ``"METHOD /path"`` в новую
-/// строку на каждый запрос — идёт чистый ``at(path)`` без аллокации.
+/// Router split by HTTP method: each method has its own matchit router over
+/// paths (without the method prefix). The method resolves to a ready router in
+/// O(1), so on the hot path `lookup` does not join ``"METHOD /path"`` into a new
+/// string per request — it is a pure ``at(path)`` without allocation.
 #[pyclass]
 pub struct Router {
     inner: HashMap<String, MatchitRouter<PyObject>>,
@@ -30,12 +30,13 @@ impl Router {
             .inner
             .entry(method)
             .or_insert_with(|| MatchitRouter::new());
-        // matchit нумерует параметры буквами a..z и ПАНИКУЕТ на шаблоне с >25
-        // параметрами («Too many route parameters.»), а не возвращает ошибку.
-        // Паника через FFI стала бы PanicException (BaseException) и обошла бы
-        // документированный отказ ValueError — превращаем её в обычную ошибку.
-        // Предпроверка нужна, чтобы не писать в stderr паническую простыню:
-        // catch_unwind оставлен вторым рубежом на прочие паники matchit.
+        // matchit numbers parameters with letters a..z and PANICS on a pattern
+        // with >25 parameters ("Too many route parameters.") instead of
+        // returning an error. A panic across FFI would become PanicException
+        // (BaseException) and bypass the documented ValueError failure — so we
+        // turn it into a regular error. The pre-check avoids printing a panic
+        // backtrace to stderr: catch_unwind remains the second line of defense
+        // against other matchit panics.
         if pattern.matches('{').count() > 25 {
             return Err(pyo3::exceptions::PyValueError::new_err(
                 "Invalid route: too many path parameters (at most 25)",
@@ -324,7 +325,7 @@ impl Request {
                 continue;
             }
             if chunk.starts_with(b"--") {
-                break; // финальный --boundary--
+                break; // final --boundary--
             }
             let chunk = chunk.strip_prefix(b"\r\n").unwrap_or(chunk);
             let Some((head, mut content)) = split_once_double_crlf(chunk) else {
@@ -359,8 +360,8 @@ impl Request {
 
 fn url_decode(s: &str) -> String {
     let mut bytes = Vec::with_capacity(s.len());
-    // Python отдаёт query_string как latin-1 (байты сохраняются 1:1), поэтому
-    // каждый char <= 0xFF — это ровно один исходный байт, а не UTF-8-кодпоинт.
+    // Python hands over query_string as latin-1 (bytes preserved 1:1), so
+    // every char <= 0xFF is exactly one source byte, not a UTF-8 code point.
     let mut chars = s.chars();
     while let Some(c) = chars.next() {
         if c == '+' {
@@ -382,7 +383,7 @@ fn url_decode(s: &str) -> String {
     }
     match String::from_utf8(bytes) {
         Ok(text) => text,
-        // не UTF-8 — значит пришла настоящая latin-1-строка: разворачиваем побайтово
+        // not UTF-8 — so a genuine latin-1 string arrived: expand it bytewise
         Err(e) => e.into_bytes().iter().map(|&b| b as char).collect(),
     }
 }
@@ -457,7 +458,7 @@ fn parse_disposition(value: &str) -> (Option<String>, Option<String>) {
         } else if key == "filename" {
             filename = Some(val.to_string());
         } else if key == "filename*" {
-            // RFC 5987: filename*=UTF-8''<percent-encoded> — предпочитаем его
+            // RFC 5987: filename*=UTF-8''<percent-encoded> — prefer it
             filename = Some(match val.find("''") {
                 Some(pos) => percent_decode(&val[pos + 2..]),
                 None => percent_decode(val),

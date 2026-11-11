@@ -1,8 +1,8 @@
-"""`_to_response`: сериализация `msgspec.Struct` быстрым C-энкодером msgspec.
+"""`_to_response`: serialize `msgspec.Struct` with msgspec's fast C encoder.
 
-Покрывает новые ветки `_to_response`: сам Struct, список Struct'ов и кортеж
-``(payload, status)`` с ними. Пустой список не считается struct-payload и уходит
-обычным Rust-путём.
+Covers the new `_to_response` branches: the Struct itself, a list of Structs, and a
+``(payload, status)`` tuple with them. An empty list is not treated as a struct payload and
+goes through the regular Rust path.
 """
 
 from __future__ import annotations

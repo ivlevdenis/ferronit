@@ -1,8 +1,8 @@
-"""CLI `ferronit new|dev|run`: каркас проекта, выбор сервера, поиск приложения.
+"""CLI `ferronit new|dev|run`: project skeleton, server choice, app discovery.
 
-Проверяем по факту: сгенерированный проект импортируется и отвечает по HTTP,
-команды `dev`/`run` собирают правильную команду запуска (subprocess подменён),
-а неверные условия дают внятную ошибку и код возврата.
+Checked by observation: the generated project imports and answers over HTTP,
+the `dev`/`run` commands assemble the right launch command (subprocess is patched),
+and wrong conditions produce a clear error and a return code.
 """
 
 from __future__ import annotations
@@ -18,13 +18,13 @@ from ferronit import Ferronit, cli
 
 
 def _main(monkeypatch: pytest.MonkeyPatch, *argv: str) -> None:
-    """Вызвать `cli.main()` с заданными аргументами."""
+    """Call `cli.main()` with the given arguments."""
     monkeypatch.setattr(sys, "argv", ["ferronit", *argv])
     cli.main()
 
 
 def _capture_runs(monkeypatch: pytest.MonkeyPatch) -> list[list[str]]:
-    """Подменить `subprocess.run` и вернуть список собранных команд."""
+    """Patch `subprocess.run` and return the list of captured commands."""
     calls: list[list[str]] = []
 
     def fake_run(cmd: list[str], check: bool = False) -> None:
@@ -38,7 +38,7 @@ def _capture_runs(monkeypatch: pytest.MonkeyPatch) -> list[list[str]]:
 
 
 def test_new_scaffolds_minimal_project_that_serves(tmp_path, monkeypatch, capsys) -> None:
-    """Без --ddd: app.py + main.py + pyproject + README, и приложение отвечает."""
+    """Without --ddd: app.py + main.py + pyproject + README, and the app answers."""
     monkeypatch.chdir(tmp_path)
     _main(monkeypatch, "new", "demo")
 
@@ -51,7 +51,7 @@ def test_new_scaffolds_minimal_project_that_serves(tmp_path, monkeypatch, capsys
     out = capsys.readouterr().out
     assert "Created demo/" in out and "cd demo" in out
 
-    # Сгенерированный проект действительно поднимается как ASGI-приложение.
+    # The generated project really starts as an ASGI application.
     sys.path.insert(0, str(project))
     try:
         module = importlib.import_module("app")
@@ -72,7 +72,7 @@ def test_new_scaffolds_minimal_project_that_serves(tmp_path, monkeypatch, capsys
 
 
 def test_new_ddd_scaffolds_layers_and_valid_syntax(tmp_path, monkeypatch, capsys) -> None:
-    """С --ddd: слои, пример агрегата, подставленное имя — и синтаксис всех файлов."""
+    """With --ddd: layers, an example aggregate, the substituted name — and syntax of all files."""
     monkeypatch.chdir(tmp_path)
     _main(monkeypatch, "new", "shop", "--ddd")
 
@@ -84,19 +84,19 @@ def test_new_ddd_scaffolds_layers_and_valid_syntax(tmp_path, monkeypatch, capsys
 
     generated = sorted(root.rglob("*.py"))
     assert len(generated) == 10
-    # 4 × __init__.py слоёв + config + orders + services + db + api + main
+    # 4 × layer __init__.py + config + orders + services + db + api + main
     for path in generated:
         source = path.read_text(encoding="utf-8")
-        compile(source, str(path), "exec")  # синтаксис шаблона
-        assert "{name}" not in source, f"не подставлено имя проекта: {path}"
-        assert "{{" not in source, f"остался экранированный шаблон: {path}"
+        compile(source, str(path), "exec")  # template syntax
+        assert "{name}" not in source, f"project name was not substituted: {path}"
+        assert "{{" not in source, f"an escaped template remained: {path}"
 
     api = (root / "interfaces" / "api.py").read_text(encoding="utf-8")
     assert '"app": "shop"' in api
 
 
 def test_new_refuses_existing_directory(tmp_path, monkeypatch, capsys) -> None:
-    """Существующий каталог — ошибка с кодом возврата, а не перезапись."""
+    """An existing directory — an error with a return code, not an overwrite."""
     monkeypatch.chdir(tmp_path)
     (tmp_path / "demo").mkdir()
 
@@ -107,11 +107,11 @@ def test_new_refuses_existing_directory(tmp_path, monkeypatch, capsys) -> None:
     assert "already exists" in capsys.readouterr().err
 
 
-# ── поиск приложения ───────────────────────────────────────────────────
+# ── app discovery ──────────────────────────────────────────────────────
 
 
 def test_find_app_prefers_package_style_module(tmp_path, monkeypatch) -> None:
-    """Сначала `имя_каталога/app.py` (пакетный запуск), иначе просто `app.py`, иначе None."""
+    """First `directory_name/app.py` (package launch), else plain `app.py`, else None."""
     project = tmp_path / "proj"
     project.mkdir()
     monkeypatch.chdir(project)
@@ -120,7 +120,7 @@ def test_find_app_prefers_package_style_module(tmp_path, monkeypatch) -> None:
     (project / "app.py").write_text("app = None\n", encoding="utf-8")
     assert cli._find_app() == "app:app"
 
-    # Пакетный вариант приоритетнее, когда появился.
+    # The package variant takes priority once it appears.
     (project / "proj").mkdir()
     (project / "proj" / "app.py").write_text("app = None\n", encoding="utf-8")
     assert cli._find_app() == "proj.app:app"
@@ -130,7 +130,7 @@ def test_find_app_prefers_package_style_module(tmp_path, monkeypatch) -> None:
 
 
 def test_dev_runs_uvicorn_with_reload(tmp_path, monkeypatch) -> None:
-    """По умолчанию dev — uvicorn с авто-релоадом на выбранном порту."""
+    """By default dev — uvicorn with auto-reload on the chosen port."""
     (tmp_path / "app.py").write_text("app = None\n", encoding="utf-8")
     monkeypatch.chdir(tmp_path)
     calls = _capture_runs(monkeypatch)
@@ -145,7 +145,7 @@ def test_dev_runs_uvicorn_with_reload(tmp_path, monkeypatch) -> None:
 
 
 def test_dev_uses_granian_when_asked(tmp_path, monkeypatch) -> None:
-    """`--server granian` — другая команда, тот же модуль приложения."""
+    """`--server granian` — a different command, the same app module."""
     (tmp_path / "app.py").write_text("app = None\n", encoding="utf-8")
     monkeypatch.chdir(tmp_path)
     calls = _capture_runs(monkeypatch)
@@ -160,7 +160,7 @@ def test_dev_uses_granian_when_asked(tmp_path, monkeypatch) -> None:
 
 
 def test_dev_explains_missing_app(tmp_path, monkeypatch, capsys) -> None:
-    """Нет app.py и не передан --app — подсказка и код возврата."""
+    """No app.py and no --app passed — a hint and a return code."""
     monkeypatch.chdir(tmp_path)
 
     with pytest.raises(SystemExit) as exc:
@@ -174,7 +174,7 @@ def test_dev_explains_missing_app(tmp_path, monkeypatch, capsys) -> None:
 
 
 def test_run_uses_granian_with_workers(tmp_path, monkeypatch) -> None:
-    """Прод по умолчанию — Granian с числом воркеров."""
+    """Production by default — Granian with a worker count."""
     (tmp_path / "app.py").write_text("app = None\n", encoding="utf-8")
     monkeypatch.chdir(tmp_path)
     calls = _capture_runs(monkeypatch)
@@ -189,7 +189,7 @@ def test_run_uses_granian_with_workers(tmp_path, monkeypatch) -> None:
 
 
 def test_run_falls_back_to_uvicorn_without_granian(tmp_path, monkeypatch, capsys) -> None:
-    """Granian не установлен — падаем на uvicorn и говорим об этом в stderr."""
+    """Granian is not installed — we fall back to uvicorn and say so on stderr."""
     (tmp_path / "app.py").write_text("app = None\n", encoding="utf-8")
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(cli, "_check_granian", lambda exit_on_missing=True: None)
@@ -202,12 +202,12 @@ def test_run_falls_back_to_uvicorn_without_granian(tmp_path, monkeypatch, capsys
 
 
 def test_check_granian_exits_when_module_missing(monkeypatch, capsys) -> None:
-    """Отсутствие Granian: по умолчанию выход с подсказкой, с флагом — None."""
+    """Missing Granian: by default exit with a hint, with the flag — None."""
     real_import = builtins.__import__
 
     def fake_import(name, *args, **kwargs):
         if name == "granian":
-            raise ImportError("нет granian")
+            raise ImportError("no granian")
         return real_import(name, *args, **kwargs)
 
     monkeypatch.setattr(builtins, "__import__", fake_import)
@@ -219,11 +219,11 @@ def test_check_granian_exits_when_module_missing(monkeypatch, capsys) -> None:
     assert "Granian not installed" in capsys.readouterr().err
 
 
-# ── общее ──────────────────────────────────────────────────────────────
+# ── general ────────────────────────────────────────────────────────────
 
 
 def test_no_subcommand_prints_help(monkeypatch, capsys) -> None:
-    """Без подкоманды — справка и код 0, а не трейсбек."""
+    """Without a subcommand — help and exit code 0, not a traceback."""
     with pytest.raises(SystemExit) as exc:
         _main(monkeypatch)
 
@@ -232,7 +232,7 @@ def test_no_subcommand_prints_help(monkeypatch, capsys) -> None:
 
 
 def test_distribution_exposes_cli_entry_point() -> None:
-    """`ferronit` в PATH — это точка входа `ferronit.cli:main` из метаданных."""
+    """`ferronit` in PATH — the entry point `ferronit.cli:main` from metadata."""
     from importlib import metadata as metadata
 
     scripts = {ep.name: ep.value for ep in metadata.entry_points(group="console_scripts")}

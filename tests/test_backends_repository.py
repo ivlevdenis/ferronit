@@ -1,16 +1,16 @@
-"""Полный цикл репозиториев на PostgreSQL, MySQL и SQLite через настоящие СУБД.
+"""Full repository cycle on PostgreSQL, MySQL and SQLite against real DBMSes.
 
-Проверяется один и тот же код слоя данных: ``create_pool(dsn)`` → ``uow()`` →
-``RawRepository`` (dict) и ``RawModelRepository`` (модели + связи + агрегаты).
-Разъезжается только DDL и DSN:
+The same data-layer code is exercised: ``create_pool(dsn)`` → ``uow()`` →
+``RawRepository`` (dict) and ``RawModelRepository`` (models + relations + aggregates).
+Only the DDL and DSN differ:
 
-* PostgreSQL — контейнер на :5432 (тот же, что у тестов слоя данных);
-* SQLite — библиотека в процессе (``sqlite://:memory:``), контейнер не нужен;
-* MySQL — контейнер ``ferronit-mysql`` на :3307 (``./scripts/dbs_up.sh up``).
+* PostgreSQL — container on :5432 (the same one as in the data-layer tests);
+* SQLite — in-process library (``sqlite://:memory:``), no container needed;
+* MySQL — container ``ferronit-mysql`` on :3307 (``./scripts/dbs_up.sh up``).
 
-Нет драйвера или контейнера — тест пропускается. Ключевое отличие MySQL, которое
-здесь и проверяется: у него нет ``RETURNING``, поэтому запись идёт в два шага
-(ключ от драйвера + точечное чтение).
+No driver or no container — the test is skipped. The key MySQL difference
+checked here: it has no ``RETURNING``, so a write goes in two steps
+(key from the driver + a point read).
 """
 
 from __future__ import annotations
@@ -26,12 +26,12 @@ from ferronit.contrib.rawmodel import Model, Relation, select
 
 try:
     import aiosqlite
-except ImportError:  # pragma: no cover - extra sqlite не установлен
+except ImportError:  # pragma: no cover - extra sqlite is not installed
     aiosqlite = None
 
 try:
     import aiomysql
-except ImportError:  # pragma: no cover - extra mysql не установлен
+except ImportError:  # pragma: no cover - extra mysql is not installed
     aiomysql = None
 
 
@@ -110,37 +110,37 @@ def _dsn(engine: str) -> str:
 
 
 async def _pool(engine: str):
-    """Открыть пул к движку или пропустить тест, если его нет."""
+    """Open a pool to the engine or skip the test if it is missing."""
     if engine == "sqlite" and aiosqlite is None:
-        pytest.skip("aiosqlite не установлен (extra sqlite)")
+        pytest.skip("aiosqlite is not installed (sqlite extra)")
     if engine == "mysql" and aiomysql is None:
-        pytest.skip("aiomysql не установлен (extra mysql)")
+        pytest.skip("aiomysql is not installed (mysql extra)")
     try:
         return await create_pool(_dsn(engine))
     except Exception as exc:
-        pytest.skip(f"{engine} недоступна ({exc}); подними ./scripts/dbs_up.sh up")
+        pytest.skip(f"{engine} is unavailable ({exc}); start it with ./scripts/dbs_up.sh up")
 
 
 async def _prepare(engine: str, pool) -> None:
-    """Создать схему теста (DDL пишется руками: генерации схемы в слое нет)."""
+    """Create the test schema (the DDL is written by hand: the layer has no schema generation)."""
     async with pool.uow() as uow:
         for statement in DDL[engine]:
             await uow.connection.execute(statement)
 
 
-# ── dict-репозиторий ─────────────────────────────────────────────────────────
+# ── dict repository ─────────────────────────────────────────────────────────
 
 
 @pytest.mark.parametrize("engine", ENGINES)
 async def test_dict_repository_roundtrip(engine: str) -> None:
-    """save → get → list с Condition → update → delete на dict-репозитории."""
+    """save → get → list with Condition → update → delete on the dict repository."""
     pool = await _pool(engine)
     try:
         await _prepare(engine, pool)
         async with pool.uow() as uow:
             repo = uow["ast_users"]
             saved = await repo.save({"name": "Ann", "email": "ann@example.com"})
-            assert saved["id"] == 1  # ключ вернул драйвер, а не RETURNING
+            assert saved["id"] == 1  # the driver returned the key, not RETURNING
 
             full = await repo.save({"name": "Bob", "email": "bob@example.com"}, returning=True)
             assert full["id"] == 2
@@ -153,7 +153,7 @@ async def test_dict_repository_roundtrip(engine: str) -> None:
             names = [row["name"] for row in await repo.list(limit=10)]
             assert names == ["Ann", "Bob"]
 
-            # Condition с $N: плейсхолдеры переиндексируются под диалект движка
+            # Condition with $N: placeholders are reindexed for the engine dialect
             filtered = await repo.list(Condition("name = $1", ["Bob"]))
             assert [row["id"] for row in filtered] == [2]
 
@@ -167,12 +167,12 @@ async def test_dict_repository_roundtrip(engine: str) -> None:
         await pool.close()
 
 
-# ── модельный репозиторий ────────────────────────────────────────────────────
+# ── model repository ────────────────────────────────────────────────────────
 
 
 @pytest.mark.parametrize("engine", ENGINES)
 async def test_model_repository_roundtrip(engine: str) -> None:
-    """save/get/list/upsert/update/save_many/delete_by на моделях."""
+    """save/get/list/upsert/update/save_many/delete_by on models."""
     pool = await _pool(engine)
     try:
         await _prepare(engine, pool)
@@ -183,9 +183,9 @@ async def test_model_repository_roundtrip(engine: str) -> None:
             assert saved == AstUser(id=1, name="Ann", email="ann@example.com")
             assert await repo.get(1) == saved
 
-            # upsert с клиентским ключом: берём заведомо больший id, потому что
-            # явная вставка id не двигает последовательность в PostgreSQL (а в
-            # MySQL/SQLite двигает) — иначе движки требуют разных ожиданий.
+            # upsert with a client key: we take a deliberately larger id because
+            # an explicit id insert does not advance the sequence in PostgreSQL (but
+            # does in MySQL/SQLite) — otherwise the engines need different expectations.
             assert await repo.upsert(AstUser(id=1000, name="Bob", email="bob@example.com")) == (
                 AstUser(id=1000, name="Bob", email="bob@example.com")
             )
@@ -201,7 +201,7 @@ async def test_model_repository_roundtrip(engine: str) -> None:
             updated = await repo.update(1, {"email": "ann2@example.com"})
             assert updated == AstUser(id=1, name="Ann", email="ann2@example.com")
 
-            # пустая выборка с фильтром: ветка с WHERE, а не с _list_sql
+            # empty fetch with a filter: the WHERE branch, not _list_sql
             assert await repo.list(Condition("name = $1", ["nobody"])) == []
             assert await repo.fetch_value(select(AstUser).count()) == 2
 
@@ -212,7 +212,7 @@ async def test_model_repository_roundtrip(engine: str) -> None:
                 ]
             )
             assert len(many) == 2
-            assert all(user.id > 1 for user in many)  # ключи пришли от движка
+            assert all(user.id > 1 for user in many)  # keys came from the engine
 
             await repo.delete_by("name", "Dan")
             assert sorted(user.name for user in await repo.list(limit=10)) == [
@@ -226,7 +226,7 @@ async def test_model_repository_roundtrip(engine: str) -> None:
 
 @pytest.mark.parametrize("engine", ENGINES)
 async def test_model_repository_query_and_dsl(engine: str) -> None:
-    """Query/DSL-путь компилируется под движок соединения и исполняется."""
+    """The Query/DSL path compiles for the connection's engine and executes."""
     pool = await _pool(engine)
     try:
         await _prepare(engine, pool)
@@ -252,7 +252,7 @@ async def test_model_repository_query_and_dsl(engine: str) -> None:
 
 @pytest.mark.parametrize("engine", ENGINES)
 async def test_model_repository_relations(engine: str) -> None:
-    """Связи: list() грузит детей одним запросом (ANY на Postgres, IN на MySQL)."""
+    """Relations: list() loads children in one query (ANY on Postgres, IN on MySQL)."""
     pool = await _pool(engine)
     try:
         await _prepare(engine, pool)
@@ -283,7 +283,7 @@ async def test_model_repository_relations(engine: str) -> None:
 
 @pytest.mark.parametrize("engine", ENGINES)
 async def test_unit_of_work_rolls_back(engine: str) -> None:
-    """Исключение внутри uow откатывает запись — на всех движках одинаково."""
+    """An exception inside uow rolls back the write — the same on all engines."""
     pool = await _pool(engine)
     try:
         await _prepare(engine, pool)
@@ -300,7 +300,7 @@ async def test_unit_of_work_rolls_back(engine: str) -> None:
 
 @pytest.mark.parametrize("engine", ENGINES)
 async def test_grouped_aggregates(engine: str) -> None:
-    """DISTINCT, GROUP BY, агрегаты в HAVING и проекции — на трёх движках."""
+    """DISTINCT, GROUP BY, aggregates in HAVING and projections — on three engines."""
     pool = await _pool(engine)
     try:
         await _prepare(engine, pool)
@@ -323,7 +323,7 @@ async def test_grouped_aggregates(engine: str) -> None:
             )
             assert [tuple(row) for row in grouped] == [("Ann", 2)]
 
-            # доступ к колонкам по имени, а не только по индексу
+            # access to columns by name, not only by index
             assert grouped[0]["name"] == "Ann"
 
             distinct = await repo.fetch_rows(
@@ -341,11 +341,11 @@ async def test_grouped_aggregates(engine: str) -> None:
 
 @pytest.mark.parametrize("engine", ENGINES)
 async def test_explicit_join_kinds(engine: str) -> None:
-    """INNER/LEFT/RIGHT/FULL JOIN в дереве — на трёх настоящих движках.
+    """INNER/LEFT/RIGHT/FULL JOIN in the tree — on three real engines.
 
-    Данные подобраны так, чтобы типы джойнов различались по результату: ``p2``
-    без детей (его теряет ``INNER``) и ребёнок без родителя (его теряет
-    ``LEFT``). ``FULL`` диалект MySQL обязан отклонить: у сервера нет
+    The data is chosen so that the join kinds differ in result: ``p2``
+    has no children (``INNER`` loses it) and a child has no parent (``LEFT``
+    loses it). The MySQL dialect must reject ``FULL``: the server has no
     ``FULL OUTER JOIN``.
     """
     pool = await _pool(engine)

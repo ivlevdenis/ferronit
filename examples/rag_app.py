@@ -1,21 +1,21 @@
-"""RAG-пайплайн без внешних сервисов: векторный порт + локальный адаптер эмбеддингов.
+"""RAG pipeline without external services: vector port + local embedding adapter.
 
-Важная часть примера — реализация порта: `LocalTfVectorizer` наследует `LlmPort` и
-заполняет только `embed()`, поэтому поиск действительно ранжирует документы по
-похожести, а не «угадывает». В проде на этом месте `OpenAiAdapter` (embeddings) —
-интерфейс тот же, строки приложения не меняются:
+The key part of the example is the port implementation: `LocalTfVectorizer` inherits
+`LlmPort` and fills in only `embed()`, so the search really ranks documents by
+similarity instead of guessing. In production this spot holds `OpenAiAdapter`
+(embeddings) — the interface is the same, the application lines stay unchanged:
 
     embedder: LlmPort = OpenAiAdapter()
     vectors: VectorDbPort = QdrantAdapter("http://localhost:6333")
 
-Наполнение индекса ленивое: хуков жизненного цикла в 0.8 ещё нет (известное
-ограничение, см. AGENTS.md), поэтому корпус загружается при первом запросе.
+Indexing is lazy: lifecycle hooks do not exist yet in 0.8 (a known limitation,
+see AGENTS.md), so the corpus is loaded on the first request.
 
-Запуск:
+Run:
     .venv/bin/python -m granian --interface asgi --no-ws examples.rag_app:app
-Проверка:
+Check:
     curl -X POST localhost:8000/ask -H 'content-type: application/json' \
-         -d '{"question": "зачем Rust в ядре"}'
+         -d '{"question": "why Rust in the core"}'
 """
 
 from __future__ import annotations
@@ -30,11 +30,11 @@ app = Ferronit()
 
 
 class LocalTfVectorizer(LlmPort):
-    """Порт LLM, у которого настоящий только ``embed()``.
+    """An LLM port where only ``embed()`` is real.
 
-    Мешок слов, хешированный в вектор фиксированной длины: без ключей, сети и
-    моделей, но косинусная близость получается осмысленной. Хеш строки солится
-    в пределах процесса — для демо и тестов этого достаточно.
+    A bag of words hashed into a fixed-length vector: no keys, no network, no
+    models, yet cosine similarity still comes out meaningful. The string hash is
+    salted per process — good enough for demos and tests.
     """
 
     def __init__(self, dim: int = 64) -> None:
@@ -43,31 +43,33 @@ class LocalTfVectorizer(LlmPort):
     def _vector(self, text: str) -> list[float]:
         vector = [0.0] * self._dim
         for word in text.lower().replace(",", " ").replace(".", " ").split():
-            # crc32, а не hash(): результат не зависит от PYTHONHASHSEED,
-            # иначе ранжирование (а с ним и пример) плавает между запусками
+            # crc32, not hash(): the result does not depend on PYTHONHASHSEED,
+            # otherwise ranking (and with it the example) drifts between runs
             vector[zlib.crc32(word.encode("utf-8")) % self._dim] += 1.0
         norm = sum(v * v for v in vector) ** 0.5 or 1.0
         return [v / norm for v in vector]
 
     async def embed(self, text: str | list[str], **kwargs) -> list[float]:
-        """Плотный вектор для строки (для списка — вектор объединённого текста)."""
+        """Dense vector for a string (for a list — the vector of the joined text)."""
         if isinstance(text, list):
             text = " ".join(text)
         return self._vector(text)
 
     async def complete(self, prompt: str, **kwargs) -> str:
-        """Не используется в этом примере — отвечает эхом."""
+        """Not used in this example — answers with an echo."""
         return f"(local) {prompt}"
 
     async def chat(self, messages: list[ChatMessage], **kwargs) -> ChatResponse:
-        """Не используется в этом примере: ответ даёт отдельный адаптер."""
+        """Not used in this example: a separate adapter provides the answer."""
         last = messages[-1].content if messages else ""
         return ChatResponse(content=f"(local) {last}", model="local-tf")
 
 
 embedder: LlmPort = LocalTfVectorizer()
-llm: LlmPort = MockLlmAdapter(responses={"chat": "Rust отвечает за горячий путь, Python — за смысл."})
-vectors: VectorDbPort = MockVectorDb()  # в проде: QdrantAdapter("http://localhost:6333")
+llm: LlmPort = MockLlmAdapter(
+    responses={"chat": "Rust отвечает за горячий путь, Python — за смысл."}
+)
+vectors: VectorDbPort = MockVectorDb()  # in production: QdrantAdapter("http://localhost:6333")
 
 CORPUS: dict[str, str] = {
     "routing": "Роутинг и разбор пути живут в Rust, matchit: около 1% времени запроса.",

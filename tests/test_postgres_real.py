@@ -1,6 +1,6 @@
-"""E2E: Ferronit HTTP → RawUnitOfWork → реальный PostgreSQL (Docker, дефолтные настройки).
+"""E2E: Ferronit HTTP → RawUnitOfWork → a real PostgreSQL (Docker, default settings).
 
-Требует: docker run -d --name ferronit-pg -e POSTGRES_PASSWORD=postgres \
+Requires: docker run -d --name ferronit-pg -e POSTGRES_PASSWORD=postgres \
     -e POSTGRES_USER=postgres -e POSTGRES_DB=postgres -p 5432:5432 postgres:latest
 """
 import pytest
@@ -92,7 +92,7 @@ async def test_pg_list(client):
 
 @pytest.mark.asyncio
 async def test_pg_raw_sql(client, pool):
-    """Настоящий SQL к Postgres после HTTP-записи."""
+    """Real SQL against Postgres after an HTTP write."""
     await client.post("/orders", json={"id": "x", "amount": 42})
 
     async with RawUnitOfWork(pool, readonly=True) as uow:
@@ -104,7 +104,7 @@ async def test_pg_raw_sql(client, pool):
 
 @pytest.mark.asyncio
 async def test_pg_returning_defaults(pool):
-    """RETURNING возвращает server_defaults (на PG INSERT...RETURNING нативный)."""
+    """RETURNING returns server_defaults (on PG INSERT...RETURNING is native)."""
     async with RawUnitOfWork(pool) as uow:
         row = await uow[TABLE].save({"id": "d1", "user_id": "u", "amount": 7}, returning=True)
         assert row["status"] == "created"

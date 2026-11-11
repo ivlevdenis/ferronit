@@ -26,7 +26,7 @@ from ferronit.contrib import sql
 from ferronit.contrib.drivers import MISSING_EXTRA_HINT
 from ferronit.hexagonal import Adapter, UnitOfWork
 
-if TYPE_CHECKING:  # драйвер ставится extra "postgres", в рантайме его может не быть
+if TYPE_CHECKING:  # the driver comes from the "postgres" extra, may be absent at runtime
     import asyncpg
 
 __all__ = [
@@ -68,7 +68,7 @@ def _require_asyncpg() -> Any:
     """
     try:
         import asyncpg
-    except ImportError as exc:  # pragma: no cover - зависит от окружения
+    except ImportError as exc:  # pragma: no cover - environment-dependent
         raise ModuleNotFoundError(MISSING_EXTRA_HINT.format(extra="postgres")) from exc
     return asyncpg
 
@@ -103,11 +103,11 @@ def _asyncpg_pool_kwargs(asyncpg_module: Any, reset_on_release: bool) -> dict[st
     """
     if reset_on_release:
         return {}
-    import inspect  # тяжёлый модуль — только на создании пула, не на импорте слоя
+    import inspect  # heavy module — only when creating the pool, not on layer import
 
     try:
         parameters = inspect.signature(asyncpg_module.create_pool).parameters
-    except (TypeError, ValueError):  # pragma: no cover - встроенная сигнатура
+    except (TypeError, ValueError):  # pragma: no cover - built-in signature
         parameters = None
     kwargs: dict[str, Any] = {}
     if parameters is not None:
@@ -159,7 +159,7 @@ class Condition:
 
 
 def _renumber_placeholders(sql_text: str, count: int, offset: int) -> str:
-    """Renumber ``$1..$count`` by ``offset`` (descending — ``$1`` не затирает ``$10``).
+    """Renumber ``$1..$count`` by ``offset`` (descending — ``$1`` does not clobber ``$10``).
 
     Thin wrapper over :func:`sql.renumber_placeholders`; kept with the
     historical signature because ``Condition`` is a public raw-SQL escape hatch.
@@ -222,7 +222,7 @@ class RawRepository(Adapter):
         self._conn = connection
         self._table = table
         self._pk = pk
-        # Диалект берём у соединения; у asyncpg атрибута нет — значит PostgreSQL.
+        # The dialect comes from the connection; asyncpg has no such attribute → PostgreSQL.
         self._dialect = getattr(connection, "dialect", sql.POSTGRES)
 
     async def get(self, id: Any) -> dict[str, Any] | None:
@@ -454,8 +454,8 @@ class RawRepository(Adapter):
             )
             await self._conn.execute(sql_text, *data.values(), id)
             return {**data, self._pk: id}
-        # RETURNING подставляем только там, где движок его понимает: MySQL
-        # дочитывает строку вторым запросом.
+        # RETURNING is added only where the engine supports it: MySQL
+        # re-reads the row with a second query.
         sql_text, _ = sql.compile_statement(
             sql.Update(
                 self._table,
@@ -596,9 +596,9 @@ class RawUnitOfWork(UnitOfWork):
     async def __aenter__(self) -> RawUnitOfWork:
         conn = await self._pool.acquire()
         try:
-            # без явного BEGIN asyncpg коммитит каждый оператор сам,
-            # и Unit of Work перестаёт быть единицей работы (откат не работает).
-            # В read-only режиме транзакция не нужна — читаем в autocommit.
+            # without an explicit BEGIN asyncpg commits each statement itself,
+            # and the Unit of Work stops being a unit of work (rollback does not work).
+            # Read-only mode needs no transaction — reads run in autocommit.
             if not self._readonly:
                 await conn.execute("BEGIN")
         except BaseException:
@@ -753,5 +753,5 @@ async def create_pool(
 
         return Pool(await drivers.open_pool(dsn, min_size=min_size, max_size=max_size))
     raise ValueError(
-        f"неизвестная схема DSN: {scheme!r} (поддерживаются postgresql, mysql, sqlite)"
+        f"Unknown DSN scheme: {scheme!r} (supported: postgresql, mysql, sqlite)"
     )

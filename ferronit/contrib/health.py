@@ -33,8 +33,8 @@ class HealthCheck:
         hc = HealthCheck()
         hc.add("db", check_db)
         hc.add("kafka", check_kafka)
-        app.route("/health")(hc)          # 200 / 503 в зависимости от проверок
-        if not hc.is_healthy:  # результат последнего check_all()
+        app.route("/health")(hc)          # 200 / 503 depending on the checks
+        if not hc.is_healthy:  # result of the last check_all()
             ...
     """
 

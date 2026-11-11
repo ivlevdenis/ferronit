@@ -49,7 +49,7 @@ def security_headers(
         if hasattr(result, "__await__"):
             result = await result
         if not isinstance(result, Response):
-            # dict/str → сериализуем сейчас, чтобы заголовки попали в ответ
+            # dict/str → serialize now so the headers land in the response
             from ferronit.core.app import _to_response
             result = _to_response(result)
         for k, v in headers.items():

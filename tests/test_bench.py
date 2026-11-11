@@ -1,8 +1,8 @@
 """Benchmark: Ferronit vs FastAPI vs raw ASGI.
 
-Важно: pytest-benchmark НЕ умеет await'ить корутины, поэтому async-клиент
-оборачивается в синхронную функцию с собственным event loop, а каждая
-итерация бенча гоняет пачку реальных запросов.
+Important: pytest-benchmark does NOT support awaiting coroutines, so the async
+client is wrapped in a synchronous function with its own event loop, and each
+benchmark iteration runs a batch of real requests.
 """
 
 import asyncio
@@ -29,7 +29,7 @@ def app():
 
 
 def _make_runner(app, path: str, batch: int = 100):
-    """Возвращает синхронную функцию: batch реальных запросов на вызов."""
+    """Return a synchronous function: batch real requests per call."""
     transport = ASGITransport(app=app)
 
     async def _run():

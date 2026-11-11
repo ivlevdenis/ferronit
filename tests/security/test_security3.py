@@ -55,7 +55,7 @@ def make_json_app():
 
 @pytest.mark.asyncio
 async def test_json_numeric_attacks_no_crash():
-    """1e999 и 1000-значные числа не роняют парсер — аккуратная ошибка."""
+    """1e999 and 1000-digit numbers do not crash the parser — a clean error."""
     app = make_json_app()
 
     for payload in (b"1e999", b"9" * 1000, b"-9" * 500 + b"9"):
@@ -70,7 +70,7 @@ async def test_json_numeric_attacks_no_crash():
 
 @pytest.mark.asyncio
 async def test_json_prototype_pollution_safe():
-    """__proto__/constructor в JSON — обычные ключи, никакого поллишена."""
+    """__proto__/constructor in JSON — ordinary keys, no pollution whatsoever."""
     app = make_json_app()
 
     body = json.dumps({"__proto__": {"polluted": True}, "constructor": {"x": 1}}).encode()
@@ -80,9 +80,9 @@ async def test_json_prototype_pollution_safe():
     )
     assert status == 200
     data = json.loads(resp_body)["got"]
-    assert data["__proto__"]["polluted"] is True  # это просто данные
+    assert data["__proto__"]["polluted"] is True  # this is just data
     assert data["constructor"]["x"] == 1
-    # ничего не «утекло» в глобальный объект
+    # nothing "leaked" into the global object
     assert not hasattr({}, "polluted")
 
 
@@ -90,7 +90,7 @@ async def test_json_prototype_pollution_safe():
 
 @pytest.mark.asyncio
 async def test_json_duplicate_keys_last_wins():
-    """Повторяющиеся ключи: последний побеждает, без краха."""
+    """Duplicate keys: the last one wins, without crashing."""
     app = make_json_app()
 
     status, _, resp_body = await call_app(
@@ -105,7 +105,7 @@ async def test_json_duplicate_keys_last_wins():
 
 @pytest.mark.asyncio
 async def test_invalid_utf8_body_400():
-    """Бинарный мусор вместо JSON — 400, не 500."""
+    """Binary garbage instead of JSON — 400, not 500."""
     app = make_json_app()
 
     status, _, _ = await call_app(
@@ -119,7 +119,7 @@ async def test_invalid_utf8_body_400():
 
 @pytest.mark.asyncio
 async def test_empty_body_json_clean_error():
-    """json() без тела — 400 (не 500, не краш)."""
+    """json() with no body — 400 (not 500, not a crash)."""
     app = make_json_app()
 
     status, hdrs, body = await call_app(app, "POST", "/echo", body=b"")
@@ -131,7 +131,7 @@ async def test_empty_body_json_clean_error():
 
 @pytest.mark.asyncio
 async def test_json_wrong_content_type_still_validates():
-    """Даже с text/plain заголовком битый body → 400."""
+    """Even with a text/plain header a broken body → 400."""
     app = make_json_app()
 
     status, _, _ = await call_app(
@@ -151,19 +151,19 @@ async def test_json_wrong_content_type_still_validates():
 
 @pytest.mark.asyncio
 async def test_path_params_decoding():
-    """ASGI path уже декодирован — параметр приходит как есть, без двойного декода."""
+    """The ASGI path is already decoded — the parameter arrives as is, no double decode."""
     app = Ferronit()
 
     @app.route("/users/{user_id}")
     async def get_user(req):
         return {"id": req.params["user_id"]}
 
-    # декодированный scope path (как отдают uvicorn/granian)
+    # a decoded scope path (as uvicorn/granian provide it)
     status, _, body = await call_app(app, "GET", "/users/user name")
     assert status == 200
     assert json.loads(body)["id"] == "user name"
 
-    # сырые %-последовательности в несуществующих маршрутах — 404, не краш
+    # raw %-sequences in nonexistent routes — 404, not a crash
     for bad in ("/users/%FF", "/users/%00", "/users/a%2Fb"):
         status, _, _ = await call_app(app, "GET", bad)
         assert status in (200, 404), f"{bad!r} -> {status}"
@@ -173,7 +173,7 @@ async def test_path_params_decoding():
 
 @pytest.mark.asyncio
 async def test_middleware_error_500_generic():
-    """Ошибка в middleware — 500 без внутренностей."""
+    """An error in middleware — 500 without internals."""
     app = Ferronit()
 
     def evil_mw(req, next_handler):

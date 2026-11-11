@@ -1,18 +1,18 @@
-# Тестовые базы для диалектов слоя данных Ferronit.
+# Test databases for the Ferronit data-layer dialects.
 #
-#   ./scripts/dbs_up.sh up        # поднять и дождаться готовности (docker compose --wait)
-#   ./scripts/dbs_up.sh status    # что запущено
-#   ./scripts/dbs_up.sh down      # остановить
+#   ./scripts/dbs_up.sh up        # start and wait for readiness (docker compose --wait)
+#   ./scripts/dbs_up.sh status    # what is running
+#   ./scripts/dbs_up.sh down      # stop
 #
-# Почему так:
-#   * MySQL 8.4 на хосте :3307 (3306 часто занят локальным сервером; тестовый
-#     Postgres у нас на :5432 контейнером velox-pg — см. tests/test_rawdb.py);
-#   * SQLite — библиотека, а не сервер: контейнер ему не нужен, тесты гоняют его
-#     через aiosqlite прямо в процессе (tests/test_sql_backends.py);
-#   * Postgres-контейнер здесь не дублируется: им пользуются существующие тесты
-#     слоя данных (DSN postgres:postgres@localhost:5432/postgres).
+# Why this layout:
+#   * MySQL 8.4 on host :3307 (3306 is often taken by a local server; the test
+#     Postgres lives on :5432 in the velox-pg container — see tests/test_rawdb.py);
+#   * SQLite is a library, not a server: it needs no container, tests run it
+#     through aiosqlite in-process (tests/test_sql_backends.py);
+#   * the Postgres container is not duplicated here: the existing data-layer
+#     tests already use it (DSN postgres:postgres@localhost:5432/postgres).
 #
-# Пользователь/пароль root:root и база ferronit_test — только для тестов.
+# The root:root user/password and the ferronit_test database are for tests only.
 
 services:
   mysql:
@@ -23,8 +23,8 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: ferronit_test
-      # utf8mb4 + *_ci: ILIKE-подобное поведение LIKE без учёта регистра,
-      # как ожидает диалект MySQL (см. ferronit/contrib/sqlast.py).
+      # utf8mb4 + *_ci: ILIKE-like case-insensitive LIKE behaviour,
+      # as the MySQL dialect expects (see ferronit/contrib/sqlast.py).
       MYSQL_ROOT_HOST: "%"
     command:
       - --character-set-server=utf8mb4

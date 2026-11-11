@@ -1,4 +1,4 @@
-"""Заголовки: дубликаты, пустые значения, несколько Cookie — на обоих транспортах."""
+"""Headers: duplicates, empty values, several Cookie — on both transports."""
 
 from __future__ import annotations
 
@@ -76,9 +76,9 @@ async def test_duplicate_headers_asgi() -> None:
     seen: dict = {}
     await _asgi(_app(seen), [(b"x-tag", b"a"), (b"x-tag", b"b")])
 
-    assert seen["first"] == "a"             # get_header — первое значение
-    assert seen["headers"]["x-tag"] == "a, b"  # headers — склейка по RFC 9110
-    assert seen["all"] == ["a", "b"]        # get_all — все, в порядке провода
+    assert seen["first"] == "a"             # get_header — the first value
+    assert seen["headers"]["x-tag"] == "a, b"  # headers — joined per RFC 9110
+    assert seen["all"] == ["a", "b"]        # get_all — all of them, in wire order
 
 
 async def test_duplicate_headers_rsgi() -> None:
@@ -149,7 +149,7 @@ async def test_missing_header_gives_empty_list() -> None:
 
 
 async def test_non_ascii_header_value_asgi() -> None:
-    """ASGI сохраняет октеты; str-API декодирует их UTF-8 (как и раньше)."""
+    """ASGI keeps the octets; the str API decodes them as UTF-8 (as before)."""
     seen: dict = {}
     await _asgi(_app(seen), [(b"x-tag", b"\xd0\xbf\xd1\x80")])
 

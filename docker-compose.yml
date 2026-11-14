@@ -9,7 +9,7 @@
 services:
   api:
     build: .
-    image: ferronit:0.24.0
+    image: ferronit:0.25.0
     ports:
       - "8000:8000"
     environment:
@@ -21,7 +21,7 @@ services:
   # examples/app.py — e-commerce with DDD/CQRS (Postgres from the `postgres` profile)
   ecommerce:
     build: .
-    image: ferronit:0.24.0
+    image: ferronit:0.25.0
     ports:
       - "8001:8000"
     environment:

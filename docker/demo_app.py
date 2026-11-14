@@ -4,7 +4,7 @@ Runs in the container by default (APP=demo_app:app): no DB and no external
 dependencies, so it suits both an image smoke test and a starting point.
 
 Your own project is plugged in via a mount and APP:
-    docker run --rm -p 8000:8000 -v "$PWD:/app" -e APP=app:app ferronit:0.24.0
+    docker run --rm -p 8000:8000 -v "$PWD:/app" -e APP=app:app ferronit:0.25.0
 """
 
 from __future__ import annotations

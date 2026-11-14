@@ -1,6 +1,6 @@
 # Ferronit release: checks → wheels for all platforms → GitHub Release → PyPI.
 #
-#   git tag -a v0.24.0 -m "Ferronit 0.24.0" && git push origin v0.24.0
+#   git tag -a v0.25.0 -m "Ferronit 0.25.0" && git push origin v0.25.0
 #
 # Trigger — a v* tag; workflow_dispatch runs checks and the build without publishing.
 # Publishing to PyPI — via the API token from the repository secret PYPI_API_TOKEN.
@@ -175,7 +175,7 @@ jobs:
     # `macos-latest`, but on 2026-11-02 that job twice failed to get a runner and was
     # cancelled after 15 minutes — "The job was not acquired by Runner of type
     # hosted even after multiple attempts" + "capacity constraints … macOS arm64
-    # runners". Because of it 0.24.0 never shipped: the release waits for all matrix jobs.
+    # runners". Because of it 0.25.0 never shipped: the release waits for all matrix jobs.
     runs-on: macos-15-intel
     strategy:
       fail-fast: false

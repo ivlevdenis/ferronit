@@ -9,7 +9,7 @@ Ferronit is a high-performance Python ASGI framework whose infrastructure layer 
 Rust: **routing, request parsing, gzip and CORS** (JSON stays in Python via msgspec). Business
 logic remains plain Python: DDD / CQRS, hexagonal (ports and adapters), a DI container.
 
-Version 0.24.0, requires Python ≥ 3.12. Speed (local `ab -c 50 -n 30000 -k`, granian RSGI,
+Version 0.25.0, requires Python ≥ 3.12. Speed (local `ab -c 50 -n 30000 -k`, granian RSGI,
 1 worker): ~125–130k req/s on `GET /ping`, ~×1.4 vs BlackSheep, ~×6–11 vs FastAPI (uvicorn).
 Official numbers and methodology live in `ferronit-bench/docs/benchmarks.md`; do not copy them
 here. A single `ab` process tops out at ~200k req/s on 20 vCPU: if the server is faster, run
@@ -107,7 +107,7 @@ poetry run ferronit dev --server granian   # dev server with reload
 poetry run ferronit run --workers 4        # prod: Granian, uvicorn fallback
 
 # docker
-docker build -t ferronit:0.24.0 . && ./scripts/docker_smoke.sh
+docker build -t ferronit:0.25.0 . && ./scripts/docker_smoke.sh
 ```
 
 The Postgres tests (`tests/test_postgres_real.py`, 4 tests) need a container on :5432:

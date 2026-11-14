@@ -4,8 +4,8 @@
 # are built by maturin into one wheel (abi3-py312) right in the build stage. Only
 # network access to PyPI/crates.io is required. The final image ships one wheel and Granian.
 #
-#   docker build -t ferronit:0.24.0 .
-#   docker run --rm -p 8000:8000 ferronit:0.24.0
+#   docker build -t ferronit:0.25.0 .
+#   docker run --rm -p 8000:8000 ferronit:0.25.0
 #
 # ─────────────────────────── Stage 1: wheel ───────────────────────────
 FROM python:3.12-slim-bookworm AS builder

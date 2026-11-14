@@ -129,7 +129,7 @@ so Poetry itself never installs the project.
 
 ```bash
 # the version lives in two files: ferronit/__init__.py and ferronit-rs/Cargo.toml
-git tag -a v0.24.0 -m "Ferronit 0.24.0" && git push origin v0.24.0
+git tag -a v0.25.0 -m "Ferronit 0.25.0" && git push origin v0.25.0
 ```
 
 Pushing a `v*` tag triggers `.github/workflows/release.yml`: checks and tests → wheels
@@ -140,8 +140,8 @@ match `Cargo.toml`/`__init__.py`, the workflow fails before publishing anything.
 ## Docker
 
 ```bash
-docker build -t ferronit:0.24.0 .
-docker run --rm -p 8000:8000 ferronit:0.24.0
+docker build -t ferronit:0.25.0 .
+docker run --rm -p 8000:8000 ferronit:0.25.0
 ```
 
 ## License

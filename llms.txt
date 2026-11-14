@@ -37,7 +37,7 @@ This file is a short map for language models and agents.
 poetry run pytest tests/ -q
 poetry run ferronit dev --server granian
 poetry run ferronit run --workers 4
-docker build -t ferronit:0.24.0 . && ./scripts/docker_smoke.sh
+docker build -t ferronit:0.25.0 . && ./scripts/docker_smoke.sh
 ```
 
 ## Optional

@@ -594,15 +594,23 @@ class RawUnitOfWork(UnitOfWork):
             await self._conn.execute("ROLLBACK")
 
     async def __aenter__(self) -> RawUnitOfWork:
-        conn = await self._pool.acquire()
+        pool = self._pool
+        # Pools with a reader side (SQLite) pick the connection flavour here;
+        # a bare asyncpg pool does not take the keyword at all.
+        if getattr(pool, "supports_readonly_acquire", False):
+            conn = await pool.acquire(readonly=self._readonly)
+        else:
+            conn = await pool.acquire()
         try:
             # without an explicit BEGIN asyncpg commits each statement itself,
             # and the Unit of Work stops being a unit of work (rollback does not work).
             # Read-only mode needs no transaction — reads run in autocommit.
+            # SQLite opens with BEGIN IMMEDIATE (begin_statement): a deferred
+            # transaction fails on upgrade, after the reads, and cannot be retried.
             if not self._readonly:
-                await conn.execute("BEGIN")
+                await conn.execute(getattr(conn, "begin_statement", "BEGIN"))
         except BaseException:
-            await self._pool.release(conn)
+            await pool.release(conn)
             raise
         self._conn = conn
         return self
@@ -624,9 +632,11 @@ class RawUnitOfWork(UnitOfWork):
 class Pool:
     """Typed wrapper around a native pool — the unit-of-work entry point.
 
-    The pool can be ``asyncpg`` (PostgreSQL), an ``aiomysql`` pool or the single
-    SQLite connection adapter (see :mod:`ferronit.contrib.drivers`): the wrapper
-    only needs ``acquire``/``release``/``close``, which all three provide. The
+    The pool can be ``asyncpg`` (PostgreSQL), an ``aiomysql`` pool or the SQLite
+    adapter — a writer slot plus read-only connections (see
+    :mod:`ferronit.contrib.drivers`). The wrapper only needs
+    ``acquire``/``release``/``close``, which all three provide; a pool that sets
+    ``supports_readonly_acquire`` also receives the ``readonly`` flag. The
     dialect travels with the connection, not with the pool.
 
     Distinct pools are told apart by annotation: ``Annotated[Pool, "users"]``
@@ -700,22 +710,31 @@ async def create_raw_pool(
 
 
 async def create_pool(
-    dsn: str, *, min_size: int = 1, max_size: int = 10, reset_on_release: bool = False
+    dsn: str,
+    *,
+    min_size: int = 1,
+    max_size: int = 10,
+    reset_on_release: bool = False,
+    sqlite_readers: int = 4,
+    sqlite_busy_timeout: float = 5.0,
+    sqlite_foreign_keys: bool = True,
 ) -> Pool:
     """Create a :class:`Pool` over the engine named by the DSN scheme.
 
     ``postgresql://`` → ``asyncpg`` (extra ``postgres``), ``mysql://`` →
     ``aiomysql`` (extra ``mysql``), ``sqlite://`` → ``aiosqlite`` (extra
-    ``sqlite``; SQLite is a library, so the "pool" is one connection). The returned
-    object is the same :class:`Pool` for every engine, so ``uow()``, the
-    repositories and the examples do not change.
+    ``sqlite``). SQLite is a library with one writer per file, so its adapter is a
+    writer slot plus ``sqlite_readers`` read-only connections in WAL mode; an
+    in-memory database gets the writer only. The returned object is the same
+    :class:`Pool` for every engine, so ``uow()``, the repositories and the
+    examples do not change.
 
     Call this inside the event loop the server runs in (typically in
     ``@app.lifespan`` setup): the drivers bind their pools to that loop.
 
     Args:
         dsn: Connection string; the scheme picks the driver, e.g.
-            ``postgresql://user@host/db``, ``mysql://user:pass@host:3307/db``,
+            ``postgresql://user@host/db``, ``mysql://user:***@host:3307/db``,
             ``sqlite:///tmp/app.db`` or ``sqlite://:memory:``.
         min_size: Minimum number of pooled connections (network engines).
         max_size: Maximum number of pooled connections (network engines).
@@ -729,6 +748,11 @@ async def create_pool(
             session state (``SET``, temporary tables, ``LISTEN``,
             ``pg_advisory_lock``), otherwise that state stays visible to the
             next request that borrows the same connection.
+        sqlite_readers: SQLite only — read-only connections serving ``readonly``
+            units in parallel with the writer (0 disables them).
+        sqlite_busy_timeout: SQLite only — seconds to wait for a lock held by
+            another process.
+        sqlite_foreign_keys: SQLite only — enforce ``PRAGMA foreign_keys``.
 
     Returns:
         A :class:`Pool` ready to hand out units of work.
@@ -751,7 +775,16 @@ async def create_pool(
     if scheme.startswith(("mysql", "sqlite")):
         from ferronit.contrib import drivers
 
-        return Pool(await drivers.open_pool(dsn, min_size=min_size, max_size=max_size))
+        return Pool(
+            await drivers.open_pool(
+                dsn,
+                min_size=min_size,
+                max_size=max_size,
+                sqlite_readers=sqlite_readers,
+                sqlite_busy_timeout=sqlite_busy_timeout,
+                sqlite_foreign_keys=sqlite_foreign_keys,
+            )
+        )
     raise ValueError(
         f"Unknown DSN scheme: {scheme!r} (supported: postgresql, mysql, sqlite)"
     )

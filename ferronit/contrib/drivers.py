@@ -24,6 +24,7 @@ not, and the repositories fall back to ``sql.POSTGRES`` for them.
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Sequence
 from typing import Any, Protocol, runtime_checkable
 from urllib.parse import urlsplit
@@ -139,11 +140,18 @@ class Pool(Protocol):
     """What a unit of work expects from a pool.
 
     ``asyncpg.Pool`` satisfies it as is; the MySQL/SQLite adapters below wrap their
-    native pools (an ``aiomysql`` pool, a single ``aiosqlite`` connection).
+    native pools (an ``aiomysql`` pool, an ``aiosqlite`` writer plus readers).
+    Pools that can pick a dedicated read-only connection set
+    ``supports_readonly_acquire = True`` and accept ``readonly`` — the unit of
+    work passes it only then, so a bare ``asyncpg.Pool`` keeps working.
     """
 
-    async def acquire(self) -> Any:
-        """Take a connection from the pool."""
+    async def acquire(self, *, readonly: bool = False) -> Any:
+        """Take a connection from the pool.
+
+        Args:
+            readonly: Preferred connection flavour for a read-only unit of work.
+        """
         ...
 
     async def release(self, connection: Any) -> None:
@@ -318,11 +326,19 @@ class MySQLPool:
 
     __slots__ = ("_pool",)
 
+    #: ``acquire`` understands the ``readonly`` keyword (see ``RawUnitOfWork``).
+    supports_readonly_acquire = True
+
     def __init__(self, pool: Any) -> None:
         self._pool = pool
 
-    async def acquire(self) -> MySQLConnection:
-        """Take a connection from the pool and wrap it."""
+    async def acquire(self, *, readonly: bool = False) -> MySQLConnection:
+        """Take a connection from the pool and wrap it.
+
+        Args:
+            readonly: Accepted for the shared pool protocol; MySQL has no
+                read-only connection flavour, so it is ignored.
+        """
         return MySQLConnection(await self._pool.acquire())
 
     async def release(self, connection: MySQLConnection) -> None:
@@ -341,16 +357,22 @@ class MySQLPool:
 class SQLiteConnection:
     """Adapter over an ``aiosqlite`` connection.
 
-    SQLite has no server and no connection pool: one connection serialises the
-    statements, which matches SQLite's single-writer model. Transactions are
-    controlled explicitly by the unit of work (``BEGIN``/``COMMIT``), so the
-    connection is opened with ``isolation_level=None``.
+    Statements on one connection are serialised by SQLite itself, which is why
+    the pool hands the writer out one unit of work at a time and gives read-only
+    units their own connections (see :class:`SQLitePool`). Transactions are
+    controlled explicitly by the unit of work (``BEGIN IMMEDIATE``/``COMMIT``),
+    so the connection is opened with ``isolation_level=None``.
 
     Args:
         connection: A live ``aiosqlite`` connection.
     """
 
     dialect = sql.SQLITE
+
+    #: SQLite takes the write lock up front: a deferred ``BEGIN`` that later
+    #: upgrades fails with ``database is locked`` *after* the reads, and that
+    #: transaction cannot be retried without losing work.
+    begin_statement = "BEGIN IMMEDIATE"
 
     __slots__ = ("_raw",)
 
@@ -413,43 +435,165 @@ class SQLiteConnection:
 
 
 class SQLitePool:
-    """A pool of exactly one SQLite connection — the unit-of-work entry point.
+    """SQLite access as one writer plus N readers over WAL. Unit-of-work entry point.
 
-    SQLite is a library, not a server: there is nothing to pool. The adapter exists
-    so that ``RawUnitOfWork`` and ``Pool`` behave the same way as for the network
-    engines; concurrent units of work share the connection and are therefore
-    serialised (use one database file per writer, as SQLite requires).
+    SQLite allows many readers and exactly one writer, so a symmetric pool would
+    only turn the second writer into a ``database is locked`` error. The pool
+    therefore has two sides:
+
+    * **writer** — the single connection handed out to non-readonly units, one at
+      a time (``asyncio.Lock``). Its transactions open with ``BEGIN IMMEDIATE``:
+      a deferred ``BEGIN`` that upgrades later fails *after* the reads, and such a
+      transaction cannot be retried without repeating the work.
+    * **readers** — ``readers`` extra connections to the same file, opened in WAL
+      mode with ``PRAGMA query_only = ON``. Read-only units borrow them
+      concurrently, so the CQRS read side runs in parallel with writes.
+
+    Readers see committed data only: a read-only unit never opens a transaction,
+    and it is not attached to the writer's one. A misused read-only unit that
+    tries to write fails loudly (``attempt to write a readonly database``)
+    instead of quietly joining the writer's transaction.
+
+    Limitations, both inherent to SQLite: an in-memory database (``:memory:``)
+    is private per connection, so it gets the writer only and no readers; and the
+    writer lock lives in-process, so several workers over one file still have to
+    wait for each other through ``busy_timeout`` — keep one worker per file.
 
     Args:
-        connection: A live ``aiosqlite`` connection.
+        connection: A live ``aiosqlite`` connection used as the writer.
+        readers: Extra read-only connections opened on the same database file.
+            ``0`` disables parallel reads; in-memory databases always get ``0``.
+        busy_timeout: Seconds a writer waits for another *process* holding the
+            file lock before failing (``PRAGMA busy_timeout``).
+        foreign_keys: Enable ``PRAGMA foreign_keys`` on every connection —
+            SQLite does not enforce foreign keys otherwise.
     """
 
-    __slots__ = ("_connection",)
+    __slots__ = (
+        "_busy_timeout",
+        "_connection",
+        "_foreign_keys",
+        "_path",
+        "_readers",
+        "_readers_requested",
+        "_ready",
+        "_writer_lock",
+    )
 
-    def __init__(self, connection: Any) -> None:
+    #: ``acquire`` understands the ``readonly`` keyword (see ``RawUnitOfWork``).
+    supports_readonly_acquire = True
+
+    def __init__(
+        self,
+        connection: Any,
+        *,
+        readers: int = 4,
+        busy_timeout: float = 5.0,
+        foreign_keys: bool = True,
+    ) -> None:
         self._connection = SQLiteConnection(connection)
+        self._readers_requested = max(0, int(readers))
+        self._busy_timeout = busy_timeout
+        self._foreign_keys = foreign_keys
+        self._writer_lock = asyncio.Lock()
+        self._readers: asyncio.Queue[SQLiteConnection] = asyncio.Queue()
+        self._path = ""
+        self._ready = False
 
     @property
     def dialect(self) -> sql.Dialect:
         """The dialect of this pool (SQLite)."""
         return sql.SQLITE
 
-    async def acquire(self) -> SQLiteConnection:
-        """Return the single wrapped connection."""
+    @property
+    def readers(self) -> int:
+        """How many read-only connections are idle right now (0 for ``:memory:``)."""
+        return self._readers.qsize()
+
+    async def _ping_pragma(self, connection: Any, statement: str) -> list[Any]:
+        """Run a PRAGMA and drain its cursor: some pragmas return a row."""
+        cursor = await connection.execute(statement)
+        try:
+            return await cursor.fetchall()
+        finally:
+            await cursor.close()
+
+    async def _configure(self, connection: Any, *, query_only: bool) -> None:
+        """Apply per-connection pragmas — each SQLite connection starts with defaults."""
+        await self._ping_pragma(connection, f"PRAGMA busy_timeout = {int(self._busy_timeout * 1000)}")
+        if self._foreign_keys:
+            await self._ping_pragma(connection, "PRAGMA foreign_keys = ON")
+        if self._path:
+            # WAL is a property of the file: readers may run during a write.
+            await self._ping_pragma(connection, "PRAGMA journal_mode = WAL")
+        if query_only:
+            await self._ping_pragma(connection, "PRAGMA query_only = ON")
+
+    async def _ensure_ready(self) -> None:
+        """Open the database file, configure the writer and start the readers."""
+        if self._ready:
+            return
+        rows = await self._ping_pragma(self._connection.raw, "PRAGMA database_list")
+        # (seq, name, file) — the file is empty for an in-memory database
+        self._path = str(rows[0][2]) if rows else ""
+        await self._configure(self._connection.raw, query_only=False)
+
+        if self._path and self._readers_requested:
+            aiosqlite = _require("aiosqlite", "sqlite")
+            for _ in range(self._readers_requested):
+                raw = await aiosqlite.connect(self._path, isolation_level=None)
+                try:
+                    await self._configure(raw, query_only=True)
+                except BaseException:
+                    await raw.close()
+                    raise
+                self._readers.put_nowait(SQLiteConnection(raw))
+        self._ready = True
+
+    async def acquire(self, *, readonly: bool = False) -> SQLiteConnection:
+        """Take a connection: a reader for read-only units, else the writer slot.
+
+        Args:
+            readonly: Hand out a read-only connection instead of the writer.
+
+        Returns:
+            A :class:`SQLiteConnection` bound to this pool.
+        """
+        await self._ensure_ready()
+        if readonly and self._path and self._readers_requested:
+            # wait for a reader instead of falling back to the writer: a reader
+            # must never end up inside the writer's transaction
+            return await self._readers.get()
+        await self._writer_lock.acquire()
         return self._connection
 
     async def release(self, connection: SQLiteConnection) -> None:
-        """No-op: the connection stays open for the next unit of work."""
+        """Return a connection: the writer slot is freed, a reader goes back to the queue."""
+        if connection is self._connection:
+            if self._writer_lock.locked():
+                self._writer_lock.release()
+            return
+        self._readers.put_nowait(connection)
 
     async def close(self) -> None:
-        """Close the connection."""
+        """Close the writer and every reader."""
+        while not self._readers.empty():
+            await self._readers.get_nowait().close()
         await self._connection.close()
 
 
 # ── Factory ──────────────────────────────────────────────────────────────────
 
 
-async def open_pool(dsn: str, *, min_size: int = 1, max_size: int = 10) -> Any:
+async def open_pool(
+    dsn: str,
+    *,
+    min_size: int = 1,
+    max_size: int = 10,
+    sqlite_readers: int = 4,
+    sqlite_busy_timeout: float = 5.0,
+    sqlite_foreign_keys: bool = True,
+) -> Any:
     """Open a native pool for an ``mysql://`` or ``sqlite://`` DSN.
 
     The driver is imported here, not at module import time, so that the optional
@@ -459,6 +603,11 @@ async def open_pool(dsn: str, *, min_size: int = 1, max_size: int = 10) -> Any:
         dsn: Connection string; the scheme picks the driver.
         min_size: Minimum number of pooled connections (MySQL).
         max_size: Maximum number of pooled connections (MySQL).
+        sqlite_readers: Extra read-only connections for the SQLite pool (WAL);
+            ``0`` serves read-only units from the writer slot too.
+        sqlite_busy_timeout: SQLite writer wait, in seconds, for a lock held by
+            another process.
+        sqlite_foreign_keys: Enable ``PRAGMA foreign_keys`` on SQLite connections.
 
     Returns:
         A pool adapter: :class:`MySQLPool` or :class:`SQLitePool`.
@@ -482,5 +631,10 @@ async def open_pool(dsn: str, *, min_size: int = 1, max_size: int = 10) -> Any:
     if scheme.startswith("sqlite"):
         aiosqlite = _require("aiosqlite", "sqlite")
         connection = await aiosqlite.connect(parse_dsn(dsn)["path"], isolation_level=None)
-        return SQLitePool(connection)
+        return SQLitePool(
+            connection,
+            readers=sqlite_readers,
+            busy_timeout=sqlite_busy_timeout,
+            foreign_keys=sqlite_foreign_keys,
+        )
     raise ValueError(f"Unknown DSN scheme: {scheme!r} (expected mysql or sqlite)")

@@ -112,7 +112,7 @@ async def orders():
 poetry install --all-extras             # environment in .venv + all dependencies
 PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 poetry run maturin develop --release   # build the Rust core
 ./scripts/check.sh                      # lint → types → docstrings → core build → tests
-poetry run pytest tests/ -q             # 510 tests
+poetry run pytest tests/ -q             # 554 tests
 ```
 
 Poetry manages the environment (`poetry.toml` keeps the venv inside the project), while the

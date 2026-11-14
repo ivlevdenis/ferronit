@@ -125,7 +125,7 @@ app = Ferronit(logger=logger, access_log=True)  # access-log через логг
 poetry install --all-extras             # окружение в .venv + все зависимости
 PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 poetry run maturin develop --release   # Rust-ядро
 ./scripts/check.sh                      # линт → типы → докстринги → сборка ядра → тесты
-poetry run pytest tests/ -q             # 510 тестов
+poetry run pytest tests/ -q             # 554 тестов
 ```
 
 Окружение ведёт Poetry (`poetry.toml` — venv внутри проекта), wheel с Rust-ядром собирает

@@ -25,6 +25,13 @@ Ferronit использует **один** способ работы с БД: т
 Правило большого пальца: `pool.uow(readonly=True)` для чтений (пропускает `BEGIN`,
 экономит round-trip), `uow.model(User)` для типизированного доступа к строкам.
 
+У SQLite та же строка кода даёт больше: пишущие юниты идут через единственное
+соединение по очереди (`BEGIN IMMEDIATE`), а `readonly=True` берёт отдельное
+соединение из читателей (WAL, `PRAGMA query_only`) и не ждёт запись. Число
+читателей и прагмы — `create_pool(dsn, sqlite_readers=4,
+sqlite_busy_timeout=5.0, sqlite_foreign_keys=True)`; у `sqlite://:memory:`
+читателей нет, база приватна для соединения.
+
 ```python
 from ferronit.contrib.rawdb import create_pool
 from ferronit.contrib.rawmodel import Model, select

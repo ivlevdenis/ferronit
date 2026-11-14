@@ -59,7 +59,7 @@ ferronit-rs/src/lib.rs        # Rust: Router, Request (headers/cookies/query), H
                                #    build_set_cookie, parse_headers, first_header, gzip, CORS, multipart
 pyproject.toml                # metadata, extras, [tool.poetry], [tool.maturin], ruff/mypy
 poetry.toml, poetry.lock      # Poetry environment (venv inside .venv/) and locked dependencies
-tests/                     # 545 tests (+9 skipped); tests/security/ — 65 (incl. 14 ASVS L1)
+tests/                     # 554 tests (+9 skipped); tests/security/ — 65 (incl. 14 ASVS L1)
 examples/                  # minimal, DI, LLM+SSE, RAG, WebSocket + README
 docker/                    # Dockerfile glue: demo_app.py, entrypoint.sh
 docs/                      # documentation: README.md (hub), data/ (data layer),
@@ -87,7 +87,7 @@ PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 poetry run maturin develop --release   # c
 ./scripts/check.sh
 
 # individually (`.venv/bin/...` works too — the venv lives inside the project)
-poetry run pytest tests/ -q                    # 545 tests, ~3 s
+poetry run pytest tests/ -q                    # 554 tests, ~4 s
 poetry run pytest tests/security -q            # security suite + ASVS L1
 poetry run ruff check ferronit tests           # lint
 poetry run mypy ferronit                       # types

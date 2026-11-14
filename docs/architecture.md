@@ -171,7 +171,8 @@ bound-параметры, максимум throughput.
 | `contrib.rawdb` | `Pool`, `create_pool`, `RawUnitOfWork`, `RawRepository`, `Condition` — сырые dict-строки поверх драйвера |
 | `contrib.rawmodel` | `Model` (неизменяемый `msgspec.Struct`), `Query`/`select`, `Relation`, `RawModelRepository`, `IdentityMap` |
 
-- `pool.uow(readonly=True)` для чтений — пропускает `BEGIN`, экономит round-trip.
+- `pool.uow(readonly=True)` для чтений — пропускает `BEGIN`, экономит round-trip; у SQLite
+  такой юнит берёт отдельное read-only соединение (WAL) и идёт параллельно с записью.
 - `uow.model(User)` — типизированный доступ к строкам.
 - `RawModelRepository` маппит строку **позиционно** (`cls(*row)`) без словаря —
   дешевле dict в ~1.85–1.9× (см. [стенд ferronit-bench](https://github.com/ivlevdenis/ferronit-bench)).

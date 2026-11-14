@@ -10,7 +10,7 @@ abi3-py312). Requires Python ≥ 3.12.
 
 ```bash
 ./scripts/check.sh                                  # ruff → mypy → core build → pytest
-poetry run pytest tests/ -q                         # 263 tests
+poetry run pytest tests/ -q                         # 554 tests
 poetry run ruff check ferronit tests
 poetry run mypy ferronit
 PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 poetry run maturin develop --release
